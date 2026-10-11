@@ -20,6 +20,7 @@ window.addEventListener('message', event => {
   const pending = Promise.resolve().then(() => {
     if (message.method === 'hello') return { ok: true };
     if (message.method === 'begin') return service.begin(message.params);
+    if (message.method === 'language') return service.setLanguage(message.params);
     if (message.method === 'snapshot') return service.snapshot();
     if (message.method === 'cancel') return service.cancel();
     if (message.method === 'project') return { ok: true, projectId: adapter.projectId(), file: adapter.path() };

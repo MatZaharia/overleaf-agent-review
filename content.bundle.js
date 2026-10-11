@@ -217,10 +217,212 @@
     }
   });
 
+  // src/floatingPanel.js
+  var require_floatingPanel = __commonJS({
+    "src/floatingPanel.js"(exports, module) {
+      "use strict";
+      var css = `.panel-drag{cursor:grab;touch-action:none;user-select:none}.panel-drag:active{cursor:grabbing}.panel-drag:focus-visible,.panel-resize:focus-visible{outline:3px solid #8aafe3;outline-offset:-3px}.panel-resize{position:absolute;right:2px;bottom:2px;width:20px;height:20px;cursor:nwse-resize;touch-action:none;z-index:2;border:0!important;padding:0!important;background:linear-gradient(135deg,transparent 50%,#8c9aa6 51%,#8c9aa6 57%,transparent 58%,transparent 68%,#8c9aa6 69%,#8c9aa6 75%,transparent 76%)!important;border-radius:0!important}`;
+      function clamp(rect, bounds, minimum = { width: 280, height: 160 }) {
+        const width = Math.min(Math.max(minimum.width, rect.width), bounds.width);
+        const height = Math.min(Math.max(minimum.height, rect.height), bounds.height);
+        return { left: Math.min(Math.max(bounds.left, rect.left), bounds.left + bounds.width - width), top: Math.min(Math.max(bounds.top, rect.top), bounds.top + bounds.height - height), width, height };
+      }
+      function attach({ panel, drag, resize, window: window2, state = {}, minimum, defaultRect }) {
+        let gesture = null, disposed = false;
+        const bounds = () => ({ left: 8, top: 8, width: Math.max(1, window2.innerWidth - 16), height: Math.max(1, window2.innerHeight - 16) });
+        function layout() {
+          if (disposed) return;
+          const rect = clamp(state.rect || defaultRect(), bounds(), minimum);
+          if (state.rect) state.rect = rect;
+          Object.assign(panel.style, { left: rect.left + "px", top: rect.top + "px", width: rect.width + "px", height: rect.height + "px" });
+          return rect;
+        }
+        function start(event, kind, handle) {
+          if (event.button !== 0 || event.target.closest?.("button,input,select,textarea,a") && event.target !== resize) return;
+          const rect = layout();
+          gesture = { id: event.pointerId, x: event.clientX, y: event.clientY, rect, kind, handle };
+          handle.setPointerCapture(event.pointerId);
+          event.preventDefault();
+        }
+        function move(event) {
+          if (!gesture || event.pointerId !== gesture.id) return;
+          const { rect, x, y, kind } = gesture, dx = event.clientX - x, dy = event.clientY - y;
+          state.rect = kind === "move" ? { ...rect, left: rect.left + dx, top: rect.top + dy } : { ...rect, width: rect.width + dx, height: rect.height + dy };
+          layout();
+          event.preventDefault();
+        }
+        function end(event) {
+          if (!gesture || event.pointerId !== gesture.id) return;
+          const old = gesture;
+          gesture = null;
+          if (old.handle.hasPointerCapture(old.id)) old.handle.releasePointerCapture(old.id);
+        }
+        const onDrag = (e) => start(e, "move", drag), onResize = (e) => start(e, "resize", resize);
+        function keys(event, kind) {
+          const delta = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[event.key];
+          if (!delta || event.target !== event.currentTarget) return;
+          const rect = layout(), step = event.shiftKey ? 20 : 5;
+          state.rect = kind === "move" ? { ...rect, left: rect.left + delta[0] * step, top: rect.top + delta[1] * step } : { ...rect, width: rect.width + delta[0] * step, height: rect.height + delta[1] * step };
+          layout();
+          event.preventDefault();
+        }
+        const dragKeys = (e) => keys(e, "move"), resizeKeys = (e) => keys(e, "resize");
+        drag.classList.add("panel-drag");
+        drag.tabIndex = 0;
+        resize.classList.add("panel-resize");
+        drag.addEventListener("pointerdown", onDrag);
+        resize.addEventListener("pointerdown", onResize);
+        drag.addEventListener("keydown", dragKeys);
+        resize.addEventListener("keydown", resizeKeys);
+        for (const handle of [drag, resize]) for (const [name, fn] of [["pointermove", move], ["pointerup", end], ["pointercancel", end], ["lostpointercapture", end]]) handle.addEventListener(name, fn);
+        window2.addEventListener("resize", layout);
+        return { layout, dispose() {
+          disposed = true;
+          if (gesture) {
+            const old = gesture;
+            gesture = null;
+            if (old.handle.hasPointerCapture(old.id)) old.handle.releasePointerCapture(old.id);
+          }
+          drag.removeEventListener("pointerdown", onDrag);
+          resize.removeEventListener("pointerdown", onResize);
+          drag.removeEventListener("keydown", dragKeys);
+          resize.removeEventListener("keydown", resizeKeys);
+          for (const handle of [drag, resize]) for (const [name, fn] of [["pointermove", move], ["pointerup", end], ["pointercancel", end], ["lostpointercapture", end]]) handle.removeEventListener(name, fn);
+          window2.removeEventListener("resize", layout);
+        } };
+      }
+      module.exports = { attach, clamp, css };
+    }
+  });
+
+  // src/i18n.js
+  var require_i18n = __commonJS({
+    "src/i18n.js"(exports, module) {
+      "use strict";
+      var english = {
+        "\u914D\u5BF9\u4EE4\u724C\u683C\u5F0F\u4E0D\u6B63\u786E": "Invalid pairing token format",
+        "\u5EFA\u8BAE\u4F1A\u8BDD\u5DF2\u66F4\u65B0\uFF0C\u8BF7\u91CD\u65B0\u8F7D\u5165": "Suggestion session changed; reload the pack",
+        "\u5EFA\u8BAE\u5305\u5206\u5757\u987A\u5E8F\u65E0\u6548": "Invalid suggestion pack chunk order",
+        "\u5EFA\u8BAE\u7D22\u5F15\u65E0\u6548": "Invalid suggestion index",
+        "\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE": "Review suggestions",
+        "\u6536\u8D77": "Close",
+        "\u5148\u5BFC\u5165\u5EFA\u8BAE\u5305\uFF0C\u518D\u9010\u9879\u786E\u8BA4\u3002\u6BCF\u6B21\u63A5\u53D7\u90FD\u4F1A\u641C\u7D22\u5F53\u524D\u539F\u6587\uFF1B\u8FC7\u65F6\u6216\u4E0D\u552F\u4E00\u7684\u9879\u81EA\u52A8\u8DF3\u8FC7\u3002": "Import a pack and review each item. Accept searches the current source; stale or ambiguous items are skipped.",
+        "\u5EFA\u8BAE\u5305 JSON": "Suggestion pack JSON",
+        "\u7C98\u8D34 Agent \u751F\u6210\u7684\u5EFA\u8BAE\u5305": "Paste an Agent suggestion pack",
+        "\u8FDE\u63A5 Agent": "Connect Agent",
+        "\u65AD\u5F00": "Disconnect",
+        "\u672C\u5730\u8FDE\u63A5\u914D\u5BF9\u4EE4\u724C": "Local pairing token",
+        "\u9009\u62E9 JSON \u6587\u4EF6": "Choose JSON file",
+        "\u5F00\u59CB\u5BA1\u9605": "Start review",
+        "\u6062\u590D\u4E0A\u6B21\u5BA1\u9605": "Resume review",
+        "\u6E05\u9664\u8FDB\u5EA6": "Clear progress",
+        "\u505C\u6B62": "Stop",
+        "\u7B49\u5F85\u5BFC\u5165\u5EFA\u8BAE\u5305": "Import a suggestion pack to begin",
+        "\u5DF2\u5199\u5165\u8868\u793A\u7F16\u8F91\u5668\u5185\u5BB9\u5DF2\u6838\u9A8C\uFF0C\u670D\u52A1\u5668\u4FDD\u5B58\u9700\u5728 Overleaf \u68C0\u67E5\u3002\u53EF\u4F7F\u7528 Overleaf \u7684\u64A4\u9500\u6309\u94AE\u3002": "Written means editor content was verified. Check saving in Overleaf; use its Undo button if needed.",
+        "\u539F\u6587": "Original",
+        "\u5EFA\u8BAE\u4FEE\u6539": "Proposed change",
+        "\u4E0A\u4E00\u9879": "Previous item",
+        "\u4E0B\u4E00\u9879": "Next item",
+        "\u5149\u6807\u4E0A\u4E00\u5904": "Before cursor",
+        "\u5149\u6807\u4E0B\u4E00\u5904": "After cursor",
+        "\u62D2\u7EDD\u8FD9\u4E00\u9879": "Reject this item",
+        "\u63A5\u53D7\u8FD9\u4E00\u9879": "Accept this item",
+        "\uFF08\u5220\u9664\u6B64\u6BB5\uFF09": "(delete this text)",
+        "\u62D6\u52A8\u6807\u9898\u79FB\u52A8\u9762\u677F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03": "Drag the title to move; arrow keys adjust position",
+        "\u62D6\u52A8\u53F3\u4E0B\u89D2\u8C03\u6574\u5927\u5C0F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03": "Drag the bottom-right corner to resize; arrow keys adjust size",
+        "\u8BED\u8A00": "Language",
+        "\u539F\u6587\u5DF2\u9AD8\u4EAE\uFF1B\u63A5\u53D7\u65F6\u91CD\u65B0\u641C\u7D22\uFF0C\u8FC7\u65F6\u9879\u8DF3\u8FC7\u3002": "Original highlighted. Accept searches again; stale items are skipped.",
+        "\u539F\u6587\u5DF2\u5728\u6E90\u7801\u4E2D\u9AD8\u4EAE\uFF0C\u7B49\u5F85\u786E\u8BA4": "Original highlighted in source; waiting for your decision",
+        "\u9AD8\u4EAE\u6682\u4E0D\u53EF\u7528\uFF0C\u8BF7\u5728\u6B64\u6838\u5BF9\u539F\u6587\u4E0E\u5EFA\u8BAE": "Highlight unavailable; compare the original and proposal here",
+        "\u6B63\u6587\u6709\u53D8\u5316\uFF0C\u5DF2\u91CD\u65B0\u5B9A\u4F4D\u8FD9\u4E00\u9879\uFF0C\u7B49\u5F85\u786E\u8BA4": "Source changed; this item was relocated and awaits your decision",
+        "\u6B63\u5728\u6309\u5F53\u524D\u5149\u6807\u67E5\u627E\u5EFA\u8BAE\u2026": "Finding suggestions near the current cursor\u2026",
+        "\u5F53\u524D\u6587\u4EF6\u7684\u5149\u6807\u8FD9\u4E00\u4FA7\u6CA1\u6709\u53EF\u5B9A\u4F4D\u7684\u5F85\u5904\u7406\u5EFA\u8BAE": "No locatable pending suggestion on this side of the cursor in this file",
+        "\u8FD9\u4E00\u4FA7\u6CA1\u6709\u5F85\u5904\u7406\u5EFA\u8BAE\uFF1B\u5F53\u524D\u9879\u4ECD\u7B49\u5F85\u786E\u8BA4": "No pending item in this direction; the current item still awaits your decision",
+        "\u6B63\u6587\u3001\u6587\u4EF6\u6216\u5149\u6807\u6709\u53D8\u5316\uFF0C\u8BF7\u91CD\u65B0\u70B9\u51FB\u5BFC\u822A": "Source, file or cursor changed; click navigation again",
+        "\u5BFC\u822A\u672A\u5B8C\u6210\uFF1A": "Navigation failed: ",
+        "\u5DF2\u505C\u6B62": "Stopped",
+        "\u9875\u9762\u8FDE\u63A5\u8D85\u65F6": "Page connection timed out",
+        "\u65E0\u6CD5\u8FDE\u63A5\u9875\u9762": "Cannot connect to the page",
+        "\u4FDD\u5B58\u5B9A\u4F4D\u8BB0\u5F55\u5931\u8D25\uFF1A": "Could not save position tracking: ",
+        "\u4FDD\u5B58\u5BA1\u9605\u51B3\u5B9A\u5931\u8D25\uFF1A": "Could not save the review decision: ",
+        "\u5DF2\u5199\u5165": "Written",
+        "\u5DF2\u62D2\u7EDD": "Rejected",
+        "\u5199\u5165\u672A\u786E\u8BA4": "Write unconfirmed",
+        "\u5DF2\u8DF3\u8FC7\uFF1A": "Skipped: ",
+        "\u5F53\u524D\u9879\u5DF2\u5199\u5165\u7F16\u8F91\u5668\uFF0C\u7EE7\u7EED\u6838\u5BF9\u4E0B\u4E00\u9879": "This item was written to the editor; review the next item",
+        "\u8BF7\u5148\u6253\u5F00 Overleaf \u9879\u76EE": "Open an Overleaf project first",
+        "\u5EFA\u8BAE\u5305\u5C5E\u4E8E\u5176\u4ED6\u9879\u76EE\uFF0C\u6CA1\u6709\u5199\u5165": "This pack belongs to another project; no write was made",
+        "\u5EFA\u8BAE\u5DF2\u66F4\u65B0\u6216\u5BA1\u9605\u5DF2\u505C\u6B62": "Suggestions changed or review stopped",
+        "\u5199\u5165\u7ED3\u679C\u672A\u786E\u8BA4\uFF0C\u5DF2\u505C\u6B62\u3002\u8BF7\u68C0\u67E5\u5F53\u524D\u6B63\u6587\uFF0C\u4E0D\u8981\u91CD\u590D\u63A5\u53D7\u3002": "Write could not be verified; review stopped. Check the source before accepting again.",
+        "\u5BA1\u9605\u5DF2\u505C\u6B62\uFF1A": "Review stopped: ",
+        "\u672C\u5730\u8FDE\u63A5\u9700\u8981\u5728 Chrome \u6269\u5C55\u4E2D\u4F7F\u7528": "Local connection requires the Chrome extension",
+        "\u5DF2\u8FDE\u63A5\uFF1AAgent \u8BF7\u6C42\u65F6\u624D\u8BFB\u53D6\u6E90\u7801\uFF1B\u65B0\u5EFA\u8BAE\u7B49\u5F85\u9010\u9879\u786E\u8BA4": "Connected: source is read only on Agent request; suggestions await individual decisions",
+        "\u5DF2\u65AD\u5F00\u672C\u5730\u8FDE\u63A5": "Local connection disconnected",
+        "\u6E90\u7801\u7F16\u8F91\u5668\u672A\u5C31\u7EEA": "Source editor is not ready",
+        "\u5DF2\u8FDE\u63A5 \xB7 \u6E90\u7801\u6309\u9700\u8BFB\u53D6 \xB7 \u5EFA\u8BAE\u7248\u672C ": "Connected \xB7 source read on request \xB7 pack revision ",
+        "\u672C\u5730\u8FDE\u63A5\u6682\u4E0D\u53EF\u7528\uFF1A": "Local connection unavailable: ",
+        "\u5EFA\u8BAE\u5305\u4E0D\u80FD\u8D85\u8FC7 64 MiB": "Suggestion packs must not exceed 64 MiB",
+        "\u5DF2\u8BFB\u53D6\u5EFA\u8BAE\u5305\uFF0C\u70B9\u51FB\u5F00\u59CB\u5BA1\u9605": "Pack loaded; click Start review",
+        "\u65E0\u6CD5\u8BFB\u53D6\u6587\u4EF6": "Could not read the file",
+        "\u6062\u590D\u8FDB\u5EA6\u9700\u8981 Chrome \u6269\u5C55": "Resuming requires the Chrome extension",
+        "\u5F53\u524D\u9879\u76EE\u6CA1\u6709\u4FDD\u5B58\u7684\u5EFA\u8BAE\u5305": "No saved suggestion pack for this project",
+        "\u5DF2\u6E05\u9664\u5F53\u524D\u9879\u76EE\u7684\u5BA1\u9605\u8FDB\u5EA6\uFF1B\u6B63\u6587\u4E0D\u53D8\uFF0C\u53EF\u91CD\u65B0\u5BFC\u5165\u5BA1\u9605": "Review progress cleared for this project. Source is unchanged; import a pack to review again.",
+        "\u6B63\u5728\u505C\u6B62\uFF1B\u5DF2\u6D3E\u53D1\u7684\u9879\u9700\u6838\u9A8C\u5B9E\u9645\u7ED3\u679C\u3002": "Stopping; verify the result of any write already dispatched.",
+        "\u4E0E\u5DF2\u63A5\u53D7\u4FEE\u6539\u91CD\u53E0\u51B2\u7A81\uFF0C\u8DF3\u8FC7": "Overlaps an accepted change; skipped",
+        "\u5B57\u7B26\u5DEE\u5F02\u8FC7\u4E8E\u590D\u6742\uFF0C\u8DF3\u8FC7": "Character diff too complex; skipped",
+        "\u539F\u6587\u6216\u4E0A\u4E0B\u6587\u5DF2\u7ECF\u53D8\u5316\uFF0C\u8DF3\u8FC7": "Original or context changed; skipped",
+        "\u5DF2\u7ECF\u5E94\u7528\uFF0C\u8DF3\u8FC7": "Already applied; skipped",
+        "\u5339\u914D\u5230\u591A\u5904\u539F\u6587\uFF0C\u8DF3\u8FC7": "Multiple source matches; skipped",
+        "\u677F\u5757\u6807\u8BB0\u5DF2\u7ECF\u53D8\u5316\uFF0C\u8DF3\u8FC7": "Section markers changed; skipped",
+        "\u677F\u5757\u6807\u8BB0\u4E0D\u552F\u4E00\uFF0C\u8DF3\u8FC7": "Section markers ambiguous; skipped",
+        "\u5185\u5BB9\u6CA1\u6709\u53D8\u5316\uFF0C\u8DF3\u8FC7": "No change; skipped",
+        "\u6587\u4EF6\u6216 Code \u7F16\u8F91\u5668\u672A\u5C31\u7EEA\uFF0C\u8DF3\u8FC7": "File or code editor not ready; skipped",
+        "\u5F53\u524D\u6587\u4EF6\u5DF2\u5207\u6362\uFF0C\u8DF3\u8FC7": "Active file changed; skipped",
+        "\u7F16\u8F91\u5668\u72B6\u6001\u5DF2\u53D8\u5316\uFF0C\u8DF3\u8FC7": "Editor state changed; skipped",
+        "\u6587\u4EF6\u8DEF\u5F84\u5FC5\u987B\u662F\u9879\u76EE\u5185\u7684\u76F8\u5BF9\u8DEF\u5F84": "File paths must be relative to the project",
+        "\u53EA\u652F\u6301\u9879\u76EE\u5185\u7684\u6587\u672C\u6587\u4EF6": "Only project text files are supported",
+        "\u6BCF\u9879\u5FC5\u987B\u5305\u542B\u975E\u7A7A original \u548C\u5B57\u7B26\u4E32 replacement": "Each item needs a nonempty original and a string replacement",
+        "\u5355\u9879\u4FEE\u6539\u8FC7\u957F": "Suggestion text is too long",
+        "\u4E0A\u4E0B\u6587\u5FC5\u987B\u662F\u6587\u672C\u4E14\u4E0D\u8D85\u8FC7 10000 \u5B57\u7B26": "Context must be text with at most 10,000 characters",
+        "scope \u5FC5\u987B\u5305\u542B start\uFF0C\u53EF\u9009 end\uFF0C\u5747\u4E3A\u539F\u6587\u6807\u8BB0": "scope requires start and an optional end, both exact source markers",
+        "\u9700\u8981 codex-overleaf-suggestions v1 \u5EFA\u8BAE\u5305\uFF0C\u542B 1\u201310000 \u9879": "Use a codex-overleaf-suggestions v1 pack with 1\u201310,000 items",
+        "projectId \u5FC5\u987B\u662F Overleaf \u9879\u76EE ID": "projectId must be an Overleaf project ID",
+        "\u6BCF\u9879 id \u5FC5\u987B\u552F\u4E00": "Each item id must be unique"
+      };
+      var templates = [
+        [/^修改 (.*)$/, (_, id) => "Change " + id],
+        [/^Agent 建议版本 (\d+)，共 (\d+) 项$/, (_, revision, count) => `Agent pack revision ${revision}, ${count} items`],
+        [/^已载入文件：(.*)（正文不在输入框展开）$/, (_, name) => `Loaded file: ${name} (pack not expanded here)`],
+        [/^已恢复 (\d+) 项建议$/, (_, count) => `Restored ${count} suggestions`],
+        [/^审阅结束：写入 (\d+) 项，拒绝 (\d+) 项，跳过 (\d+) 项，保留先前决定 (\d+) 项。$/, (_, a, b, c, d) => `Review complete: ${a} written, ${b} rejected, ${c} skipped, ${d} previous decisions retained.`],
+        [/^(.*) · 修改 (.*)：(.*)$/, (_, file, id, state) => `${file} \xB7 Change ${id}: ${translate(state, "en")}`]
+      ];
+      function translate(text, language) {
+        if (language !== "en" || typeof text !== "string") return text;
+        if (english[text]) return english[text];
+        for (const [pattern, replace] of templates) if (pattern.test(text)) return text.replace(pattern, replace);
+        for (const key of Object.keys(english)) if (key.endsWith("\uFF1A") || key.endsWith(" ")) {
+          if (text.startsWith(key)) return english[key] + translate(text.slice(key.length), language);
+        }
+        return text;
+      }
+      function normalize(language) {
+        return language === "en" ? "en" : "zh-CN";
+      }
+      function previewLabels(item, line, language) {
+        const t = (text) => translate(text, language);
+        return { title: t("\u4FEE\u6539 " + item.id + " \xB7 L" + line), hint: t("\u539F\u6587\u5DF2\u9AD8\u4EAE\uFF1B\u63A5\u53D7\u65F6\u91CD\u65B0\u641C\u7D22\uFF0C\u8FC7\u65F6\u9879\u8DF3\u8FC7\u3002"), accept: t("\u63A5\u53D7\u8FD9\u4E00\u9879"), reject: t("\u62D2\u7EDD\u8FD9\u4E00\u9879"), empty: t("\uFF08\u5220\u9664\u6B64\u6BB5\uFF09"), previous: t("\u4E0A\u4E00\u9879"), next: t("\u4E0B\u4E00\u9879"), move: t("\u62D6\u52A8\u6807\u9898\u79FB\u52A8\u9762\u677F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03"), resize: t("\u62D6\u52A8\u53F3\u4E0B\u89D2\u8C03\u6574\u5927\u5C0F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03") };
+      }
+      module.exports = { translate, normalize, previewLabels, english };
+    }
+  });
+
   // src/content.js
   var Core = require_suggestions();
   var Runner = require_runner();
   var Navigation = require_navigation();
+  var Floating = require_floatingPanel();
+  var I18n = require_i18n();
   if (!document.querySelector("[data-suggestion-importer]")) mount();
   function mount() {
     const host = document.createElement("div");
@@ -228,12 +430,58 @@
     host.style.cssText = "position:fixed;right:16px;bottom:16px;z-index:2147483100;";
     const shadow = host.attachShadow({ mode: "open" });
     shadow.innerHTML = `<style>
-:host{font:13px/1.5 system-ui;color:#273342}*{box-sizing:border-box}button,textarea,input{font:inherit}button{border:1px solid #cdd6df;border-radius:6px;background:#fff;color:#273342;padding:7px 11px;cursor:pointer}button:disabled{opacity:.45;cursor:default}button:focus-visible,textarea:focus-visible{outline:3px solid #8aafe3;outline-offset:2px}.primary,.launch{background:#176347;color:#fff;border-color:#176347}.launch{box-shadow:0 4px 18px #18352925}.drawer{width:390px;max-width:calc(100vw - 32px);max-height:85vh;overflow:auto;background:#fff;border:1px solid #cbd5de;border-radius:10px;box-shadow:0 10px 40px #14253630;margin-bottom:10px}.head{padding:14px 16px;border-bottom:1px solid #e0e6ec;display:flex;align-items:center;justify-content:space-between}.head strong{font-size:15px}.head button{padding:3px 8px}.body{padding:16px}.muted{color:#657687;font-size:12px;margin:0 0 12px}.label{display:block;margin-bottom:6px;font-weight:600}textarea{display:block;width:100%;height:130px;padding:10px;border:1px solid #ccd7e0;border-radius:6px;resize:vertical;font:12px/1.45 ui-monospace,monospace}.toolbar{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.message{font-size:12px;padding:10px;background:#f0f5f4;border-radius:5px}.card{border:1px solid #d2dce4;border-radius:7px;padding:12px;margin-top:12px}.card strong{display:block}.path{font:11px/1.5 ui-monospace,monospace;color:#687888}.reason{font-size:12px;margin:8px 0}.source{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 ui-monospace,monospace;margin:6px 0 10px;padding:8px;max-height:180px;overflow:auto;border-radius:4px}.old{background:#fff1e5;color:#74451f}.new{background:#eef8ee;color:#23572c}.actions{display:flex;gap:8px}.history{padding:8px 0;border-bottom:1px solid #e3e9ed;font-size:12px}.history b{color:#176347}.unknown{color:#9a452c}.footer{margin-top:14px;font-size:11px;color:#6b7b88}[hidden]{display:none!important}
-</style><section class="drawer" hidden><div class="head"><strong>\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE</strong><button class="close" aria-label="\u6536\u8D77">\xD7</button></div><div class="body"><p class="muted">\u5148\u5BFC\u5165\u5EFA\u8BAE\u5305\uFF0C\u518D\u9010\u9879\u786E\u8BA4\u3002\u6BCF\u6B21\u63A5\u53D7\u90FD\u4F1A\u641C\u7D22\u5F53\u524D\u539F\u6587\uFF1B\u8FC7\u65F6\u6216\u4E0D\u552F\u4E00\u7684\u9879\u81EA\u52A8\u8DF3\u8FC7\u3002</p><label class="label" for="pack">\u5EFA\u8BAE\u5305 JSON</label><textarea id="pack" spellcheck="false" placeholder="\u7C98\u8D34 Agent \u751F\u6210\u7684\u5EFA\u8BAE\u5305"></textarea><input type="file" accept=".json,application/json" hidden><div class="toolbar"><button class="connect">\u8FDE\u63A5 Agent</button><button class="disconnect">\u65AD\u5F00</button></div><div class="bridge-status" role="status"></div><input class="bridge-token" type="password" placeholder="\u672C\u5730\u8FDE\u63A5\u914D\u5BF9\u4EE4\u724C" autocomplete="off"><div class="toolbar"><button class="file">\u9009\u62E9 JSON \u6587\u4EF6</button><button class="primary start">\u5F00\u59CB\u5BA1\u9605</button><button class="resume">\u6062\u590D\u4E0A\u6B21\u5BA1\u9605</button><button class="reset">\u6E05\u9664\u8FDB\u5EA6</button><button class="stop" hidden>\u505C\u6B62</button></div><div class="message" role="status" aria-live="polite">\u7B49\u5F85\u5BFC\u5165\u5EFA\u8BAE\u5305</div><div class="pending"></div><div class="history-list"></div><p class="footer">\u5DF2\u5199\u5165\u8868\u793A\u7F16\u8F91\u5668\u5185\u5BB9\u5DF2\u6838\u9A8C\uFF0C\u670D\u52A1\u5668\u4FDD\u5B58\u9700\u5728 Overleaf \u68C0\u67E5\u3002\u53EF\u4F7F\u7528 Overleaf \u7684\u64A4\u9500\u6309\u94AE\u3002</p></div></section><button class="launch">\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE</button>`;
+:host{font:13px/1.5 system-ui;color:#273342}*{box-sizing:border-box}button,textarea,input{font:inherit}button{border:1px solid #cdd6df;border-radius:6px;background:#fff;color:#273342;padding:7px 11px;cursor:pointer}button:disabled{opacity:.45;cursor:default}button:focus-visible,textarea:focus-visible{outline:3px solid #8aafe3;outline-offset:2px}.primary,.launch{background:#176347;color:#fff;border-color:#176347}.launch{box-shadow:0 4px 18px #18352925}.drawer{position:fixed;display:flex;flex-direction:column;overflow:hidden;background:#fff;border:1px solid #cbd5de;border-radius:10px;box-shadow:0 10px 40px #14253630;margin-bottom:10px}.head{padding:14px 16px;border-bottom:1px solid #e0e6ec;display:flex;align-items:center;justify-content:space-between}.head strong{font-size:15px}.head button{padding:3px 8px}.body{padding:16px 16px 26px;overflow:auto;min-height:0;flex:1}.head{flex-shrink:0;gap:12px}.head strong{flex:1}.language{font:inherit;border:1px solid #cdd6df;border-radius:5px;background:white;padding:3px}.muted{color:#657687;font-size:12px;margin:0 0 12px}.label{display:block;margin-bottom:6px;font-weight:600}textarea{display:block;width:100%;height:130px;padding:10px;border:1px solid #ccd7e0;border-radius:6px;resize:vertical;font:12px/1.45 ui-monospace,monospace}.toolbar{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.message{font-size:12px;padding:10px;background:#f0f5f4;border-radius:5px}.card{border:1px solid #d2dce4;border-radius:7px;padding:12px;margin-top:12px}.card strong{display:block}.path{font:11px/1.5 ui-monospace,monospace;color:#687888}.reason{font-size:12px;margin:8px 0}.source{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 ui-monospace,monospace;margin:6px 0 10px;padding:8px;max-height:180px;overflow:auto;border-radius:4px}.old{background:#fff1e5;color:#74451f}.new{background:#eef8ee;color:#23572c}.actions{display:flex;gap:8px}.history{padding:8px 0;border-bottom:1px solid #e3e9ed;font-size:12px}.history b{color:#176347}.unknown{color:#9a452c}.footer{margin-top:14px;font-size:11px;color:#6b7b88}[hidden]{display:none!important}
+${Floating.css}</style><section class="drawer" hidden><div class="head"><strong>\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE</strong><select class="language" aria-label="\u8BED\u8A00"><option value="zh-CN">\u4E2D\u6587</option><option value="en">English</option></select><button class="close" aria-label="\u6536\u8D77">\xD7</button></div><div class="body"><p class="muted">\u5148\u5BFC\u5165\u5EFA\u8BAE\u5305\uFF0C\u518D\u9010\u9879\u786E\u8BA4\u3002\u6BCF\u6B21\u63A5\u53D7\u90FD\u4F1A\u641C\u7D22\u5F53\u524D\u539F\u6587\uFF1B\u8FC7\u65F6\u6216\u4E0D\u552F\u4E00\u7684\u9879\u81EA\u52A8\u8DF3\u8FC7\u3002</p><label class="label" for="pack">\u5EFA\u8BAE\u5305 JSON</label><textarea id="pack" spellcheck="false" placeholder="\u7C98\u8D34 Agent \u751F\u6210\u7684\u5EFA\u8BAE\u5305"></textarea><input type="file" accept=".json,application/json" hidden><div class="toolbar"><button class="connect">\u8FDE\u63A5 Agent</button><button class="disconnect">\u65AD\u5F00</button></div><div class="bridge-status" role="status"></div><input class="bridge-token" type="password" placeholder="\u672C\u5730\u8FDE\u63A5\u914D\u5BF9\u4EE4\u724C" autocomplete="off"><div class="toolbar"><button class="file">\u9009\u62E9 JSON \u6587\u4EF6</button><button class="primary start">\u5F00\u59CB\u5BA1\u9605</button><button class="resume">\u6062\u590D\u4E0A\u6B21\u5BA1\u9605</button><button class="reset">\u6E05\u9664\u8FDB\u5EA6</button><button class="stop" hidden>\u505C\u6B62</button></div><div class="message" role="status" aria-live="polite">\u7B49\u5F85\u5BFC\u5165\u5EFA\u8BAE\u5305</div><div class="pending"></div><div class="history-list"></div><p class="footer">\u5DF2\u5199\u5165\u8868\u793A\u7F16\u8F91\u5668\u5185\u5BB9\u5DF2\u6838\u9A8C\uFF0C\u670D\u52A1\u5668\u4FDD\u5B58\u9700\u5728 Overleaf \u68C0\u67E5\u3002\u53EF\u4F7F\u7528 Overleaf \u7684\u64A4\u9500\u6309\u94AE\u3002</p></div><button class="resize" aria-label="\u62D6\u52A8\u53F3\u4E0B\u89D2\u8C03\u6574\u5927\u5C0F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03" title="\u62D6\u52A8\u53F3\u4E0B\u89D2\u8C03\u6574\u5927\u5C0F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03"></button></section><button class="launch">\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE</button>`;
     document.body.append(host);
     const $ = (selector) => shadow.querySelector(selector);
     const capability = Array.from(crypto.getRandomValues(new Uint8Array(32)), (b) => b.toString(16).padStart(2, "0")).join("");
     const persistent = typeof chrome !== "undefined" && !!chrome.runtime?.id;
+    let language = "zh-CN", languageTouched = false, packLabel = null;
+    function setPackLabel(text) {
+      packLabel = text;
+      $("#pack").value = t(text);
+    }
+    const uiText = /* @__PURE__ */ new Map(), uiAttributes = /* @__PURE__ */ new Map();
+    const t = (text) => I18n.translate(text, language);
+    function setUI(node, text) {
+      uiText.set(node, text);
+      node.textContent = t(text);
+    }
+    function rememberUI(root) {
+      for (const [node] of uiText) if (!node.isConnected) uiText.delete(node);
+      const walk = (node) => {
+        if (node.nodeType === 3 && /[\u3400-\u9fff]/.test(node.textContent)) setUI(node, node.textContent);
+        else for (const child of node.childNodes) walk(child);
+      };
+      walk(root);
+      for (const node of root.querySelectorAll("[placeholder],[aria-label],[title]")) {
+        const attributes = {};
+        for (const name of ["placeholder", "aria-label", "title"]) if (node.hasAttribute(name)) attributes[name] = node.getAttribute(name);
+        uiAttributes.set(node, attributes);
+      }
+      refreshUI();
+    }
+    function refreshUI() {
+      for (const [node, text] of uiText) {
+        if (node.isConnected) node.textContent = t(text);
+        else uiText.delete(node);
+      }
+      for (const [node, attributes] of uiAttributes) {
+        if (!node.isConnected) {
+          uiAttributes.delete(node);
+          continue;
+        }
+        for (const [name, text] of Object.entries(attributes)) node.setAttribute(name, t(text));
+      }
+      shadow.host.lang = language;
+      if (packLabel) $("#pack").value = t(packLabel);
+    }
+    rememberUI(shadow);
+    $(".head").setAttribute("aria-label", "\u62D6\u52A8\u6807\u9898\u79FB\u52A8\u9762\u677F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03");
+    $(".head").title = "\u62D6\u52A8\u6807\u9898\u79FB\u52A8\u9762\u677F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03";
+    uiAttributes.set($(".head"), { "aria-label": $(".head").getAttribute("aria-label"), title: $(".head").title });
+    const floating = Floating.attach({ panel: $(".drawer"), drag: $(".head"), resize: $(".resize"), window, minimum: { width: 300, height: 220 }, defaultRect: () => ({ left: window.innerWidth - 406, top: window.innerHeight - Math.min(850, window.innerHeight * 0.85) - 60, width: 390, height: Math.min(850, window.innerHeight * 0.85) }) });
+    floating.layout();
     let startEpoch = 0, sessionActive = false;
     let importedPack = null, initialized = null, running = false, starting = false, owner = "", cancelled = false, pendingAbort = null;
     function send(method, params) {
@@ -246,7 +494,7 @@
         };
         const timer = setTimeout(() => {
           cleanup();
-          reject(Object.assign(new Error("\u9875\u9762\u8FDE\u63A5\u8D85\u65F6"), { code: "bridge_timeout" }));
+          reject(Object.assign(new Error(t("\u9875\u9762\u8FDE\u63A5\u8D85\u65F6")), { code: "bridge_timeout" }));
         }, method === "prepare" ? 25e3 : 8e3);
         function cleanup() {
           clearTimeout(timer);
@@ -271,21 +519,37 @@
       const current = location.pathname.match(/^\/project\/([a-f\d]{24})(?:\/|$)/i)?.[1];
       if (cancelled || current !== owner) throw Object.assign(new Error("\u5DF2\u505C\u6B62"), { code: cancelled ? "cancelled" : "project_changed" });
     };
-    const status = (text) => {
-      $(".message").textContent = text;
-    };
+    const status = (text) => setUI($(".message"), text);
+    async function changeLanguage(value) {
+      language = I18n.normalize(value);
+      $(".language").value = language;
+      refreshUI();
+      await call("language", { language }).catch(() => {
+      });
+    }
+    $(".language").addEventListener("change", () => {
+      languageTouched = true;
+      changeLanguage($(".language").value);
+      if (persistent && chrome.storage?.local) chrome.storage.local.set({ reviewLanguage: language });
+    });
+    if (persistent && chrome.storage?.local) chrome.storage.local.get("reviewLanguage").then((saved) => {
+      if (!languageTouched) changeLanguage(saved.reviewLanguage || "zh-CN");
+    }).catch(() => {
+    });
     function review(item, prepared, options, itemAt) {
       return new Promise((resolve, reject) => {
         let token = prepared.token, settled = false, timer = null, navigating = false;
         const card = document.createElement("section");
         card.className = "card";
         card.innerHTML = '<strong></strong><div class="path"></div><p class="reason"></p><div>\u539F\u6587</div><pre class="source old"></pre><div>\u5EFA\u8BAE\u4FEE\u6539</div><pre class="source new"></pre><div class="toolbar navigation"><button class="previous">\u4E0A\u4E00\u9879</button><button class="next">\u4E0B\u4E00\u9879</button><button class="cursor-previous">\u5149\u6807\u4E0A\u4E00\u5904</button><button class="cursor-next">\u5149\u6807\u4E0B\u4E00\u5904</button></div><div class="actions"><button class="reject">\u62D2\u7EDD\u8FD9\u4E00\u9879</button><button class="primary accept">\u63A5\u53D7\u8FD9\u4E00\u9879</button></div>';
-        card.querySelector("strong").textContent = "\u4FEE\u6539 " + (options.index + 1) + " / " + options.total;
+        $(".pending").replaceChildren(card);
+        rememberUI(card);
+        setUI(card.querySelector("strong"), "\u4FEE\u6539 " + (options.index + 1) + " / " + options.total);
         card.querySelector(".path").textContent = item.file + " \xB7 L" + prepared.line;
         card.querySelector(".reason").textContent = item.reason;
         card.querySelector(".old").textContent = prepared.item?.original || item.original;
         card.querySelector(".new").textContent = (prepared.item?.replacement ?? item.replacement) || "\uFF08\u5220\u9664\u6B64\u6BB5\uFF09";
-        $(".pending").replaceChildren(card);
+        if (!(prepared.item?.replacement ?? item.replacement)) setUI(card.querySelector(".new"), "\uFF08\u5220\u9664\u6B64\u6BB5\uFF09");
         status(prepared.inline ? "\u539F\u6587\u5DF2\u5728\u6E90\u7801\u4E2D\u9AD8\u4EAE\uFF0C\u7B49\u5F85\u786E\u8BA4" : "\u9AD8\u4EAE\u6682\u4E0D\u53EF\u7528\uFF0C\u8BF7\u5728\u6B64\u6838\u5BF9\u539F\u6587\u4E0E\u5EFA\u8BAE");
         function finish(accepted, skipped, navigate2) {
           if (settled) return;
@@ -386,11 +650,17 @@
             if (response.refreshed) {
               if (response.item) {
                 card.querySelector(".old").textContent = response.item.original;
-                card.querySelector(".new").textContent = response.item.replacement || "\uFF08\u5220\u9664\u6B64\u6BB5\uFF09";
+                if (response.item.replacement) {
+                  uiText.delete(card.querySelector(".new"));
+                  card.querySelector(".new").textContent = response.item.replacement;
+                } else setUI(card.querySelector(".new"), "\uFF08\u5220\u9664\u6B64\u6BB5\uFF09");
               }
               token = response.token;
               card.querySelector(".path").textContent = item.file + " \xB7 L" + response.line;
               status("\u6B63\u6587\u6709\u53D8\u5316\uFF0C\u5DF2\u91CD\u65B0\u5B9A\u4F4D\u8FD9\u4E00\u9879\uFF0C\u7B49\u5F85\u786E\u8BA4");
+            } else if (response.navigation === -1 || response.navigation === 1) {
+              await navigate(response.navigation, false);
+              return;
             } else if (typeof response.decision === "boolean") {
               finish(response.decision);
               return;
@@ -411,9 +681,10 @@
         $(".history-list").replaceChildren(...historyMessages.map((text) => {
           const row = document.createElement("div");
           row.className = "history";
-          row.textContent = text;
+          setUI(row, text);
           return row;
         }));
+        refreshUI();
       });
     }
     async function record(result) {
@@ -524,18 +795,18 @@
       }
       const result = await bridgeMessage({ type: "connect", token: $(".bridge-token").value }).catch((e) => ({ error: e.message }));
       if (!result.ok) {
-        $(".bridge-status").textContent = result.error;
+        setUI($(".bridge-status"), result.error);
         return;
       }
       $(".bridge-token").value = "";
       bridgeEnabled = true;
-      $(".bridge-status").textContent = "\u5DF2\u8FDE\u63A5\uFF1AAgent \u8BF7\u6C42\u65F6\u624D\u8BFB\u53D6\u6E90\u7801\uFF1B\u65B0\u5EFA\u8BAE\u7B49\u5F85\u9010\u9879\u786E\u8BA4";
+      setUI($(".bridge-status"), "\u5DF2\u8FDE\u63A5\uFF1AAgent \u8BF7\u6C42\u65F6\u624D\u8BFB\u53D6\u6E90\u7801\uFF1B\u65B0\u5EFA\u8BAE\u7B49\u5F85\u9010\u9879\u786E\u8BA4");
       pollBridge();
     });
     $(".disconnect").addEventListener("click", async () => {
       bridgeEnabled = false;
       if (typeof chrome !== "undefined") await bridgeMessage({ type: "disconnect" });
-      $(".bridge-status").textContent = "\u5DF2\u65AD\u5F00\u672C\u5730\u8FDE\u63A5";
+      setUI($(".bridge-status"), "\u5DF2\u65AD\u5F00\u672C\u5730\u8FDE\u63A5");
     });
     async function pollBridge() {
       if (!bridgeEnabled || bridgeBusy) return;
@@ -567,13 +838,14 @@
           bridgeRevision = result.revision;
           bridgeResults = [];
           importedPack = result.pack;
-          $("#pack").value = "Agent \u5EFA\u8BAE\u7248\u672C " + bridgeRevision + "\uFF0C\u5171 " + (result.pack.count ?? result.pack.suggestions.length) + " \u9879";
+          setPackLabel("Agent \u5EFA\u8BAE\u7248\u672C " + bridgeRevision + "\uFF0C\u5171 " + (result.pack.count ?? result.pack.suggestions.length) + " \u9879");
           $(".drawer").hidden = false;
+          floating.layout();
           start();
         }
-        $(".bridge-status").textContent = "\u5DF2\u8FDE\u63A5 \xB7 \u6E90\u7801\u6309\u9700\u8BFB\u53D6 \xB7 \u5EFA\u8BAE\u7248\u672C " + bridgeRevision;
+        setUI($(".bridge-status"), "\u5DF2\u8FDE\u63A5 \xB7 \u6E90\u7801\u6309\u9700\u8BFB\u53D6 \xB7 \u5EFA\u8BAE\u7248\u672C " + bridgeRevision);
       } catch (error) {
-        $(".bridge-status").textContent = "\u672C\u5730\u8FDE\u63A5\u6682\u4E0D\u53EF\u7528\uFF1A" + error.message;
+        setUI($(".bridge-status"), "\u672C\u5730\u8FDE\u63A5\u6682\u4E0D\u53EF\u7528\uFF1A" + error.message);
       } finally {
         bridgeBusy = false;
         if (bridgeEnabled) setTimeout(pollBridge, 2e3);
@@ -581,6 +853,7 @@
     }
     $(".launch").addEventListener("click", () => {
       $(".drawer").hidden = !$(".drawer").hidden;
+      floating.layout();
     });
     $(".close").addEventListener("click", () => {
       $(".drawer").hidden = true;
@@ -595,7 +868,7 @@
       }
       try {
         importedPack = await file.text();
-        $("#pack").value = "\u5DF2\u8F7D\u5165\u6587\u4EF6\uFF1A" + file.name + "\uFF08\u6B63\u6587\u4E0D\u5728\u8F93\u5165\u6846\u5C55\u5F00\uFF09";
+        setPackLabel("\u5DF2\u8F7D\u5165\u6587\u4EF6\uFF1A" + file.name + "\uFF08\u6B63\u6587\u4E0D\u5728\u8F93\u5165\u6846\u5C55\u5F00\uFF09");
         status("\u5DF2\u8BFB\u53D6\u5EFA\u8BAE\u5305\uFF0C\u70B9\u51FB\u5F00\u59CB\u5BA1\u9605");
       } catch (_) {
         status("\u65E0\u6CD5\u8BFB\u53D6\u6587\u4EF6");
@@ -604,6 +877,7 @@
     });
     $("#pack").addEventListener("input", () => {
       importedPack = null;
+      packLabel = null;
     });
     $(".resume").addEventListener("click", async () => {
       if (!persistent) {
@@ -615,7 +889,7 @@
         if (!session.ok) throw new Error(session.error);
         if (!session.pack) throw new Error("\u5F53\u524D\u9879\u76EE\u6CA1\u6709\u4FDD\u5B58\u7684\u5EFA\u8BAE\u5305");
         importedPack = session.pack;
-        $("#pack").value = "\u5DF2\u6062\u590D " + (session.pack.count ?? session.pack.suggestions.length) + " \u9879\u5EFA\u8BAE";
+        setPackLabel("\u5DF2\u6062\u590D " + (session.pack.count ?? session.pack.suggestions.length) + " \u9879\u5EFA\u8BAE");
         start();
       } catch (error) {
         status(error.message);

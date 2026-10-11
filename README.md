@@ -64,7 +64,7 @@ Your Agent sends a suggestion pack. Overleaf highlights the changed characters. 
 4. Open your Overleaf project and refresh the page. Select **Code** mode.
 5. Click **导入修改建议** (Import suggestions) at the bottom right.
 
-The extension's current interface is Chinese. Main buttons: **开始审阅** = Start review; **接受这一项** = Accept this item; **拒绝这一项** = Reject this item; **停止** = Stop.
+The `main` interface supports **中文 / English**, selectable in the right panel header and saved locally. The existing v1.4.0 Release interface is Chinese: **开始审阅** = Start review; **接受这一项** = Accept this item; **拒绝这一项** = Reject this item; **停止** = Stop.
 
 To update, replace the files in the installed folder, click Reload on the extension card, and refresh Overleaf. Installation in the Codex in-app browser has not been verified; the supported installation path is Chrome.
 
@@ -152,6 +152,10 @@ The displayed line number is informational. It is never used as the replacement 
 
 ## Review navigation
 
+Drag either panel by its title and resize with the bottom-right grip. Layout survives item navigation and stays within the browser viewport. Focus a title/grip and use arrow keys for fine adjustment (Shift for larger steps). The left **↑ / ↓** buttons move through the pack; cursor navigation stays on the right. Switch **中文 / English** in the right header; the choice is saved locally and updates both panels without settling the pending item. Source, replacement text and Agent reasons are kept verbatim.
+
+These interface improvements are currently available in `main`; the existing v1.4.0 Release ZIP does not include them. Build and load the repository root, or reload an extension already loaded from source, then refresh Overleaf.
+
 **上一项 / 下一项** move between undecided suggestions in pack order. **光标上一处 / 光标下一处** find the nearest locatable undecided suggestion before/after the editor cursor in the current file, using live character-change positions rather than JSON order or line numbers. Navigation moves the preview only; it does not reject or write an item. Deferred items remain pending and return after later items are settled. Accepted/rejected items are excluded. If source, file or cursor changes during a search, retry the navigation.
 
 ## Suggestion format
@@ -194,6 +198,8 @@ See [v1.2 validation details](docs/validation-v1.2.md) for the Chrome performanc
 See [v1.4 navigation validation](docs/validation-v1.4.md) for reordered-pack, refresh and 10,000-item cursor-search checks.
 
 ## Privacy
+
+See the scoped [public-file privacy review](docs/privacy-audit.md). Keep real source exports, suggestion packs, pairing tokens and logs in ignored `work/`, outside public Git.
 
 The extension has no AI requests, analytics, or native host. A background service worker parses large packs off the page thread and handles an optional authenticated localhost connection. It runs only on Overleaf project URLs. It reads source and suggestion text in the page and writes accepted edits through the existing editor; Overleaf handles its usual synchronization. Pairing is opt-in and project-specific: source is captured and sent only when an Agent explicitly invokes the CLI read command. Idle polling checks requests and pack revisions without reading source. No other files are opened automatically. Disconnect stops new transfers. The extension persists packs, decisions and source baselines locally in IndexedDB; clear them per project with **清除进度**, or remove extension data. The bridge stores state in memory; CLI exports are explicit. Sharing source with an AI provider depends on how you use your Agent.
 

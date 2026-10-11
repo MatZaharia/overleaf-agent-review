@@ -1,9 +1,11 @@
 'use strict';
 const Core = require('./suggestions');
 const Rebase = require('./rebase');
+const I18n = require('./i18n');
+
 const { characterEdits } = require('./characterEdits');
 function create({ adapter, preview, crypto }) {
-  let pending = null, generation = 0, scan = null;
+  let pending = null, generation = 0, scan = null, language='zh-CN';
   const receipts = new Map(), ledgers = new Map();
   let journals=[];const textCache=new WeakMap(), navigationCache=new WeakMap();
   function textOf(view){const doc=view.state.doc;if(typeof doc.length!=='number')return doc.toString();if(!textCache.has(doc))textCache.set(doc,doc.toString());return textCache.get(doc)}
@@ -79,9 +81,9 @@ function create({ adapter, preview, crypto }) {
     const highlights = characterEdits(match.patch, text);
     if (!highlights) return failure('diff_too_complex');
     const token = crypto.randomUUID();
-    pending = { item, projectId: owner, token, view, text, doc:view.state.doc };
+    pending = { item, projectId: owner, token, view, text, doc:view.state.doc, line:match.line };
     const shown = await preview.show({ token, runProjectId: owner, path: item.file, base: text, patch: match.patch, highlightPatches: highlights,
-      labels: { title: '修改 ' + item.id + ' · L' + match.line, hint: '原文已高亮；接受时重新搜索，过时项跳过。', accept: '接受这一项', reject: '拒绝这一项', empty: '（删除此段）' } });
+      labels: I18n.previewLabels(item,match.line,language) });
     if (attempt !== generation) { preview.clear({ token }); return failure('cancelled'); }
     if (!shown.ok && shown.code !== 'review_preview_unsupported') { cancel(); return failure('file_not_ready'); }
     pending.inline = shown.ok;
@@ -98,7 +100,9 @@ function create({ adapter, preview, crypto }) {
       const result = await prepare({ item: item.item, projectId: item.projectId });
       return { ...result, refreshed: result.ok };
     }
-    return item.inline ? preview.read({ token: item.token }) : { ok: true, token: item.token, decision: null };
+    const result=item.inline ? preview.read({ token: item.token }) : { ok: true, token: item.token, decision: null };
+    if(result.navigation===-1 || result.navigation===1)preview.consumeNavigation({token:item.token});
+    return result;
   }
   function apply(params) {
     // A settled token returns its existing receipt, never replays an edit.
@@ -138,6 +142,7 @@ function create({ adapter, preview, crypto }) {
     if (receipts.size > 500) receipts.delete(receipts.keys().next().value);
     return result;
   }
-  return { prepare, status, apply, cancel, begin, snapshot, navigation };
+  function setLanguage(params){language=I18n.normalize(params.language);if(pending?.inline)preview.labels({labels:I18n.previewLabels(pending.item,pending.line,language)});return {ok:true}}
+  return { prepare, status, apply, cancel, begin, snapshot, navigation, setLanguage };
 }
 module.exports = { create };

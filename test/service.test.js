@@ -50,3 +50,15 @@ test('cancel during delayed file opening prevents a late preview', async () => {
 test('unverified dispatch preserves unknown result and is never reissued', async () => {
  const h=fixture();h.view.dispatch=()=>{throw new Error('unknown')};const pending=await h.prepare();const result=h.service.apply({token:pending.token});assert.equal(result.code,'write_unconfirmed');assert.equal(result.changedDocument,true);assert.equal(h.service.apply({token:pending.token}),result);
 });
+test('inline navigation is consumed once without a decision, write or token replacement',async()=>{
+ const h=fixture();let navigation=1;
+ h.preview.read=()=>({ok:true,decision:null,navigation});h.preview.consumeNavigation=()=>{navigation=null};
+ const pending=await h.prepare(),result=await h.service.status({token:pending.token});
+ assert.equal(result.navigation,1);assert.equal(result.decision,null);assert.equal((await h.service.status({token:pending.token})).navigation,null);assert.equal(h.writes.length,0);
+ assert.equal(h.service.apply({token:pending.token}).verified,true);
+});
+test('switching language updates pending labels without source edits or losing the acceptance token',async()=>{
+ const h=fixture(),labels=[];h.preview.labels=p=>labels.push(p.labels);
+ const pending=await h.prepare();h.service.setLanguage({language:'en'});assert.equal(labels[0].accept,'Accept this item');assert.equal(labels[0].previous,'Previous item');
+ h.service.setLanguage({language:'zh-CN'});assert.equal(labels[1].accept,'接受这一项');assert.equal(h.writes.length,0);assert.equal(h.service.apply({token:pending.token}).verified,true);
+});

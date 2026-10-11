@@ -2197,15 +2197,138 @@
     }
   });
 
+  // src/i18n.js
+  var require_i18n = __commonJS({
+    "src/i18n.js"(exports, module) {
+      "use strict";
+      var english = {
+        "\u914D\u5BF9\u4EE4\u724C\u683C\u5F0F\u4E0D\u6B63\u786E": "Invalid pairing token format",
+        "\u5EFA\u8BAE\u4F1A\u8BDD\u5DF2\u66F4\u65B0\uFF0C\u8BF7\u91CD\u65B0\u8F7D\u5165": "Suggestion session changed; reload the pack",
+        "\u5EFA\u8BAE\u5305\u5206\u5757\u987A\u5E8F\u65E0\u6548": "Invalid suggestion pack chunk order",
+        "\u5EFA\u8BAE\u7D22\u5F15\u65E0\u6548": "Invalid suggestion index",
+        "\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE": "Review suggestions",
+        "\u6536\u8D77": "Close",
+        "\u5148\u5BFC\u5165\u5EFA\u8BAE\u5305\uFF0C\u518D\u9010\u9879\u786E\u8BA4\u3002\u6BCF\u6B21\u63A5\u53D7\u90FD\u4F1A\u641C\u7D22\u5F53\u524D\u539F\u6587\uFF1B\u8FC7\u65F6\u6216\u4E0D\u552F\u4E00\u7684\u9879\u81EA\u52A8\u8DF3\u8FC7\u3002": "Import a pack and review each item. Accept searches the current source; stale or ambiguous items are skipped.",
+        "\u5EFA\u8BAE\u5305 JSON": "Suggestion pack JSON",
+        "\u7C98\u8D34 Agent \u751F\u6210\u7684\u5EFA\u8BAE\u5305": "Paste an Agent suggestion pack",
+        "\u8FDE\u63A5 Agent": "Connect Agent",
+        "\u65AD\u5F00": "Disconnect",
+        "\u672C\u5730\u8FDE\u63A5\u914D\u5BF9\u4EE4\u724C": "Local pairing token",
+        "\u9009\u62E9 JSON \u6587\u4EF6": "Choose JSON file",
+        "\u5F00\u59CB\u5BA1\u9605": "Start review",
+        "\u6062\u590D\u4E0A\u6B21\u5BA1\u9605": "Resume review",
+        "\u6E05\u9664\u8FDB\u5EA6": "Clear progress",
+        "\u505C\u6B62": "Stop",
+        "\u7B49\u5F85\u5BFC\u5165\u5EFA\u8BAE\u5305": "Import a suggestion pack to begin",
+        "\u5DF2\u5199\u5165\u8868\u793A\u7F16\u8F91\u5668\u5185\u5BB9\u5DF2\u6838\u9A8C\uFF0C\u670D\u52A1\u5668\u4FDD\u5B58\u9700\u5728 Overleaf \u68C0\u67E5\u3002\u53EF\u4F7F\u7528 Overleaf \u7684\u64A4\u9500\u6309\u94AE\u3002": "Written means editor content was verified. Check saving in Overleaf; use its Undo button if needed.",
+        "\u539F\u6587": "Original",
+        "\u5EFA\u8BAE\u4FEE\u6539": "Proposed change",
+        "\u4E0A\u4E00\u9879": "Previous item",
+        "\u4E0B\u4E00\u9879": "Next item",
+        "\u5149\u6807\u4E0A\u4E00\u5904": "Before cursor",
+        "\u5149\u6807\u4E0B\u4E00\u5904": "After cursor",
+        "\u62D2\u7EDD\u8FD9\u4E00\u9879": "Reject this item",
+        "\u63A5\u53D7\u8FD9\u4E00\u9879": "Accept this item",
+        "\uFF08\u5220\u9664\u6B64\u6BB5\uFF09": "(delete this text)",
+        "\u62D6\u52A8\u6807\u9898\u79FB\u52A8\u9762\u677F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03": "Drag the title to move; arrow keys adjust position",
+        "\u62D6\u52A8\u53F3\u4E0B\u89D2\u8C03\u6574\u5927\u5C0F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03": "Drag the bottom-right corner to resize; arrow keys adjust size",
+        "\u8BED\u8A00": "Language",
+        "\u539F\u6587\u5DF2\u9AD8\u4EAE\uFF1B\u63A5\u53D7\u65F6\u91CD\u65B0\u641C\u7D22\uFF0C\u8FC7\u65F6\u9879\u8DF3\u8FC7\u3002": "Original highlighted. Accept searches again; stale items are skipped.",
+        "\u539F\u6587\u5DF2\u5728\u6E90\u7801\u4E2D\u9AD8\u4EAE\uFF0C\u7B49\u5F85\u786E\u8BA4": "Original highlighted in source; waiting for your decision",
+        "\u9AD8\u4EAE\u6682\u4E0D\u53EF\u7528\uFF0C\u8BF7\u5728\u6B64\u6838\u5BF9\u539F\u6587\u4E0E\u5EFA\u8BAE": "Highlight unavailable; compare the original and proposal here",
+        "\u6B63\u6587\u6709\u53D8\u5316\uFF0C\u5DF2\u91CD\u65B0\u5B9A\u4F4D\u8FD9\u4E00\u9879\uFF0C\u7B49\u5F85\u786E\u8BA4": "Source changed; this item was relocated and awaits your decision",
+        "\u6B63\u5728\u6309\u5F53\u524D\u5149\u6807\u67E5\u627E\u5EFA\u8BAE\u2026": "Finding suggestions near the current cursor\u2026",
+        "\u5F53\u524D\u6587\u4EF6\u7684\u5149\u6807\u8FD9\u4E00\u4FA7\u6CA1\u6709\u53EF\u5B9A\u4F4D\u7684\u5F85\u5904\u7406\u5EFA\u8BAE": "No locatable pending suggestion on this side of the cursor in this file",
+        "\u8FD9\u4E00\u4FA7\u6CA1\u6709\u5F85\u5904\u7406\u5EFA\u8BAE\uFF1B\u5F53\u524D\u9879\u4ECD\u7B49\u5F85\u786E\u8BA4": "No pending item in this direction; the current item still awaits your decision",
+        "\u6B63\u6587\u3001\u6587\u4EF6\u6216\u5149\u6807\u6709\u53D8\u5316\uFF0C\u8BF7\u91CD\u65B0\u70B9\u51FB\u5BFC\u822A": "Source, file or cursor changed; click navigation again",
+        "\u5BFC\u822A\u672A\u5B8C\u6210\uFF1A": "Navigation failed: ",
+        "\u5DF2\u505C\u6B62": "Stopped",
+        "\u9875\u9762\u8FDE\u63A5\u8D85\u65F6": "Page connection timed out",
+        "\u65E0\u6CD5\u8FDE\u63A5\u9875\u9762": "Cannot connect to the page",
+        "\u4FDD\u5B58\u5B9A\u4F4D\u8BB0\u5F55\u5931\u8D25\uFF1A": "Could not save position tracking: ",
+        "\u4FDD\u5B58\u5BA1\u9605\u51B3\u5B9A\u5931\u8D25\uFF1A": "Could not save the review decision: ",
+        "\u5DF2\u5199\u5165": "Written",
+        "\u5DF2\u62D2\u7EDD": "Rejected",
+        "\u5199\u5165\u672A\u786E\u8BA4": "Write unconfirmed",
+        "\u5DF2\u8DF3\u8FC7\uFF1A": "Skipped: ",
+        "\u5F53\u524D\u9879\u5DF2\u5199\u5165\u7F16\u8F91\u5668\uFF0C\u7EE7\u7EED\u6838\u5BF9\u4E0B\u4E00\u9879": "This item was written to the editor; review the next item",
+        "\u8BF7\u5148\u6253\u5F00 Overleaf \u9879\u76EE": "Open an Overleaf project first",
+        "\u5EFA\u8BAE\u5305\u5C5E\u4E8E\u5176\u4ED6\u9879\u76EE\uFF0C\u6CA1\u6709\u5199\u5165": "This pack belongs to another project; no write was made",
+        "\u5EFA\u8BAE\u5DF2\u66F4\u65B0\u6216\u5BA1\u9605\u5DF2\u505C\u6B62": "Suggestions changed or review stopped",
+        "\u5199\u5165\u7ED3\u679C\u672A\u786E\u8BA4\uFF0C\u5DF2\u505C\u6B62\u3002\u8BF7\u68C0\u67E5\u5F53\u524D\u6B63\u6587\uFF0C\u4E0D\u8981\u91CD\u590D\u63A5\u53D7\u3002": "Write could not be verified; review stopped. Check the source before accepting again.",
+        "\u5BA1\u9605\u5DF2\u505C\u6B62\uFF1A": "Review stopped: ",
+        "\u672C\u5730\u8FDE\u63A5\u9700\u8981\u5728 Chrome \u6269\u5C55\u4E2D\u4F7F\u7528": "Local connection requires the Chrome extension",
+        "\u5DF2\u8FDE\u63A5\uFF1AAgent \u8BF7\u6C42\u65F6\u624D\u8BFB\u53D6\u6E90\u7801\uFF1B\u65B0\u5EFA\u8BAE\u7B49\u5F85\u9010\u9879\u786E\u8BA4": "Connected: source is read only on Agent request; suggestions await individual decisions",
+        "\u5DF2\u65AD\u5F00\u672C\u5730\u8FDE\u63A5": "Local connection disconnected",
+        "\u6E90\u7801\u7F16\u8F91\u5668\u672A\u5C31\u7EEA": "Source editor is not ready",
+        "\u5DF2\u8FDE\u63A5 \xB7 \u6E90\u7801\u6309\u9700\u8BFB\u53D6 \xB7 \u5EFA\u8BAE\u7248\u672C ": "Connected \xB7 source read on request \xB7 pack revision ",
+        "\u672C\u5730\u8FDE\u63A5\u6682\u4E0D\u53EF\u7528\uFF1A": "Local connection unavailable: ",
+        "\u5EFA\u8BAE\u5305\u4E0D\u80FD\u8D85\u8FC7 64 MiB": "Suggestion packs must not exceed 64 MiB",
+        "\u5DF2\u8BFB\u53D6\u5EFA\u8BAE\u5305\uFF0C\u70B9\u51FB\u5F00\u59CB\u5BA1\u9605": "Pack loaded; click Start review",
+        "\u65E0\u6CD5\u8BFB\u53D6\u6587\u4EF6": "Could not read the file",
+        "\u6062\u590D\u8FDB\u5EA6\u9700\u8981 Chrome \u6269\u5C55": "Resuming requires the Chrome extension",
+        "\u5F53\u524D\u9879\u76EE\u6CA1\u6709\u4FDD\u5B58\u7684\u5EFA\u8BAE\u5305": "No saved suggestion pack for this project",
+        "\u5DF2\u6E05\u9664\u5F53\u524D\u9879\u76EE\u7684\u5BA1\u9605\u8FDB\u5EA6\uFF1B\u6B63\u6587\u4E0D\u53D8\uFF0C\u53EF\u91CD\u65B0\u5BFC\u5165\u5BA1\u9605": "Review progress cleared for this project. Source is unchanged; import a pack to review again.",
+        "\u6B63\u5728\u505C\u6B62\uFF1B\u5DF2\u6D3E\u53D1\u7684\u9879\u9700\u6838\u9A8C\u5B9E\u9645\u7ED3\u679C\u3002": "Stopping; verify the result of any write already dispatched.",
+        "\u4E0E\u5DF2\u63A5\u53D7\u4FEE\u6539\u91CD\u53E0\u51B2\u7A81\uFF0C\u8DF3\u8FC7": "Overlaps an accepted change; skipped",
+        "\u5B57\u7B26\u5DEE\u5F02\u8FC7\u4E8E\u590D\u6742\uFF0C\u8DF3\u8FC7": "Character diff too complex; skipped",
+        "\u539F\u6587\u6216\u4E0A\u4E0B\u6587\u5DF2\u7ECF\u53D8\u5316\uFF0C\u8DF3\u8FC7": "Original or context changed; skipped",
+        "\u5DF2\u7ECF\u5E94\u7528\uFF0C\u8DF3\u8FC7": "Already applied; skipped",
+        "\u5339\u914D\u5230\u591A\u5904\u539F\u6587\uFF0C\u8DF3\u8FC7": "Multiple source matches; skipped",
+        "\u677F\u5757\u6807\u8BB0\u5DF2\u7ECF\u53D8\u5316\uFF0C\u8DF3\u8FC7": "Section markers changed; skipped",
+        "\u677F\u5757\u6807\u8BB0\u4E0D\u552F\u4E00\uFF0C\u8DF3\u8FC7": "Section markers ambiguous; skipped",
+        "\u5185\u5BB9\u6CA1\u6709\u53D8\u5316\uFF0C\u8DF3\u8FC7": "No change; skipped",
+        "\u6587\u4EF6\u6216 Code \u7F16\u8F91\u5668\u672A\u5C31\u7EEA\uFF0C\u8DF3\u8FC7": "File or code editor not ready; skipped",
+        "\u5F53\u524D\u6587\u4EF6\u5DF2\u5207\u6362\uFF0C\u8DF3\u8FC7": "Active file changed; skipped",
+        "\u7F16\u8F91\u5668\u72B6\u6001\u5DF2\u53D8\u5316\uFF0C\u8DF3\u8FC7": "Editor state changed; skipped",
+        "\u6587\u4EF6\u8DEF\u5F84\u5FC5\u987B\u662F\u9879\u76EE\u5185\u7684\u76F8\u5BF9\u8DEF\u5F84": "File paths must be relative to the project",
+        "\u53EA\u652F\u6301\u9879\u76EE\u5185\u7684\u6587\u672C\u6587\u4EF6": "Only project text files are supported",
+        "\u6BCF\u9879\u5FC5\u987B\u5305\u542B\u975E\u7A7A original \u548C\u5B57\u7B26\u4E32 replacement": "Each item needs a nonempty original and a string replacement",
+        "\u5355\u9879\u4FEE\u6539\u8FC7\u957F": "Suggestion text is too long",
+        "\u4E0A\u4E0B\u6587\u5FC5\u987B\u662F\u6587\u672C\u4E14\u4E0D\u8D85\u8FC7 10000 \u5B57\u7B26": "Context must be text with at most 10,000 characters",
+        "scope \u5FC5\u987B\u5305\u542B start\uFF0C\u53EF\u9009 end\uFF0C\u5747\u4E3A\u539F\u6587\u6807\u8BB0": "scope requires start and an optional end, both exact source markers",
+        "\u9700\u8981 codex-overleaf-suggestions v1 \u5EFA\u8BAE\u5305\uFF0C\u542B 1\u201310000 \u9879": "Use a codex-overleaf-suggestions v1 pack with 1\u201310,000 items",
+        "projectId \u5FC5\u987B\u662F Overleaf \u9879\u76EE ID": "projectId must be an Overleaf project ID",
+        "\u6BCF\u9879 id \u5FC5\u987B\u552F\u4E00": "Each item id must be unique"
+      };
+      var templates = [
+        [/^修改 (.*)$/, (_, id) => "Change " + id],
+        [/^Agent 建议版本 (\d+)，共 (\d+) 项$/, (_, revision, count) => `Agent pack revision ${revision}, ${count} items`],
+        [/^已载入文件：(.*)（正文不在输入框展开）$/, (_, name) => `Loaded file: ${name} (pack not expanded here)`],
+        [/^已恢复 (\d+) 项建议$/, (_, count) => `Restored ${count} suggestions`],
+        [/^审阅结束：写入 (\d+) 项，拒绝 (\d+) 项，跳过 (\d+) 项，保留先前决定 (\d+) 项。$/, (_, a, b, c, d) => `Review complete: ${a} written, ${b} rejected, ${c} skipped, ${d} previous decisions retained.`],
+        [/^(.*) · 修改 (.*)：(.*)$/, (_, file, id, state) => `${file} \xB7 Change ${id}: ${translate(state, "en")}`]
+      ];
+      function translate(text, language) {
+        if (language !== "en" || typeof text !== "string") return text;
+        if (english[text]) return english[text];
+        for (const [pattern, replace] of templates) if (pattern.test(text)) return text.replace(pattern, replace);
+        for (const key of Object.keys(english)) if (key.endsWith("\uFF1A") || key.endsWith(" ")) {
+          if (text.startsWith(key)) return english[key] + translate(text.slice(key.length), language);
+        }
+        return text;
+      }
+      function normalize(language) {
+        return language === "en" ? "en" : "zh-CN";
+      }
+      function previewLabels(item, line, language) {
+        const t = (text) => translate(text, language);
+        return { title: t("\u4FEE\u6539 " + item.id + " \xB7 L" + line), hint: t("\u539F\u6587\u5DF2\u9AD8\u4EAE\uFF1B\u63A5\u53D7\u65F6\u91CD\u65B0\u641C\u7D22\uFF0C\u8FC7\u65F6\u9879\u8DF3\u8FC7\u3002"), accept: t("\u63A5\u53D7\u8FD9\u4E00\u9879"), reject: t("\u62D2\u7EDD\u8FD9\u4E00\u9879"), empty: t("\uFF08\u5220\u9664\u6B64\u6BB5\uFF09"), previous: t("\u4E0A\u4E00\u9879"), next: t("\u4E0B\u4E00\u9879"), move: t("\u62D6\u52A8\u6807\u9898\u79FB\u52A8\u9762\u677F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03"), resize: t("\u62D6\u52A8\u53F3\u4E0B\u89D2\u8C03\u6574\u5927\u5C0F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03") };
+      }
+      module.exports = { translate, normalize, previewLabels, english };
+    }
+  });
+
   // src/service.js
   var require_service = __commonJS({
     "src/service.js"(exports, module) {
       "use strict";
       var Core = require_suggestions();
       var Rebase = require_rebase();
+      var I18n = require_i18n();
       var { characterEdits } = require_characterEdits();
       function create({ adapter: adapter2, preview: preview2, crypto }) {
-        let pending = null, generation = 0, scan = null;
+        let pending = null, generation = 0, scan = null, language = "zh-CN";
         const receipts = /* @__PURE__ */ new Map(), ledgers = /* @__PURE__ */ new Map();
         let journals = [];
         const textCache = /* @__PURE__ */ new WeakMap(), navigationCache = /* @__PURE__ */ new WeakMap();
@@ -2315,7 +2438,7 @@
           const highlights = characterEdits(match.patch, text);
           if (!highlights) return failure("diff_too_complex");
           const token = crypto.randomUUID();
-          pending = { item, projectId: owner, token, view, text, doc: view.state.doc };
+          pending = { item, projectId: owner, token, view, text, doc: view.state.doc, line: match.line };
           const shown = await preview2.show({
             token,
             runProjectId: owner,
@@ -2323,7 +2446,7 @@
             base: text,
             patch: match.patch,
             highlightPatches: highlights,
-            labels: { title: "\u4FEE\u6539 " + item.id + " \xB7 L" + match.line, hint: "\u539F\u6587\u5DF2\u9AD8\u4EAE\uFF1B\u63A5\u53D7\u65F6\u91CD\u65B0\u641C\u7D22\uFF0C\u8FC7\u65F6\u9879\u8DF3\u8FC7\u3002", accept: "\u63A5\u53D7\u8FD9\u4E00\u9879", reject: "\u62D2\u7EDD\u8FD9\u4E00\u9879", empty: "\uFF08\u5220\u9664\u6B64\u6BB5\uFF09" }
+            labels: I18n.previewLabels(item, match.line, language)
           });
           if (attempt !== generation) {
             preview2.clear({ token });
@@ -2353,10 +2476,12 @@
             return failure("file_not_ready");
           }
           if (view !== item.view || (typeof view.state.doc.length === "number" ? view.state.doc !== item.doc : textOf(view) !== item.text)) {
-            const result = await prepare({ item: item.item, projectId: item.projectId });
-            return { ...result, refreshed: result.ok };
+            const result2 = await prepare({ item: item.item, projectId: item.projectId });
+            return { ...result2, refreshed: result2.ok };
           }
-          return item.inline ? preview2.read({ token: item.token }) : { ok: true, token: item.token, decision: null };
+          const result = item.inline ? preview2.read({ token: item.token }) : { ok: true, token: item.token, decision: null };
+          if (result.navigation === -1 || result.navigation === 1) preview2.consumeNavigation({ token: item.token });
+          return result;
         }
         function apply(params) {
           if (receipts.has(params.token)) return receipts.get(params.token);
@@ -2416,7 +2541,12 @@
           if (receipts.size > 500) receipts.delete(receipts.keys().next().value);
           return result;
         }
-        return { prepare, status, apply, cancel, begin, snapshot, navigation };
+        function setLanguage(params) {
+          language = I18n.normalize(params.language);
+          if (pending?.inline) preview2.labels({ labels: I18n.previewLabels(pending.item, pending.line, language) });
+          return { ok: true };
+        }
+        return { prepare, status, apply, cancel, begin, snapshot, navigation, setLanguage };
       }
       module.exports = { create };
     }
@@ -4085,9 +4215,88 @@
     }
   });
 
+  // src/floatingPanel.js
+  var require_floatingPanel = __commonJS({
+    "src/floatingPanel.js"(exports, module) {
+      "use strict";
+      var css = `.panel-drag{cursor:grab;touch-action:none;user-select:none}.panel-drag:active{cursor:grabbing}.panel-drag:focus-visible,.panel-resize:focus-visible{outline:3px solid #8aafe3;outline-offset:-3px}.panel-resize{position:absolute;right:2px;bottom:2px;width:20px;height:20px;cursor:nwse-resize;touch-action:none;z-index:2;border:0!important;padding:0!important;background:linear-gradient(135deg,transparent 50%,#8c9aa6 51%,#8c9aa6 57%,transparent 58%,transparent 68%,#8c9aa6 69%,#8c9aa6 75%,transparent 76%)!important;border-radius:0!important}`;
+      function clamp(rect, bounds, minimum = { width: 280, height: 160 }) {
+        const width = Math.min(Math.max(minimum.width, rect.width), bounds.width);
+        const height = Math.min(Math.max(minimum.height, rect.height), bounds.height);
+        return { left: Math.min(Math.max(bounds.left, rect.left), bounds.left + bounds.width - width), top: Math.min(Math.max(bounds.top, rect.top), bounds.top + bounds.height - height), width, height };
+      }
+      function attach({ panel, drag, resize, window: window2, state = {}, minimum, defaultRect }) {
+        let gesture = null, disposed = false;
+        const bounds = () => ({ left: 8, top: 8, width: Math.max(1, window2.innerWidth - 16), height: Math.max(1, window2.innerHeight - 16) });
+        function layout() {
+          if (disposed) return;
+          const rect = clamp(state.rect || defaultRect(), bounds(), minimum);
+          if (state.rect) state.rect = rect;
+          Object.assign(panel.style, { left: rect.left + "px", top: rect.top + "px", width: rect.width + "px", height: rect.height + "px" });
+          return rect;
+        }
+        function start(event, kind, handle) {
+          if (event.button !== 0 || event.target.closest?.("button,input,select,textarea,a") && event.target !== resize) return;
+          const rect = layout();
+          gesture = { id: event.pointerId, x: event.clientX, y: event.clientY, rect, kind, handle };
+          handle.setPointerCapture(event.pointerId);
+          event.preventDefault();
+        }
+        function move(event) {
+          if (!gesture || event.pointerId !== gesture.id) return;
+          const { rect, x, y, kind } = gesture, dx = event.clientX - x, dy = event.clientY - y;
+          state.rect = kind === "move" ? { ...rect, left: rect.left + dx, top: rect.top + dy } : { ...rect, width: rect.width + dx, height: rect.height + dy };
+          layout();
+          event.preventDefault();
+        }
+        function end(event) {
+          if (!gesture || event.pointerId !== gesture.id) return;
+          const old = gesture;
+          gesture = null;
+          if (old.handle.hasPointerCapture(old.id)) old.handle.releasePointerCapture(old.id);
+        }
+        const onDrag = (e) => start(e, "move", drag), onResize = (e) => start(e, "resize", resize);
+        function keys(event, kind) {
+          const delta = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[event.key];
+          if (!delta || event.target !== event.currentTarget) return;
+          const rect = layout(), step = event.shiftKey ? 20 : 5;
+          state.rect = kind === "move" ? { ...rect, left: rect.left + delta[0] * step, top: rect.top + delta[1] * step } : { ...rect, width: rect.width + delta[0] * step, height: rect.height + delta[1] * step };
+          layout();
+          event.preventDefault();
+        }
+        const dragKeys = (e) => keys(e, "move"), resizeKeys = (e) => keys(e, "resize");
+        drag.classList.add("panel-drag");
+        drag.tabIndex = 0;
+        resize.classList.add("panel-resize");
+        drag.addEventListener("pointerdown", onDrag);
+        resize.addEventListener("pointerdown", onResize);
+        drag.addEventListener("keydown", dragKeys);
+        resize.addEventListener("keydown", resizeKeys);
+        for (const handle of [drag, resize]) for (const [name, fn] of [["pointermove", move], ["pointerup", end], ["pointercancel", end], ["lostpointercapture", end]]) handle.addEventListener(name, fn);
+        window2.addEventListener("resize", layout);
+        return { layout, dispose() {
+          disposed = true;
+          if (gesture) {
+            const old = gesture;
+            gesture = null;
+            if (old.handle.hasPointerCapture(old.id)) old.handle.releasePointerCapture(old.id);
+          }
+          drag.removeEventListener("pointerdown", onDrag);
+          resize.removeEventListener("pointerdown", onResize);
+          drag.removeEventListener("keydown", dragKeys);
+          resize.removeEventListener("keydown", resizeKeys);
+          for (const handle of [drag, resize]) for (const [name, fn] of [["pointermove", move], ["pointerup", end], ["pointercancel", end], ["lostpointercapture", end]]) handle.removeEventListener(name, fn);
+          window2.removeEventListener("resize", layout);
+        } };
+      }
+      module.exports = { attach, clamp, css };
+    }
+  });
+
   // vendor/inlineReviewPreview.js
   var require_inlineReviewPreview = __commonJS({
     "vendor/inlineReviewPreview.js"(exports, module) {
+      var Floating = require_floatingPanel();
       (function(root, factory) {
         const api = factory();
         if (typeof module === "object" && module.exports) module.exports = api;
@@ -4097,10 +4306,12 @@
         function create(deps) {
           const { document: document2, window: window2, staleGuard } = deps;
           let active = null, generation = 0;
+          const panelState = {};
           const cancelledTokens = /* @__PURE__ */ new Set();
           const fail = (code) => ({ ok: false, code, changedDocument: false });
           function dispose() {
             if (active?.timer) window2.clearInterval(active.timer);
+            active?.floating?.dispose();
             active?.host.remove();
             active = null;
           }
@@ -4112,6 +4323,7 @@
             if (active.failure) return false;
             if (isCurrent(active)) return true;
             active.failure = "review_context_changed";
+            active.floating?.dispose();
             active.host.remove();
             if (active.timer) window2.clearInterval(active.timer);
             return false;
@@ -4119,7 +4331,7 @@
           function read(params) {
             if (!active || active.token !== params.token) return fail("review_preview_expired");
             validate();
-            return active.failure ? fail(active.failure) : { ok: true, decision: active.decision, token: active.token };
+            return active.failure ? fail(active.failure) : { ok: true, decision: active.decision, navigation: active.navigation, token: active.token };
           }
           function clear(params = {}) {
             if (params.token) {
@@ -4154,10 +4366,10 @@
             view.dispatch({ selection: { anchor: highlights[0].from, head: highlights[0].to }, scrollIntoView: true });
             const host = document2.createElement("div");
             host.dataset.codexInlineReview = "";
-            host.style.cssText = "position:fixed;z-index:2147483000;pointer-events:none;overflow:hidden;";
+            host.style.cssText = "position:fixed;z-index:2147483000;pointer-events:none;overflow:visible;";
             const shadow = host.attachShadow({ mode: "open" });
             const style = document2.createElement("style");
-            style.textContent = ":host{font:13px/1.45 system-ui;color:#202833}*{box-sizing:border-box}.mark{position:absolute;background:rgba(255,176,104,.30);border-bottom:2px solid #c76827;pointer-events:none}.card{position:absolute;pointer-events:auto;background:#fff;border:1px solid #d4dce5;border-radius:9px;padding:12px;box-shadow:0 8px 28px #14233325;max-height:75%;overflow:auto}.title{font-weight:650;margin-bottom:8px}.text{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 ui-monospace,monospace;background:#eef9f0;color:#165d2a;padding:8px;margin:0 0 10px;max-height:160px;overflow:auto}.hint{font-size:11px;color:#697383;margin:0 0 8px}.actions{display:flex;gap:8px}button{font:inherit;padding:6px 10px;border:1px solid #c8d0da;border-radius:6px;background:#fff;color:#263140;cursor:pointer}button.accept{background:#16764b;border-color:#16764b;color:#fff}button:focus-visible{outline:3px solid #78a9e6}button:disabled{opacity:.5;cursor:default}";
+            style.textContent = ":host{font:13px/1.45 system-ui;color:#202833}*{box-sizing:border-box}.mark{position:absolute;background:rgba(255,176,104,.30);border-bottom:2px solid #c76827;pointer-events:none}.card{position:fixed;display:flex;flex-direction:column;pointer-events:auto;background:#fff;border:1px solid #d4dce5;border-radius:9px;padding:12px;box-shadow:0 8px 28px #14233325;overflow:hidden;padding-bottom:24px}.title{font-weight:650;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}.hint,.actions{flex-shrink:0}.actions{flex-wrap:wrap}.text{flex:1;min-height:24px}.text{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 ui-monospace,monospace;background:#eef9f0;color:#165d2a;padding:8px;margin:0 0 10px;overflow:auto}.hint{max-height:3em;overflow:auto;font-size:11px;color:#697383;margin:0 0 8px}.actions{display:flex;gap:8px}button{font:inherit;padding:6px 10px;border:1px solid #c8d0da;border-radius:6px;background:#fff;color:#263140;cursor:pointer}button.accept{background:#16764b;border-color:#16764b;color:#fff}button:focus-visible{outline:3px solid #78a9e6}button:disabled{opacity:.5;cursor:default}" + Floating.css;
             const marks = document2.createElement("div");
             const card = document2.createElement("section");
             card.className = "card";
@@ -4173,6 +4385,24 @@
             proposed.textContent = patch.insert || params.labels?.empty || "(empty)";
             const actions = document2.createElement("div");
             actions.className = "actions";
+            for (const [direction, symbol, label] of [[-1, "\u2191", params.labels?.previous || "Previous item"], [1, "\u2193", params.labels?.next || "Next item"]]) {
+              const button = document2.createElement("button");
+              button.type = "button";
+              button.textContent = symbol;
+              button.dataset.reviewNavigate = String(direction);
+              button.title = label;
+              button.setAttribute("aria-label", label);
+              button.addEventListener("click", () => {
+                if (validate() && active.decision === null) active.navigation = direction;
+              });
+              actions.append(button);
+            }
+            const resize = document2.createElement("button");
+            resize.type = "button";
+            resize.setAttribute("aria-label", params.labels?.resize || "Resize panel");
+            resize.title = params.labels?.resize || "Resize panel";
+            title.setAttribute("aria-label", params.labels?.move || "Move panel");
+            title.title = params.labels?.move || "Move panel";
             for (const [choice, label] of [[false, params.labels?.reject || "Reject this change"], [true, params.labels?.accept || "Accept this change"]]) {
               const button = document2.createElement("button");
               button.type = "button";
@@ -4188,10 +4418,12 @@
               });
               actions.append(button);
             }
-            card.append(title, hint, proposed, actions);
+            card.append(title, hint, proposed, actions, resize);
             shadow.append(style, marks, card);
             document2.body.append(host);
-            active = { token: params.token, projectId: params.runProjectId, path: params.path, view, text, patch, highlights, host, marks, card, decision: null, failure: "", timer: null };
+            active = { token: params.token, projectId: params.runProjectId, path: params.path, view, text, patch, highlights, host, marks, card, navigation: null, decision: null, failure: "", timer: null };
+            active.floating = Floating.attach({ panel: card, drag: title, resize, window: window2, state: panelState, minimum: { width: 260, height: 230 }, defaultRect: () => active.defaultRect || { left: 8, top: 8, width: 370, height: 220 } });
+            active.elements = { title, hint, resize, actions, proposed };
             render();
             active.timer = window2.setInterval(render, 250);
             return { ok: true, token: params.token, changedDocument: false };
@@ -4231,12 +4463,36 @@
             card.hidden = !visible.length || width < 160 || height < 100;
             if (card.hidden) return;
             const first = visible[0];
-            card.style.width = Math.min(370, width - 16) + "px";
-            card.style.left = Math.max(8, Math.min(first.left - bounds.left, width - Math.min(370, width - 16) - 8)) + "px";
-            const below = first.bottom - bounds.top + 8;
-            card.style.top = Math.max(8, Math.min(below, height - card.offsetHeight - 8)) + "px";
+            const panelWidth = Math.min(370, width - 16), panelHeight = Math.min(270, height - 16);
+            item.defaultRect = { left: bounds.left + Math.max(8, Math.min(first.left - bounds.left, width - panelWidth - 8)), top: bounds.top + Math.max(8, Math.min(first.bottom - bounds.top + 8, height - panelHeight - 8)), width: panelWidth, height: panelHeight };
+            item.floating.layout();
           }
-          return { show, read, clear, dispose: () => {
+          function labels(params) {
+            if (!active) return { ok: true };
+            const value = params.labels, { title, hint, resize, actions, proposed } = active.elements;
+            active.card.setAttribute("aria-label", value.title);
+            title.textContent = value.title;
+            title.title = value.move;
+            title.setAttribute("aria-label", value.move);
+            hint.textContent = value.hint;
+            resize.title = value.resize;
+            resize.setAttribute("aria-label", value.resize);
+            actions.querySelector('[data-review-choice="true"]').textContent = value.accept;
+            actions.querySelector('[data-review-choice="false"]').textContent = value.reject;
+            for (const [direction, label] of [[-1, value.previous], [1, value.next]]) {
+              const button = actions.querySelector(`[data-review-navigate="${direction}"]`);
+              button.title = label;
+              button.setAttribute("aria-label", label);
+            }
+            if (!active.patch.insert) proposed.textContent = value.empty;
+            return { ok: true };
+          }
+          function consumeNavigation(params) {
+            if (!active || active.token !== params.token) return fail("review_preview_expired");
+            active.navigation = null;
+            return { ok: true };
+          }
+          return { show, read, clear, labels, consumeNavigation, dispose: () => {
             generation++;
             dispose();
           } };
@@ -4527,6 +4783,7 @@
     const pending = Promise.resolve().then(() => {
       if (message.method === "hello") return { ok: true };
       if (message.method === "begin") return service.begin(message.params);
+      if (message.method === "language") return service.setLanguage(message.params);
       if (message.method === "snapshot") return service.snapshot();
       if (message.method === "cancel") return service.cancel();
       if (message.method === "project") return { ok: true, projectId: adapter.projectId(), file: adapter.path() };
