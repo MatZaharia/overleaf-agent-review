@@ -9,10 +9,14 @@ test('Agent CLI publishes packs, exports current source and refuses stale or wro
  const packPath=path.join(dir,'pack.json');await fs.writeFile(packPath,JSON.stringify({format:'codex-overleaf-suggestions',version:1,suggestions:[{file:'main.tex',original:'old',replacement:'new'}]}));
  assert.equal(JSON.parse((await cli('publish','--file',packPath)).stdout).revision,1);
  const source='\\title{实时正文}\n😀';let captures=0;
+ let captureBusy=false;
  const timer=setInterval(async()=>{
+  if(captureBusy)return;captureBusy=true;
+  try{
   const headers={Authorization:'Bearer '+token};
   const pending=await(await fetch('http://127.0.0.1:43127/sync?projectId='+id,{method:'POST',headers,body:'{}'})).json();
   if(pending.snapshotRequest){captures++;await fetch('http://127.0.0.1:43127/sync?projectId='+id,{method:'POST',headers,body:JSON.stringify({requestId:pending.snapshotRequest.id,snapshot:{projectId:id,file:'main.tex',source}})})}
+  }finally{captureBusy=false}
  },50);t.after(()=>clearInterval(timer));
  assert.equal((await cli('read','--file','main.tex')).stdout,source);
  assert.equal(captures,1);
