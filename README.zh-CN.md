@@ -1,16 +1,16 @@
-# Overleaf Codex Review
+# Overleaf Agent Review
 
 简体中文 · [English](README.md)
 
-把 Codex 生成的建议包导入在线 Overleaf，在源码中高亮修改位置，**逐项接受或拒绝**。
+把 Agent 生成的建议包导入在线 Overleaf，在源码中高亮修改位置，**逐项接受或拒绝**。
 
 建议可以提前生成，但每次接受都会搜索**当前源码**，实际只写入变化的字符。原文过时、已经替换或匹配不唯一时，自动跳过并继续下一项。
 
 ## 安装
 
-1. 在 [Releases](https://github.com/MatZaharia/overleaf-codex-review/releases/tag/v1.2.0) 下载插件 ZIP 并解压。请选择插件安装包，不是 GitHub 自动生成的 Source code ZIP。
+1. 在 [Releases](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.3.0) 下载插件 ZIP 并解压。请选择插件安装包，不是 GitHub 自动生成的 Source code ZIP。
 2. 在 Chrome 打开 `chrome://extensions`，开启“开发者模式”。
-3. 点击“加载未打包的扩展程序”，选择解压后包含 `manifest.json` 的 `overleaf-codex-review` 文件夹。
+3. 点击“加载未打包的扩展程序”，选择解压后包含 `manifest.json` 的 `overleaf-agent-review` 文件夹。
 4. 打开 Overleaf 项目，刷新页面，切换到 **Code** 源码模式。
 5. 点击右下角“导入修改建议”。
 
@@ -40,15 +40,25 @@
 
 行号仅用于展示，不作为替换地址。
 
-## 配合 Codex 使用
+## 配合 Agent 使用
 
-向 Codex 提供当前源码和修改意见，请它生成上述格式的 JSON。仓库提供[中英文提示词](docs/codex-prompt.md)。把生成的 JSON 粘贴进插件，或选择 JSON 文件，然后在源码浮层或审阅面板中逐项确认。
+**Agent 入口：[AGENTS.md](AGENTS.md) → [中英文操作指南](docs/agent-guide.md)。** 主流程是生成、校验并发布审阅建议包，由用户在 Overleaf 逐项确认。读取正文是可选能力。
 
-插件本身不调用 Codex 或任何 AI API，只处理你在现有聊天中生成的建议包。Codex 必须知道精确原文；仅有“润色这段”这样的意见，还不足以生成可靠的匹配文本。
+完成一次[本地连接配置](docs/local-bridge.md)后，让 Agent 根据已掌握的精确原文生成 `work/suggestions.json`，然后执行：
+
+```sh
+node bridge/cli.js validate --file work/suggestions.json --project PROJECT_ID
+node bridge/cli.js publish --project PROJECT_ID --file work/suggestions.json
+node bridge/cli.js status --project PROJECT_ID
+```
+
+`PROJECT_ID` 使用 Overleaf URL 中的项目 ID。`validate` 可以离线使用，不需要配对或令牌；`publish` 只提交建议，不接受或写入修改；需要反馈时再查 `status`。未连接本地服务时，可以手动导入生成的 JSON 文件。另有[中英文提示词](docs/agent-prompt.md)。
+
+CLI 和建议包格式不绑定模型厂商。目前以 Codex 开发和验证流程，其他具备本地文件与命令行能力的 Agent 可以使用同一接口，但尚未分别验证各自集成。插件不调用 AI API。建议必须基于精确原文；缺少原文时应询问用户，或按需调用 `read`，不要猜测。
 
 ## 建议包格式
 
-[examples](examples/) 包含字符修改和板块定位示例。
+[examples](examples/) 包含字符修改和板块定位示例。为兼容已有建议包，`format` 仍使用 `codex-overleaf-suggestions`；这个协议标识不限制生成建议的 Agent。
 
 | 字段 | 说明 |
 | --- | --- |
@@ -85,11 +95,11 @@ v1.2 的 Chrome 压力测试和刷新恢复见[验证记录](docs/validation-v1.
 
 ## 隐私
 
-插件没有 AI 请求、统计服务或 Native 连接，仅在 Overleaf 项目页面运行。后台 service worker 负责大包解析和可选的鉴权本地连接。源码和建议包在本机处理，接受后通过现有编辑器写入，Overleaf 负责正常同步。连接按项目手动配对；只有 Codex 明确执行 read 命令时，才抓取一次当前文件源码传到本机服务；空闲检查仅查看读取请求和建议版本，不会自动打开其他文件。断开后停止新增传输；扩展会在本地 IndexedDB 保存建议包、决定和源码基准，点击“清除进度”可按项目删除；本机服务状态仍保存在内存中，CLI 导出由你明确执行。是否向模型服务提供源码取决于你如何使用 Codex。
+插件没有 AI 请求、统计服务或 Native 连接，仅在 Overleaf 项目页面运行。后台 service worker 负责大包解析和可选的鉴权本地连接。源码和建议包在本机处理，接受后通过现有编辑器写入，Overleaf 负责正常同步。连接按项目手动配对；只有 Agent 明确执行 read 命令时，才抓取一次当前文件源码传到本机服务；空闲检查仅查看读取请求和建议版本，不会自动打开其他文件。断开后停止新增传输；扩展会在本地 IndexedDB 保存建议包、决定和源码基准，点击“清除进度”可按项目删除；本机服务状态仍保存在内存中，CLI 导出由你明确执行。是否向模型服务提供源码取决于你如何使用 Agent。
 
-## 本地 Codex 连接（v1.1）
+## 本地 Agent 连接
 
-见[本地连接说明](docs/local-bridge.md)：启动本机服务，在 Overleaf 配对一次，随后 Codex 可通过 CLI 推送建议、读取当前源码及查询审阅结果。新包自动展开审阅，但不自动接受；收到新版本后旧预览失效。审阅面板仅保留最近 100 条记录，文件导入不在输入框展开大 JSON，支持一万项规模。建议包、决定和定位记录保存到扩展本地 IndexedDB，刷新后点击“恢复上次审阅”继续。同一 ID 且修改内容、上下文和范围不变的建议保留原决定；内容改变后重新确认。“清除进度”删除当前项目的保存会话，不修改正文。跳过项在恢复时重新核对。
+见[本地连接说明](docs/local-bridge.md)：启动本机服务，在 Overleaf 配对一次，随后 Agent 可通过 CLI 推送建议、读取当前源码及查询审阅结果。新包自动展开审阅，但不自动接受；收到新版本后旧预览失效。审阅面板仅保留最近 100 条记录，文件导入不在输入框展开大 JSON，支持一万项规模。建议包、决定和定位记录保存到扩展本地 IndexedDB，刷新后点击“恢复上次审阅”继续。同一 ID 且修改内容、上下文和范围不变的建议保留原决定；内容改变后重新确认。“清除进度”删除当前项目的保存会话，不修改正文。跳过项在恢复时重新核对。
 
 ## 开发
 
@@ -105,9 +115,9 @@ npm run package
 
 演示地址会打印在终端，使用本地 CodeMirror 编辑器，不连接 Overleaf。演示产物位于 `work/`，安装 ZIP 位于 `dist/`。开发时可以先构建，再在 Chrome 中直接加载仓库根目录。
 
-52 项自动化测试覆盖精确匹配、Unicode 字符修改、CRLF 保留、实时重新定位、过时保护、逐项确认、取消和写入不重放。GitHub Actions 在 push 和 pull request 时运行测试及构建。
+55 项自动化测试覆盖精确匹配、Unicode 字符修改、CRLF 保留、实时重新定位、过时保护、逐项确认、取消和写入不重放。GitHub Actions 在 push 和 pull request 时运行测试及构建。
 
-遇到问题请提交 [Issue](https://github.com/MatZaharia/overleaf-codex-review/issues)，包含 Chrome/插件版本、复现步骤和最小非敏感样例。欢迎贡献，见 [CONTRIBUTING](CONTRIBUTING.md)。
+遇到问题请提交 [Issue](https://github.com/MatZaharia/overleaf-agent-review/issues)，包含 Chrome/插件版本、复现步骤和最小非敏感样例。欢迎贡献，见 [CONTRIBUTING](CONTRIBUTING.md)。
 
 ## 许可和致谢
 

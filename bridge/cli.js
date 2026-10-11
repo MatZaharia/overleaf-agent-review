@@ -2,10 +2,20 @@
 'use strict';
 const fs=require('node:fs/promises'),path=require('node:path'),crypto=require('node:crypto');
 const {createServer}=require('./server');
+const {parsePack}=require('../src/suggestions');
 const args=process.argv.slice(2),command=args.shift();
 const flag=(name,fallback)=>{const i=args.indexOf('--'+name);return i<0?fallback:args[i+1]};
 const configPath=path.resolve(flag('config','work/bridge.json'));
 (async()=>{
+ if(command==='validate'){
+  const file=flag('file');if(!file)throw new Error('--file requires a suggestion pack path');
+  const pack=parsePack(await fs.readFile(file,'utf8')),projectId=flag('project');
+  if(projectId!==undefined){
+   if(!/^[a-f\d]{24}$/i.test(projectId))throw new Error('--project requires an Overleaf project ID');
+   if(pack.projectId && pack.projectId!==projectId)throw new Error('Suggestion pack belongs to a different project');
+  }
+  console.log(JSON.stringify({ok:true,format:pack.format,version:pack.version,projectId:pack.projectId,count:pack.suggestions.length}));return;
+ }
  if(command==='start'){
   await fs.mkdir(path.dirname(configPath),{recursive:true});
   let config;try{config=JSON.parse(await fs.readFile(configPath,'utf8'))}catch(error){if(error.code!=='ENOENT')throw error;config={token:crypto.randomBytes(32).toString('hex')};await fs.writeFile(configPath,JSON.stringify(config,null,2),{mode:0o600})}
@@ -30,5 +40,5 @@ const configPath=path.resolve(flag('config','work/bridge.json'));
   if(flag('file')&&snapshot.file!==flag('file'))throw new Error('Different file active: open '+flag('file')+' in Overleaf');
   const output=flag('output');if(output){await fs.writeFile(output,snapshot.source);console.log(JSON.stringify({...snapshot,source:undefined,output:path.resolve(output)}))}else process.stdout.write(snapshot.source);return;
  }
- throw new Error('Commands: start | publish --project ID --file pack.json | read --project ID [--file main.tex] [--output file.tex] | status --project ID');
+ throw new Error('Commands: validate --file pack.json [--project ID] | start | publish --project ID --file pack.json | read --project ID [--file main.tex] [--output file.tex] | status --project ID');
 })().catch(error=>{console.error(error.message);process.exitCode=1});
