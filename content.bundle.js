@@ -9,7 +9,7 @@
   var require_suggestions = __commonJS({
     "src/suggestions.js"(exports, module) {
       "use strict";
-      var MAX_PACK_BYTES = 2 * 1024 * 1024;
+      var MAX_PACK_BYTES = 64 * 1024 * 1024;
       function normalizePath(value) {
         if (typeof value !== "string" || value.length > 512 || /[\\\x00-\x1f]/.test(value) || value.startsWith("/") || /^[a-z]:/i.test(value)) throw new Error("\u6587\u4EF6\u8DEF\u5F84\u5FC5\u987B\u662F\u9879\u76EE\u5185\u7684\u76F8\u5BF9\u8DEF\u5F84");
         const parts = value.split("/");
@@ -33,9 +33,9 @@
         return item;
       }
       function parsePack(input) {
-        if (typeof input === "string" && new TextEncoder().encode(input).length > MAX_PACK_BYTES) throw new Error("\u5EFA\u8BAE\u5305\u4E0D\u80FD\u8D85\u8FC7 2 MiB");
+        if (typeof input === "string" && new TextEncoder().encode(input).length > MAX_PACK_BYTES) throw new Error("\u5EFA\u8BAE\u5305\u4E0D\u80FD\u8D85\u8FC7 64 MiB");
         const pack = typeof input === "string" ? JSON.parse(input) : input;
-        if (!pack || pack.format !== "codex-overleaf-suggestions" || pack.version !== 1 || !Array.isArray(pack.suggestions) || !pack.suggestions.length || pack.suggestions.length > 500) throw new Error("\u9700\u8981 codex-overleaf-suggestions v1 \u5EFA\u8BAE\u5305\uFF0C\u542B 1\u2013500 \u9879");
+        if (!pack || pack.format !== "codex-overleaf-suggestions" || pack.version !== 1 || !Array.isArray(pack.suggestions) || !pack.suggestions.length || pack.suggestions.length > 1e4) throw new Error("\u9700\u8981 codex-overleaf-suggestions v1 \u5EFA\u8BAE\u5305\uFF0C\u542B 1\u201310000 \u9879");
         if (pack.projectId !== void 0 && (typeof pack.projectId !== "string" || !/^[a-f0-9]{24}$/i.test(pack.projectId))) throw new Error("projectId \u5FC5\u987B\u662F Overleaf \u9879\u76EE ID");
         const suggestions = pack.suggestions.map(normalizeItem);
         if (new Set(suggestions.map((s) => s.id)).size !== suggestions.length) throw new Error("\u6BCF\u9879 id \u5FC5\u987B\u552F\u4E00");
@@ -82,6 +82,7 @@
         return { ok: true, patch: { from, to, expected: source.slice(from, to), insert: next }, line: text.slice(0, offset).split("\n").length };
       }
       var skipped = {
+        overlapping_change: "\u4E0E\u5DF2\u63A5\u53D7\u4FEE\u6539\u91CD\u53E0\u51B2\u7A81\uFF0C\u8DF3\u8FC7",
         diff_too_complex: "\u5B57\u7B26\u5DEE\u5F02\u8FC7\u4E8E\u590D\u6742\uFF0C\u8DF3\u8FC7",
         original_missing: "\u539F\u6587\u6216\u4E0A\u4E0B\u6587\u5DF2\u7ECF\u53D8\u5316\uFF0C\u8DF3\u8FC7",
         already_applied: "\u5DF2\u7ECF\u5E94\u7528\uFF0C\u8DF3\u8FC7",
@@ -170,11 +171,12 @@
     const shadow = host.attachShadow({ mode: "open" });
     shadow.innerHTML = `<style>
 :host{font:13px/1.5 system-ui;color:#273342}*{box-sizing:border-box}button,textarea,input{font:inherit}button{border:1px solid #cdd6df;border-radius:6px;background:#fff;color:#273342;padding:7px 11px;cursor:pointer}button:disabled{opacity:.45;cursor:default}button:focus-visible,textarea:focus-visible{outline:3px solid #8aafe3;outline-offset:2px}.primary,.launch{background:#176347;color:#fff;border-color:#176347}.launch{box-shadow:0 4px 18px #18352925}.drawer{width:390px;max-width:calc(100vw - 32px);max-height:85vh;overflow:auto;background:#fff;border:1px solid #cbd5de;border-radius:10px;box-shadow:0 10px 40px #14253630;margin-bottom:10px}.head{padding:14px 16px;border-bottom:1px solid #e0e6ec;display:flex;align-items:center;justify-content:space-between}.head strong{font-size:15px}.head button{padding:3px 8px}.body{padding:16px}.muted{color:#657687;font-size:12px;margin:0 0 12px}.label{display:block;margin-bottom:6px;font-weight:600}textarea{display:block;width:100%;height:130px;padding:10px;border:1px solid #ccd7e0;border-radius:6px;resize:vertical;font:12px/1.45 ui-monospace,monospace}.toolbar{display:flex;gap:8px;margin:12px 0}.message{font-size:12px;padding:10px;background:#f0f5f4;border-radius:5px}.card{border:1px solid #d2dce4;border-radius:7px;padding:12px;margin-top:12px}.card strong{display:block}.path{font:11px/1.5 ui-monospace,monospace;color:#687888}.reason{font-size:12px;margin:8px 0}.source{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 ui-monospace,monospace;margin:6px 0 10px;padding:8px;max-height:180px;overflow:auto;border-radius:4px}.old{background:#fff1e5;color:#74451f}.new{background:#eef8ee;color:#23572c}.actions{display:flex;gap:8px}.history{padding:8px 0;border-bottom:1px solid #e3e9ed;font-size:12px}.history b{color:#176347}.unknown{color:#9a452c}.footer{margin-top:14px;font-size:11px;color:#6b7b88}[hidden]{display:none!important}
-</style><section class="drawer" hidden><div class="head"><strong>\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE</strong><button class="close" aria-label="\u6536\u8D77">\xD7</button></div><div class="body"><p class="muted">\u5148\u5BFC\u5165\u5EFA\u8BAE\u5305\uFF0C\u518D\u9010\u9879\u786E\u8BA4\u3002\u6BCF\u6B21\u63A5\u53D7\u90FD\u4F1A\u641C\u7D22\u5F53\u524D\u539F\u6587\uFF1B\u8FC7\u65F6\u6216\u4E0D\u552F\u4E00\u7684\u9879\u81EA\u52A8\u8DF3\u8FC7\u3002</p><label class="label" for="pack">\u5EFA\u8BAE\u5305 JSON</label><textarea id="pack" spellcheck="false" placeholder="\u7C98\u8D34 Codex \u751F\u6210\u7684\u5EFA\u8BAE\u5305"></textarea><input type="file" accept=".json,application/json" hidden><div class="toolbar"><button class="file">\u9009\u62E9 JSON \u6587\u4EF6</button><button class="primary start">\u5F00\u59CB\u5BA1\u9605</button><button class="stop" hidden>\u505C\u6B62</button></div><div class="message" role="status" aria-live="polite">\u7B49\u5F85\u5BFC\u5165\u5EFA\u8BAE\u5305</div><div class="pending"></div><div class="history-list"></div><p class="footer">\u5DF2\u5199\u5165\u8868\u793A\u7F16\u8F91\u5668\u5185\u5BB9\u5DF2\u6838\u9A8C\uFF0C\u670D\u52A1\u5668\u4FDD\u5B58\u9700\u5728 Overleaf \u68C0\u67E5\u3002\u53EF\u4F7F\u7528 Overleaf \u7684\u64A4\u9500\u6309\u94AE\u3002</p></div></section><button class="launch">\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE</button>`;
+</style><section class="drawer" hidden><div class="head"><strong>\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE</strong><button class="close" aria-label="\u6536\u8D77">\xD7</button></div><div class="body"><p class="muted">\u5148\u5BFC\u5165\u5EFA\u8BAE\u5305\uFF0C\u518D\u9010\u9879\u786E\u8BA4\u3002\u6BCF\u6B21\u63A5\u53D7\u90FD\u4F1A\u641C\u7D22\u5F53\u524D\u539F\u6587\uFF1B\u8FC7\u65F6\u6216\u4E0D\u552F\u4E00\u7684\u9879\u81EA\u52A8\u8DF3\u8FC7\u3002</p><label class="label" for="pack">\u5EFA\u8BAE\u5305 JSON</label><textarea id="pack" spellcheck="false" placeholder="\u7C98\u8D34 Codex \u751F\u6210\u7684\u5EFA\u8BAE\u5305"></textarea><input type="file" accept=".json,application/json" hidden><div class="toolbar"><button class="connect">\u8FDE\u63A5 Codex</button><button class="disconnect">\u65AD\u5F00</button></div><div class="bridge-status" role="status"></div><input class="bridge-token" type="password" placeholder="\u672C\u5730\u8FDE\u63A5\u914D\u5BF9\u4EE4\u724C" autocomplete="off"><div class="toolbar"><button class="file">\u9009\u62E9 JSON \u6587\u4EF6</button><button class="primary start">\u5F00\u59CB\u5BA1\u9605</button><button class="stop" hidden>\u505C\u6B62</button></div><div class="message" role="status" aria-live="polite">\u7B49\u5F85\u5BFC\u5165\u5EFA\u8BAE\u5305</div><div class="pending"></div><div class="history-list"></div><p class="footer">\u5DF2\u5199\u5165\u8868\u793A\u7F16\u8F91\u5668\u5185\u5BB9\u5DF2\u6838\u9A8C\uFF0C\u670D\u52A1\u5668\u4FDD\u5B58\u9700\u5728 Overleaf \u68C0\u67E5\u3002\u53EF\u4F7F\u7528 Overleaf \u7684\u64A4\u9500\u6309\u94AE\u3002</p></div></section><button class="launch">\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE</button>`;
     document.body.append(host);
     const $ = (selector) => shadow.querySelector(selector);
     const capability = Array.from(crypto.getRandomValues(new Uint8Array(32)), (b) => b.toString(16).padStart(2, "0")).join("");
-    let initialized = null, running = false, starting = false, owner = "", cancelled = false, pendingAbort = null;
+    let startEpoch = 0;
+    let importedPack = null, initialized = null, running = false, starting = false, owner = "", cancelled = false, pendingAbort = null;
     function send(method, params) {
       const id = crypto.randomUUID();
       return new Promise((resolve, reject) => {
@@ -217,8 +219,8 @@
         card.querySelector("strong").textContent = "\u4FEE\u6539 " + (options.index + 1) + " / " + options.total;
         card.querySelector(".path").textContent = item.file + " \xB7 L" + prepared.line;
         card.querySelector(".reason").textContent = item.reason;
-        card.querySelector(".old").textContent = item.original;
-        card.querySelector(".new").textContent = item.replacement || "\uFF08\u5220\u9664\u6B64\u6BB5\uFF09";
+        card.querySelector(".old").textContent = prepared.item?.original || item.original;
+        card.querySelector(".new").textContent = (prepared.item?.replacement ?? item.replacement) || "\uFF08\u5220\u9664\u6B64\u6BB5\uFF09";
         $(".pending").replaceChildren(card);
         status(prepared.inline ? "\u539F\u6587\u5DF2\u5728\u6E90\u7801\u4E2D\u9AD8\u4EAE\uFF0C\u7B49\u5F85\u786E\u8BA4" : "\u9AD8\u4EAE\u6682\u4E0D\u53EF\u7528\uFF0C\u8BF7\u5728\u6B64\u6838\u5BF9\u539F\u6587\u4E0E\u5EFA\u8BAE");
         function finish(accepted, skipped) {
@@ -252,6 +254,10 @@
               return;
             }
             if (response.refreshed) {
+              if (response.item) {
+                card.querySelector(".old").textContent = response.item.original;
+                card.querySelector(".new").textContent = response.item.replacement || "\uFF08\u5220\u9664\u6B64\u6BB5\uFF09";
+              }
               token = response.token;
               card.querySelector(".path").textContent = item.file + " \xB7 L" + response.line;
               status("\u6B63\u6587\u6709\u53D8\u5316\uFF0C\u5DF2\u91CD\u65B0\u5B9A\u4F4D\u8FD9\u4E00\u9879\uFF0C\u7B49\u5F85\u786E\u8BA4");
@@ -268,24 +274,31 @@
       });
     }
     function record(result) {
+      if (bridgeRevision) bridgeResults.push({ revision: bridgeRevision, id: result.item.id, state: result.state, code: result.code });
       $(".pending").replaceChildren();
       const row = document.createElement("div");
       row.className = "history";
       const word = result.state === "written" ? "\u5DF2\u5199\u5165" : result.state === "rejected" ? "\u5DF2\u62D2\u7EDD" : result.state === "unknown" ? "\u5199\u5165\u672A\u786E\u8BA4" : Core.skipped[result.code] || "\u5DF2\u8DF3\u8FC7\uFF1A" + result.code;
       row.textContent = result.item.file + " \xB7 \u4FEE\u6539 " + result.item.id + "\uFF1A" + word;
       $(".history-list").append(row);
+      while ($(".history-list").children.length > 100) $(".history-list").firstElementChild.remove();
       if (result.state === "written") status("\u5F53\u524D\u9879\u5DF2\u5199\u5165\u7F16\u8F91\u5668\uFF0C\u7EE7\u7EED\u6838\u5BF9\u4E0B\u4E00\u9879");
     }
     async function start() {
       if (running || starting) return;
+      const epoch = ++startEpoch;
       starting = true;
       $(".start").disabled = true;
       let pack;
       try {
-        pack = Core.parsePack($("#pack").value);
+        pack = typeof chrome !== "undefined" && chrome.runtime?.id ? await chrome.runtime.sendMessage({ type: "parse", input: importedPack || $("#pack").value }).then((r) => {
+          if (!r.ok) throw new Error(r.error);
+          return r.pack;
+        }) : Core.parsePack(importedPack || $("#pack").value);
         const current = await call("project", {});
         if (!current.ok || !current.projectId) throw new Error("\u8BF7\u5148\u6253\u5F00 Overleaf \u9879\u76EE");
         if (pack.projectId && pack.projectId !== current.projectId) throw new Error("\u5EFA\u8BAE\u5305\u5C5E\u4E8E\u5176\u4ED6\u9879\u76EE\uFF0C\u6CA1\u6709\u5199\u5165");
+        if (epoch !== startEpoch) throw new Error("\u5EFA\u8BAE\u5DF2\u66F4\u65B0\u6216\u5BA1\u9605\u5DF2\u505C\u6B62");
         owner = current.projectId;
       } catch (error) {
         status(error.message);
@@ -302,6 +315,7 @@
       $(".stop").hidden = false;
       $(".history-list").replaceChildren();
       try {
+        await call("begin", {});
         const results = await Runner.run(pack, { projectId: owner, assertCurrent, call, review, record });
         const count = (state) => results.filter((result) => result.state === state).length;
         status("\u5BA1\u9605\u7ED3\u675F\uFF1A\u5199\u5165 " + count("written") + " \u9879\uFF0C\u62D2\u7EDD " + count("rejected") + " \u9879\uFF0C\u8DF3\u8FC7 " + count("skipped") + " \u9879\u3002");
@@ -320,30 +334,94 @@
         $(".stop").hidden = true;
       }
     }
+    let bridgeRevision = 0, bridgeEnabled = false, bridgeBusy = false, bridgeResults = [];
+    const bridgeMessage = (message) => chrome.runtime.sendMessage(message);
+    $(".connect").addEventListener("click", async () => {
+      if (typeof chrome === "undefined" || !chrome.runtime?.id) {
+        status("\u672C\u5730\u8FDE\u63A5\u9700\u8981\u5728 Chrome \u6269\u5C55\u4E2D\u4F7F\u7528");
+        return;
+      }
+      const result = await bridgeMessage({ type: "connect", token: $(".bridge-token").value }).catch((e) => ({ error: e.message }));
+      if (!result.ok) {
+        $(".bridge-status").textContent = result.error;
+        return;
+      }
+      $(".bridge-token").value = "";
+      bridgeEnabled = true;
+      $(".bridge-status").textContent = "\u5DF2\u8FDE\u63A5\uFF1A\u5F53\u524D\u6587\u4EF6\u6E90\u7801\u4F1A\u540C\u6B65\u5230\u672C\u673A Codex\uFF1B\u65B0\u5EFA\u8BAE\u7B49\u5F85\u9010\u9879\u786E\u8BA4";
+      pollBridge();
+    });
+    $(".disconnect").addEventListener("click", async () => {
+      bridgeEnabled = false;
+      if (typeof chrome !== "undefined") await bridgeMessage({ type: "disconnect" });
+      $(".bridge-status").textContent = "\u5DF2\u65AD\u5F00\u672C\u5730\u8FDE\u63A5";
+    });
+    async function pollBridge() {
+      if (!bridgeEnabled || bridgeBusy) return;
+      bridgeBusy = true;
+      try {
+        const snapshot = await call("snapshot", {});
+        if (!snapshot.ok) throw new Error("\u6E90\u7801\u7F16\u8F91\u5668\u672A\u5C31\u7EEA");
+        const batch = bridgeResults.slice(0, 500);
+        const result = await bridgeMessage({ type: "sync", snapshot, revision: bridgeRevision, results: batch });
+        if (!bridgeEnabled) return;
+        if (result.ok) bridgeResults.splice(0, batch.length);
+        if (result.disconnected) {
+          bridgeEnabled = false;
+          return;
+        }
+        if (!result.ok) throw new Error(result.error);
+        if (result.pack && result.revision !== bridgeRevision) {
+          ++startEpoch;
+          cancelled = true;
+          pendingAbort?.();
+          await call("cancel", {});
+          while (running || starting) await new Promise((r) => setTimeout(r, 30));
+          if (!bridgeEnabled) return;
+          bridgeRevision = result.revision;
+          bridgeResults = [];
+          importedPack = result.pack;
+          $("#pack").value = "Codex \u5EFA\u8BAE\u7248\u672C " + bridgeRevision + "\uFF0C\u5171 " + result.pack.suggestions.length + " \u9879";
+          $(".drawer").hidden = false;
+          start();
+        }
+        $(".bridge-status").textContent = "\u5DF2\u8FDE\u63A5 \xB7 \u6E90\u7801\u540C\u6B65\u4E2D \xB7 \u5EFA\u8BAE\u7248\u672C " + bridgeRevision;
+      } catch (error) {
+        $(".bridge-status").textContent = "\u672C\u5730\u8FDE\u63A5\u6682\u4E0D\u53EF\u7528\uFF1A" + error.message;
+      } finally {
+        bridgeBusy = false;
+        if (bridgeEnabled) setTimeout(pollBridge, 2e3);
+      }
+    }
     $(".launch").addEventListener("click", () => {
       $(".drawer").hidden = !$(".drawer").hidden;
     });
     $(".close").addEventListener("click", () => {
       $(".drawer").hidden = true;
     });
-    $(".file").addEventListener("click", () => $("input").click());
-    $("input").addEventListener("change", async (event) => {
+    $(".file").addEventListener("click", () => $("input[type=file]").click());
+    $("input[type=file]").addEventListener("change", async (event) => {
       const file = event.target.files?.[0];
       if (!file) return;
       if (file.size > Core.MAX_PACK_BYTES) {
-        status("\u5EFA\u8BAE\u5305\u4E0D\u80FD\u8D85\u8FC7 2 MiB");
+        status("\u5EFA\u8BAE\u5305\u4E0D\u80FD\u8D85\u8FC7 64 MiB");
         return;
       }
       try {
-        $("#pack").value = await file.text();
+        importedPack = await file.text();
+        $("#pack").value = "\u5DF2\u8F7D\u5165\u6587\u4EF6\uFF1A" + file.name + "\uFF08\u6B63\u6587\u4E0D\u5728\u8F93\u5165\u6846\u5C55\u5F00\uFF09";
         status("\u5DF2\u8BFB\u53D6\u5EFA\u8BAE\u5305\uFF0C\u70B9\u51FB\u5F00\u59CB\u5BA1\u9605");
       } catch (_) {
         status("\u65E0\u6CD5\u8BFB\u53D6\u6587\u4EF6");
       }
       event.target.value = "";
     });
+    $("#pack").addEventListener("input", () => {
+      importedPack = null;
+    });
     $(".start").addEventListener("click", start);
     $(".stop").addEventListener("click", () => {
+      ++startEpoch;
       cancelled = true;
       pendingAbort?.();
       call("cancel", {}).catch(() => {

@@ -15,3 +15,9 @@ Copy originals from source you have actually read, never guess or use line numbe
 格式：`{"format":"codex-overleaf-suggestions","version":1,"suggestions":[{"id":"唯一ID","file":"main.tex","original":"精确原文","replacement":"新文本","reason":"修改理由"}]}`。知道当前项目 ID 时加入 `projectId`。`scope` 包含 `start` 和可选 `end` 文本标记。
 
 原文必须来自实际读取的源码，不猜测，不用行号作为替换地址。LaTeX 反斜杠正确转义。删除使用空 replacement。无法确定原文的意见单独说明，不加入执行包。尽量不重叠；必须重叠时考虑前项接受后的结果。
+
+## Connected workflow / 本地连接流程
+
+After pairing, use `node bridge/cli.js read --project PROJECT_ID --file main.tex --output work/current.tex` to read the current open source before making suggestions. Write the pack to `work/suggestions.json`, then use `node bridge/cli.js publish --project PROJECT_ID --file work/suggestions.json`. Check `status` for decisions; publishing does not accept changes. Use `--config` when the bridge config is in a different directory. Never print or include its token in a suggestion pack. See [local bridge setup](local-bridge.md).
+
+配对后，先运行 `node bridge/cli.js read --project 项目ID --file main.tex --output work/current.tex` 读取当前打开的源码，再根据实际原文生成 `work/suggestions.json`，运行 `node bridge/cli.js publish --project 项目ID --file work/suggestions.json` 推送。通过 `status` 查看审阅结果；发布建议不代表接受修改。配置不在当前目录时加 `--config`。不要输出令牌或把令牌放入建议包。详见[连接说明](local-bridge.md)。

@@ -19,6 +19,8 @@ window.addEventListener('message', event => {
   if (responses.has(message.id)) { responses.get(message.id).then(reply); return; }
   const pending = Promise.resolve().then(() => {
     if (message.method === 'hello') return { ok: true };
+    if (message.method === 'begin') return service.begin();
+    if (message.method === 'snapshot') return service.snapshot();
     if (message.method === 'cancel') return service.cancel();
     if (message.method === 'project') return { ok: true, projectId: adapter.projectId(), file: adapter.path() };
     if (!['prepare', 'status', 'apply'].includes(message.method)) return { ok: false, code: 'unknown_method' };

@@ -1,5 +1,5 @@
 'use strict';
-const MAX_PACK_BYTES = 2 * 1024 * 1024;
+const MAX_PACK_BYTES = 64 * 1024 * 1024;
 function normalizePath(value) {
   if (typeof value !== 'string' || value.length > 512 || /[\\\x00-\x1f]/.test(value) || value.startsWith('/') || /^[a-z]:/i.test(value)) throw new Error('文件路径必须是项目内的相对路径');
   const parts = value.split('/');
@@ -23,9 +23,9 @@ function normalizeItem(raw, index = 0) {
   return item;
 }
 function parsePack(input) {
-  if (typeof input === 'string' && new TextEncoder().encode(input).length > MAX_PACK_BYTES) throw new Error('建议包不能超过 2 MiB');
+  if (typeof input === 'string' && new TextEncoder().encode(input).length > MAX_PACK_BYTES) throw new Error('建议包不能超过 64 MiB');
   const pack = typeof input === 'string' ? JSON.parse(input) : input;
-  if (!pack || pack.format !== 'codex-overleaf-suggestions' || pack.version !== 1 || !Array.isArray(pack.suggestions) || !pack.suggestions.length || pack.suggestions.length > 500) throw new Error('需要 codex-overleaf-suggestions v1 建议包，含 1–500 项');
+  if (!pack || pack.format !== 'codex-overleaf-suggestions' || pack.version !== 1 || !Array.isArray(pack.suggestions) || !pack.suggestions.length || pack.suggestions.length > 10000) throw new Error('需要 codex-overleaf-suggestions v1 建议包，含 1–10000 项');
   if (pack.projectId !== undefined && (typeof pack.projectId !== 'string' || !/^[a-f0-9]{24}$/i.test(pack.projectId))) throw new Error('projectId 必须是 Overleaf 项目 ID');
   const suggestions = pack.suggestions.map(normalizeItem);
   if (new Set(suggestions.map(s => s.id)).size !== suggestions.length) throw new Error('每项 id 必须唯一');
@@ -75,6 +75,7 @@ function locate(source, rawItem) {
   return { ok: true, patch: { from, to, expected: source.slice(from, to), insert: next }, line: text.slice(0, offset).split('\n').length };
 }
 const skipped = {
+  overlapping_change: '与已接受修改重叠冲突，跳过',
   diff_too_complex: '字符差异过于复杂，跳过',
   original_missing: '原文或上下文已经变化，跳过', already_applied: '已经应用，跳过', ambiguous_match: '匹配到多处原文，跳过',
   scope_missing: '板块标记已经变化，跳过', ambiguous_scope: '板块标记不唯一，跳过', no_change: '内容没有变化，跳过',

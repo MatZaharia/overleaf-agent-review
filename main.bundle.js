@@ -9,7 +9,7 @@
   var require_suggestions = __commonJS({
     "src/suggestions.js"(exports, module) {
       "use strict";
-      var MAX_PACK_BYTES = 2 * 1024 * 1024;
+      var MAX_PACK_BYTES = 64 * 1024 * 1024;
       function normalizePath(value) {
         if (typeof value !== "string" || value.length > 512 || /[\\\x00-\x1f]/.test(value) || value.startsWith("/") || /^[a-z]:/i.test(value)) throw new Error("\u6587\u4EF6\u8DEF\u5F84\u5FC5\u987B\u662F\u9879\u76EE\u5185\u7684\u76F8\u5BF9\u8DEF\u5F84");
         const parts = value.split("/");
@@ -33,9 +33,9 @@
         return item;
       }
       function parsePack(input) {
-        if (typeof input === "string" && new TextEncoder().encode(input).length > MAX_PACK_BYTES) throw new Error("\u5EFA\u8BAE\u5305\u4E0D\u80FD\u8D85\u8FC7 2 MiB");
+        if (typeof input === "string" && new TextEncoder().encode(input).length > MAX_PACK_BYTES) throw new Error("\u5EFA\u8BAE\u5305\u4E0D\u80FD\u8D85\u8FC7 64 MiB");
         const pack = typeof input === "string" ? JSON.parse(input) : input;
-        if (!pack || pack.format !== "codex-overleaf-suggestions" || pack.version !== 1 || !Array.isArray(pack.suggestions) || !pack.suggestions.length || pack.suggestions.length > 500) throw new Error("\u9700\u8981 codex-overleaf-suggestions v1 \u5EFA\u8BAE\u5305\uFF0C\u542B 1\u2013500 \u9879");
+        if (!pack || pack.format !== "codex-overleaf-suggestions" || pack.version !== 1 || !Array.isArray(pack.suggestions) || !pack.suggestions.length || pack.suggestions.length > 1e4) throw new Error("\u9700\u8981 codex-overleaf-suggestions v1 \u5EFA\u8BAE\u5305\uFF0C\u542B 1\u201310000 \u9879");
         if (pack.projectId !== void 0 && (typeof pack.projectId !== "string" || !/^[a-f0-9]{24}$/i.test(pack.projectId))) throw new Error("projectId \u5FC5\u987B\u662F Overleaf \u9879\u76EE ID");
         const suggestions = pack.suggestions.map(normalizeItem);
         if (new Set(suggestions.map((s) => s.id)).size !== suggestions.length) throw new Error("\u6BCF\u9879 id \u5FC5\u987B\u552F\u4E00");
@@ -82,6 +82,7 @@
         return { ok: true, patch: { from, to, expected: source.slice(from, to), insert: next }, line: text.slice(0, offset).split("\n").length };
       }
       var skipped = {
+        overlapping_change: "\u4E0E\u5DF2\u63A5\u53D7\u4FEE\u6539\u91CD\u53E0\u51B2\u7A81\uFF0C\u8DF3\u8FC7",
         diff_too_complex: "\u5B57\u7B26\u5DEE\u5F02\u8FC7\u4E8E\u590D\u6742\uFF0C\u8DF3\u8FC7",
         original_missing: "\u539F\u6587\u6216\u4E0A\u4E0B\u6587\u5DF2\u7ECF\u53D8\u5316\uFF0C\u8DF3\u8FC7",
         already_applied: "\u5DF2\u7ECF\u5E94\u7528\uFF0C\u8DF3\u8FC7",
@@ -2066,15 +2067,59 @@
     }
   });
 
+  // src/rebase.js
+  var require_rebase = __commonJS({
+    "src/rebase.js"(exports, module) {
+      "use strict";
+      var Core = require_suggestions();
+      var { characterEdits } = require_characterEdits();
+      function resolve(text, item, ledger) {
+        if (!ledger || ledger.current !== text) return Core.locate(text, item);
+        const base = Core.locate(ledger.base, item);
+        if (!base.ok) return Core.locate(text, item);
+        const requested = characterEdits(base.patch, ledger.base);
+        if (!requested) return { ok: false, code: "diff_too_complex" };
+        const map = (position) => position + ledger.edits.filter((p) => p.to <= position).reduce((n, p) => n + p.insert.length - (p.to - p.from), 0);
+        const remaining = [];
+        for (const p of requested) {
+          const touches = ledger.edits.filter((q) => p.from < q.to && q.from < p.to || p.from === p.to && q.from <= p.from && p.from <= q.to || q.from === q.to && p.from <= q.from && q.from <= p.to);
+          if (touches.length) {
+            if (touches.length === 1 && touches[0].from === p.from && touches[0].to === p.to && touches[0].insert === p.insert) continue;
+            return { ok: false, code: "overlapping_change" };
+          }
+          remaining.push(p);
+        }
+        if (!remaining.length) return { ok: false, code: "already_applied" };
+        const from = map(base.patch.from), to = map(base.patch.to);
+        const changes = remaining.map((p) => ({ ...p, from: map(p.from), to: map(p.to) }));
+        let insert = text.slice(from, to);
+        for (const p of [...changes].reverse()) insert = insert.slice(0, p.from - from) + p.insert + insert.slice(p.to - from);
+        return { ok: true, line: text.slice(0, from).split("\n").length, patch: { from, to, expected: text.slice(from, to), insert }, baselineChanges: remaining };
+      }
+      module.exports = { resolve };
+    }
+  });
+
   // src/service.js
   var require_service = __commonJS({
     "src/service.js"(exports, module) {
       "use strict";
       var Core = require_suggestions();
+      var Rebase = require_rebase();
       var { characterEdits } = require_characterEdits();
       function create({ adapter: adapter2, preview: preview2, crypto }) {
         let pending = null, generation = 0;
-        const receipts = /* @__PURE__ */ new Map();
+        const receipts = /* @__PURE__ */ new Map(), ledgers = /* @__PURE__ */ new Map();
+        function begin() {
+          cancel();
+          ledgers.clear();
+          return { ok: true };
+        }
+        function snapshot() {
+          const view = adapter2.view();
+          return view ? { ok: true, projectId: adapter2.projectId(), file: adapter2.path(), source: view.state.doc.toString() } : failure("file_not_ready");
+        }
+        const key = (owner, file) => owner + "/" + file;
         const failure = (code) => ({ ok: false, code, changedDocument: false });
         const current = (projectId) => projectId && adapter2.projectId() === projectId;
         function cancel() {
@@ -2094,7 +2139,9 @@
           if (!ready || adapter2.path() !== item.file) return failure("file_not_ready");
           const view = adapter2.view();
           if (!view) return failure("file_not_ready");
-          const text = view.state.doc.toString(), match = Core.locate(text, item);
+          const text = view.state.doc.toString(), id = key(owner, item.file);
+          if (!ledgers.has(id)) ledgers.set(id, { base: text, current: text, edits: [] });
+          const match = Rebase.resolve(text, item, ledgers.get(id));
           if (!match.ok) return match;
           const highlights = characterEdits(match.patch, text);
           if (!highlights) return failure("diff_too_complex");
@@ -2118,7 +2165,7 @@
             return failure("file_not_ready");
           }
           pending.inline = shown.ok;
-          return { ok: true, token, item, line: match.line, inline: shown.ok };
+          return { ok: true, token, item: { ...item, original: match.patch.expected, replacement: match.patch.insert }, line: match.line, inline: shown.ok };
         }
         async function status(params) {
           const item = pending;
@@ -2159,7 +2206,7 @@
             cancel();
             return failure("editor_changed");
           }
-          const text = view.state.doc.toString(), match = Core.locate(text, item.item);
+          const text = view.state.doc.toString(), match = Rebase.resolve(text, item.item, ledgers.get(key(item.projectId, item.item.file)));
           if (!match.ok) {
             cancel();
             return match;
@@ -2187,11 +2234,19 @@
           } catch (error) {
             result = { ok: false, code: "write_unconfirmed", changedDocument: true, error: error.message };
           }
+          if (result.verified) {
+            const ledger = ledgers.get(key(item.projectId, item.item.file));
+            if (ledger?.current === text && match.baselineChanges) {
+              ledger.edits.push(...match.baselineChanges);
+              ledger.edits.sort((a, b) => a.from - b.from);
+              ledger.current = expected;
+            } else ledgers.delete(key(item.projectId, item.item.file));
+          }
           receipts.set(item.token, result);
           if (receipts.size > 500) receipts.delete(receipts.keys().next().value);
           return result;
         }
-        return { prepare, status, apply, cancel };
+        return { prepare, status, apply, cancel, begin, snapshot };
       }
       module.exports = { create };
     }
@@ -4301,6 +4356,8 @@
     }
     const pending = Promise.resolve().then(() => {
       if (message.method === "hello") return { ok: true };
+      if (message.method === "begin") return service.begin();
+      if (message.method === "snapshot") return service.snapshot();
       if (message.method === "cancel") return service.cancel();
       if (message.method === "project") return { ok: true, projectId: adapter.projectId(), file: adapter.path() };
       if (!["prepare", "status", "apply"].includes(message.method)) return { ok: false, code: "unknown_method" };

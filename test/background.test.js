@@ -1,0 +1,20 @@
+const test=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs');
+const {createServer}=require('../bridge/server');
+test('extension background pairs, syncs source, receives newer packs and disconnects',async t=>{
+ const token='b'.repeat(64),id='0123456789abcdef01234567',server=createServer(token);
+ await new Promise(r=>server.listen(0,'127.0.0.1',r));t.after(()=>new Promise(r=>server.close(r)));
+ const base='http://127.0.0.1:'+server.address().port,store={};let listener;
+ const chrome={runtime:{id:'test-extension',onMessage:{addListener(fn){listener=fn}}},storage:{local:{async set(values){Object.assign(store,values)},async get(key){return{[key]:store[key]}},async remove(key){delete store[key]}}}};
+ vm.runInNewContext(fs.readFileSync(require.resolve('../src/background.js'),'utf8'),{chrome,require:()=>require('../src/suggestions'),fetch:(url,options)=>fetch(url.replace('http://127.0.0.1:43127',base),options),AbortSignal});
+ const send=(message,url='https://www.overleaf.com/project/'+id)=>new Promise(resolve=>listener(message,{id:'test-extension',url},resolve));
+ assert.equal((await send({type:'connect',token:'c'.repeat(64)})).ok,false);
+ assert.equal((await send({type:'connect',token})).ok,true);
+ const pack={format:'codex-overleaf-suggestions',version:1,projectId:id,suggestions:[{file:'main.tex',original:'old',replacement:'new'}]};
+ await fetch(base+'/publish?projectId='+id,{method:'POST',headers:{Authorization:'Bearer '+token},body:JSON.stringify(pack)});
+ const reply=await send({type:'sync',revision:0,snapshot:{projectId:id,file:'main.tex',source:'live old'},results:[]});
+ assert.equal(reply.revision,1);assert.equal(reply.pack.suggestions[0].replacement,'new');
+ const state=await(await fetch(base+'/state?projectId='+id,{headers:{Authorization:'Bearer '+token}})).json();assert.equal(state.snapshot.source,'live old');
+ assert.equal((await send({type:'sync',revision:1,results:[]})).pack,undefined);
+ assert.equal((await send({type:'sync'},'https://example.com')).ok,false);
+ assert.equal((await send({type:'disconnect'})).ok,true);assert.equal((await send({type:'sync'})).disconnected,true);
+});

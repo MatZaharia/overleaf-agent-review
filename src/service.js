@@ -1,9 +1,13 @@
 'use strict';
 const Core = require('./suggestions');
+const Rebase = require('./rebase');
 const { characterEdits } = require('./characterEdits');
 function create({ adapter, preview, crypto }) {
   let pending = null, generation = 0;
-  const receipts = new Map();
+  const receipts = new Map(), ledgers = new Map();
+  function begin() { cancel(); ledgers.clear(); return {ok:true}; }
+  function snapshot() { const view=adapter.view(); return view ? {ok:true,projectId:adapter.projectId(),file:adapter.path(),source:view.state.doc.toString()} : failure('file_not_ready'); }
+  const key = (owner,file) => owner+'/'+file;
   const failure = code => ({ ok: false, code, changedDocument: false });
   const current = projectId => projectId && adapter.projectId() === projectId;
   function cancel() {
@@ -22,7 +26,9 @@ function create({ adapter, preview, crypto }) {
     if (!ready || adapter.path() !== item.file) return failure('file_not_ready');
     const view = adapter.view();
     if (!view) return failure('file_not_ready');
-    const text = view.state.doc.toString(), match = Core.locate(text, item);
+    const text = view.state.doc.toString(), id=key(owner,item.file);
+    if (!ledgers.has(id)) ledgers.set(id,{base:text,current:text,edits:[]});
+    const match = Rebase.resolve(text,item,ledgers.get(id));
     if (!match.ok) return match;
     const highlights = characterEdits(match.patch, text);
     if (!highlights) return failure('diff_too_complex');
@@ -33,7 +39,7 @@ function create({ adapter, preview, crypto }) {
     if (attempt !== generation) { preview.clear({ token }); return failure('cancelled'); }
     if (!shown.ok && shown.code !== 'review_preview_unsupported') { cancel(); return failure('file_not_ready'); }
     pending.inline = shown.ok;
-    return { ok: true, token, item, line: match.line, inline: shown.ok };
+    return { ok: true, token, item: {...item,original:match.patch.expected,replacement:match.patch.insert}, line: match.line, inline: shown.ok };
   }
   async function status(params) {
     const item = pending;
@@ -59,7 +65,7 @@ function create({ adapter, preview, crypto }) {
     if (!view?.dom?.isConnected) { cancel(); return failure('editor_changed'); }
     // Re-resolve from CURRENT source on acceptance, with no await between the
     // search and dispatch. Original lines/offsets from Codex are never used.
-    const text = view.state.doc.toString(), match = Core.locate(text, item.item);
+    const text = view.state.doc.toString(), match = Rebase.resolve(text, item.item, ledgers.get(key(item.projectId,item.item.file)));
     if (!match.ok) { cancel(); return match; }
     const changes = characterEdits(match.patch, text);
     if (!changes) { cancel(); return failure('diff_too_complex'); }
@@ -76,10 +82,15 @@ function create({ adapter, preview, crypto }) {
         ? { ok: true, changedDocument: true, verified: true, file: item.item.file, line: match.line, serverSaved: null }
         : { ok: false, code: 'write_unconfirmed', changedDocument: true, serverSaved: null };
     } catch (error) { result = { ok: false, code: 'write_unconfirmed', changedDocument: true, error: error.message }; }
+    if (result.verified) {
+      const ledger=ledgers.get(key(item.projectId,item.item.file));
+      if (ledger?.current===text && match.baselineChanges) { ledger.edits.push(...match.baselineChanges); ledger.edits.sort((a,b)=>a.from-b.from); ledger.current=expected; }
+      else ledgers.delete(key(item.projectId,item.item.file));
+    }
     receipts.set(item.token, result);
     if (receipts.size > 500) receipts.delete(receipts.keys().next().value);
     return result;
   }
-  return { prepare, status, apply, cancel };
+  return { prepare, status, apply, cancel, begin, snapshot };
 }
 module.exports = { create };

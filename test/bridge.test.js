@@ -1,0 +1,18 @@
+const test=require('node:test'),assert=require('node:assert/strict');
+const {createServer}=require('../bridge/server');
+const id='0123456789abcdef01234567',token='a'.repeat(64);
+test('bridge authenticates, binds projects, publishes versions and exports exact live source',async t=>{
+ const server=createServer(token);await new Promise(r=>server.listen(0,'127.0.0.1',r));t.after(()=>new Promise(r=>server.close(r)));
+ const base='http://127.0.0.1:'+server.address().port;
+ const request=(endpoint,body,auth=token)=>fetch(base+'/'+endpoint+'?projectId='+id,{method:body?'POST':'GET',headers:{Authorization:'Bearer '+auth,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
+ assert.equal((await request('state',null,'wrong')).status,401);
+ const pack={format:'codex-overleaf-suggestions',version:1,projectId:id,suggestions:[{id:'one',file:'main.tex',original:'old',replacement:'new'}]};
+ assert.equal((await (await request('publish',pack)).json()).revision,1);
+ assert.equal((await (await request('publish',pack)).json()).revision,2);
+ assert.equal((await request('publish',{...pack,projectId:'f'.repeat(24)})).status,400);
+ assert.equal((await request('sync',{snapshot:{projectId:'f'.repeat(24),file:'main.tex',source:'SECRET'}})).status,400);
+ const source='\\title{当前源码}\n😀';
+ await request('sync',{snapshot:{projectId:id,file:'main.tex',source},results:[{revision:2,id:'one',state:'rejected'},{revision:1,id:'old',state:'written'}]});
+ const state=await(await request('state')).json();assert.equal(state.snapshot.source,source);assert.equal(state.snapshot.hash.length,64);assert.equal(state.results.length,1);assert.equal(state.results[0].state,'rejected');
+ assert.equal((await request('apply',{})).status,404);
+});

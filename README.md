@@ -56,7 +56,7 @@ See [examples](examples/) for character and section edits.
 | --- | --- |
 | `format`, `version` | Must be `codex-overleaf-suggestions` and `1`. |
 | `projectId` | Optional 24-character Overleaf project ID. Recommended to prevent importing into the wrong project; omitted packs bind to the project where review starts. |
-| `suggestions` | 1–500 sequential suggestions. |
+| `suggestions` | 1–10,000 sequential suggestions. |
 | `id` | A unique suggestion identifier; use a string. |
 | `file` | Project-relative text-file path, including nested paths such as `sections/results.tex`. |
 | `original` | Nonempty exact source used for locating and freshness checks. |
@@ -66,7 +66,7 @@ See [examples](examples/) for character and section edits.
 | `scope.start` | Optional section marker, which must occur exactly once in the file. |
 | `scope.end` | Optional closing marker; the first occurrence after `scope.start` ends the search range. |
 
-Escape LaTeX backslashes as `\\` inside JSON. LF and CRLF are equivalent for locating; other whitespace remains exact. Existing CRLF line endings are retained in edits. Paths cannot be absolute or contain `..` or backslashes. Packs are limited to 2 MiB; original/replacement fields to 200,000 UTF-16 code units each. Prefer small, independent suggestions; later suggestions must account for earlier accepted edits if they overlap.
+Escape LaTeX backslashes as `\\` inside JSON. LF and CRLF are equivalent for locating; other whitespace remains exact. Existing CRLF line endings are retained in edits. Paths cannot be absolute or contain `..` or backslashes. Packs are limited to 64 MiB; original/replacement fields to 200,000 UTF-16 code units each. Prefer small, independent suggestions; later suggestions must account for earlier accepted edits if they overlap.
 
 Even when `original` contains a whole sentence for reliable matching, the write is a character diff: unchanged runs between edits remain outside the transaction. Disjoint edits within one suggestion are accepted together in one atomic editor transaction. Split independent suggestions if you want separate decisions.
 
@@ -74,18 +74,22 @@ Even when `original` contains a whole sentence for reliable matching, the write 
 
 - Each acceptance rechecks project, file, and live original before dispatch. No stale line offsets or fuzzy matching.
 - Editing during review refreshes the preview and searches again; changed targets are skipped.
-- Missing original/context, missing/duplicate section markers, ambiguous matches, and already-applied items are skipped, then the queue continues.
+- Our own verified changes update later anchors within the same review run. Independent edits in a shared sentence can compose; edits to the same characters conflict. External changes are never silently attributed to the extension. Missing/ambiguous live matches remain skipped.
 - Extremely expensive character diffs are skipped rather than replaced as a whole block.
 - Project changes, connection failures, cancellation, or unverified writes stop the queue. Uncertain writes are never automatically replayed.
 - **已写入** (Written) means the editor readback was verified. Check Overleaf's connection/save state and recompile separately. Offline Overleaf edits may await synchronization.
 - Refreshing loses the review queue. Previously accepted edits remain governed by Overleaf's normal save and Undo behavior.
 - Overleaf's editor/file-tree interfaces are not a stable public API. If the extension cannot confirm the editor or file identity, it skips or stops.
 
-Tested in a signed-in Chrome Overleaf test project: source highlighting, character replacement, rejection, stale skipping, already-applied skipping, refresh persistence, and restoration of the source/PDF. Nested-file switching and relocation after unrelated edits were tested with a real CodeMirror fixture; multi-user collaboration and every Overleaf layout have not been verified.
+The v1.0.1 review flow was tested in a signed-in Chrome Overleaf test project: source highlighting, character replacement, rejection, stale skipping, already-applied skipping, refresh persistence, and restoration of the source/PDF. v1.1 own-edit rebasing and a 10,000-item queue were verified in a real CodeMirror browser fixture. The localhost bridge passed server, extension-background integration and CLI tests; pairing the upgraded extension with live Overleaf is still pending. Nested-file switching and relocation after unrelated edits were tested with a real CodeMirror fixture; multi-user collaboration and every Overleaf layout have not been verified.
 
 ## Privacy
 
-The extension has no AI requests, analytics, native host, or background service worker. It runs only on Overleaf project URLs. It reads source and suggestion text in the page and writes accepted edits through the existing editor; Overleaf handles its usual synchronization. Sharing source with Codex is a separate action you control.
+The extension has no AI requests, analytics, or native host. A background service worker parses large packs off the page thread and handles an optional authenticated localhost connection. It runs only on Overleaf project URLs. It reads source and suggestion text in the page and writes accepted edits through the existing editor; Overleaf handles its usual synchronization. Pairing is opt-in and project-specific: while connected, the current open file source is sent to your local bridge every two seconds. No other files are opened automatically. Disconnect stops new transfers. The bridge stores state in memory; CLI exports are explicit. Sharing source with an AI provider depends on how you use Codex.
+
+## Local Codex connection (v1.1)
+
+See [local bridge instructions](docs/local-bridge.md): run the local service, pair once in Overleaf, then use the CLI to publish packs, read the current source, or retrieve review results. Receiving a new pack opens review automatically, but never accepts a change. A received new revision cancels the old preview. The drawer retains only the latest 100 history rows to keep 10,000-item packs manageable. File imports avoid expanding large JSON in the textarea. No cross-refresh review persistence is provided yet.
 
 ## Develop
 
@@ -101,7 +105,7 @@ npm run package
 
 The demo URL is printed in the terminal; it uses a local CodeMirror editor and does not connect to Overleaf. The generated demo is in `work/`, the installable release ZIP in `dist/`. To load a development checkout directly, run `npm run build`, then select its repository root in Chrome's Load unpacked dialog.
 
-31 automated tests cover matching, Unicode character edits, CRLF preservation, live relocation, stale guards, explicit acceptance, cancellation, and non-replayed writes. GitHub Actions runs the tests and build on pushes and pull requests.
+40 automated tests cover matching, Unicode character edits, CRLF preservation, live relocation, stale guards, explicit acceptance, cancellation, and non-replayed writes. GitHub Actions runs the tests and build on pushes and pull requests.
 
 Report problems through [Issues](https://github.com/MatZaharia/overleaf-codex-review/issues). Include Chrome version, extension version, reproduction steps, and a minimal non-sensitive example. Contributions are welcome; see [CONTRIBUTING](CONTRIBUTING.md).
 
