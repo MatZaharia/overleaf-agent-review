@@ -1,0 +1,13 @@
+{
+  "format": "codex-overleaf-suggestions",
+  "version": 1,
+  "suggestions": [
+    {
+      "id": "title-case",
+      "file": "main.tex",
+      "original": "\\title{Your Paper}",
+      "replacement": "\\title{Your paper}",
+      "reason": "Change only P to p / 仅将 P 改为 p"
+    }
+  ]
+}

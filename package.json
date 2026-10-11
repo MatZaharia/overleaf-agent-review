@@ -1,0 +1,22 @@
+{
+  "name": "overleaf-codex-review",
+  "private": true,
+  "version": "1.0.1",
+  "description": "Offline suggestion packs; live guarded Overleaf replacements",
+  "license": "MIT",
+  "scripts": {
+    "build": "esbuild src/main.js --bundle --format=iife --outfile=main.bundle.js && esbuild src/content.js --bundle --format=iife --outfile=content.bundle.js",
+    "test": "node --test test/*.test.js",
+    "build:demo": "npm run build && node scripts/build-demo.mjs",
+    "demo": "npm run build:demo && node demo/serve.mjs",
+    "package": "npm run build && python3 scripts/package.py"
+  },
+  "devDependencies": {
+    "@codemirror/state": "6.7.6",
+    "@codemirror/view": "6.43.14",
+    "esbuild": "0.25.12"
+  },
+  "dependencies": {
+    "diff": "9.0.0"
+  }
+}

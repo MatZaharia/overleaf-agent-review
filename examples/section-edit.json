@@ -1,0 +1,17 @@
+{
+  "format": "codex-overleaf-suggestions",
+  "version": 1,
+  "suggestions": [
+    {
+      "id": "abstract-typo",
+      "file": "main.tex",
+      "original": "This is a smple abstract.",
+      "replacement": "This is a simple abstract.",
+      "reason": "Insert the missing i / 补上缺少的 i",
+      "scope": {
+        "start": "\\begin{abstract}",
+        "end": "\\end{abstract}"
+      }
+    }
+  ]
+}
