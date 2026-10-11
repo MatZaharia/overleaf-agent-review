@@ -1,6 +1,8 @@
 'use strict';
 // UI text only. Manuscript source, replacements and Agent reasons are never passed here.
 const english = {
+ '当前原文已变化，此项已失效；可继续编辑，点击导航后跳过':'The original changed; this item is stale. Continue editing; navigation will skip it.',
+ '定位后的字符与原文不一致，跳过':'Located characters do not match the original; skipped',
  '配对令牌格式不正确':'Invalid pairing token format','建议会话已更新，请重新载入':'Suggestion session changed; reload the pack','建议包分块顺序无效':'Invalid suggestion pack chunk order','建议索引无效':'Invalid suggestion index',
  '导入修改建议':'Review suggestions', '收起':'Close', '逐项审阅':'Review items','← 返回导入':'← Back to import','继续审阅':'Continue review','最近处理记录':'Recent decisions',
  '先导入建议包，再逐项确认。每次接受都会搜索当前原文；过时或不唯一的项自动跳过。':'Import a pack and review each item. Accept searches the current source; stale or ambiguous items are skipped.',

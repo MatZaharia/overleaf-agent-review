@@ -37,6 +37,7 @@ async function run(pack, deps) {
     deps.assertCurrent();
     if(Number.isInteger(decision.navigate)){
       if(decision.navigate<0||decision.navigate>=total||finished.has(decision.navigate))throw new Error('无效的审阅导航目标');
+      if(decision.skipped){const result={item,state:'skipped',code:decision.skipped};save(index,result);await deps.record(result)}
       await deps.call('cancel',{});deps.assertCurrent();index=decision.navigate;continue;
     }
     if (decision.skipped) {

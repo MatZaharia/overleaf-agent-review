@@ -29,3 +29,22 @@ test('restore preserves a boundary insertion beside an accepted character range'
  const h=fixture('prefix cat COG'),service=h.create();service.begin({ledgers:{'main.tex':{base:'CAT COG',edits:[{from:0,to:0,insert:'prefix ',external:true},{from:0,to:3,insert:'cat'}]}}});
  const p=await service.prepare({projectId:'owner',item:item('CAT cog')});assert.equal(p.ok,true);assert.equal(service.apply({token:p.token}).ok,true);assert.equal(h.view.state.doc.toString(),'prefix cat cog');
 });
+
+test('restoring out-of-order accepted edits maps matters to shows how, not nearby characters',async()=>{
+ const base='AA negative result matters: and rest',later=base.indexOf('rest');
+ const edits=[{from:later,to:later+4,insert:'end'},{from:0,to:2,insert:'A'}];
+ const current='A negative result matters: and end',h=fixture(current),service=h.create();
+ service.begin({ledgers:{'main.tex':{base,edits}}});
+ const prepared=await service.prepare({projectId:'owner',item:{id:'matters',file:'main.tex',original:base,replacement:base.replace('matters:','shows how')}});
+ assert.equal(prepared.ok,true);assert.equal(prepared.item.original,current);
+ assert.equal(prepared.item.replacement,'A negative result shows how and end');
+ assert.equal(prepared.diff.after.map(p=>p.text).join(''),prepared.item.replacement);
+ assert.equal(service.apply({token:prepared.token}).verified,true);
+ assert.equal(h.view.state.doc.toString(),'A negative result shows how and end');
+});
+test('mapped characters must still equal the baseline edit before a preview or write',()=>{
+ const base='AA negative result matters: and rest',current='A negative result matters: and rest';
+ const ledger={base,current,edits:[{from:0,to:2,insert:'XYZ'}],version:0};
+ const result=Rebase.resolve(current,{id:'x',file:'main.tex',original:base,replacement:base.replace('matters:','shows how')},ledger);
+ assert.equal(result.ok,false);assert.equal(result.code,'position_mismatch');
+});

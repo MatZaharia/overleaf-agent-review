@@ -51,8 +51,33 @@
         }
         return found;
       }
+      var sourceIndexes = /* @__PURE__ */ new Map();
+      function upper(array, offset, inclusive = true) {
+        let lo = 0, hi = array.length;
+        while (lo < hi) {
+          const mid = lo + hi >>> 1;
+          if (inclusive ? array[mid] <= offset : array[mid] < offset) lo = mid + 1;
+          else hi = mid;
+        }
+        return lo;
+      }
+      function sourceIndex(source) {
+        if (sourceIndexes.has(source)) return sourceIndexes.get(source);
+        const text = logical(source), lines = [0], carriageReturns = [];
+        for (let at = text.indexOf("\n"); at >= 0; at = text.indexOf("\n", at + 1)) lines.push(at + 1);
+        for (let at = source.indexOf("\r\n"); at >= 0; at = source.indexOf("\r\n", at + 2)) carriageReturns.push(at - carriageReturns.length);
+        const rawLines = carriageReturns.length ? lines.map((at) => at + upper(carriageReturns, at, false)) : lines;
+        const value = { text, lines, rawLines, carriageReturns };
+        if (sourceIndexes.size >= 2) sourceIndexes.delete(sourceIndexes.keys().next().value);
+        sourceIndexes.set(source, value);
+        return value;
+      }
+      function lineAtSource(source, offset) {
+        return upper(sourceIndex(source).rawLines, offset);
+      }
       function locate(source, rawItem) {
-        const item = normalizeItem(rawItem), text = logical(source), old = logical(item.original), next = logical(item.replacement);
+        const indexed = sourceIndex(source);
+        const item = normalizeItem(rawItem), text = indexed.text, old = logical(item.original), next = logical(item.replacement);
         const before = logical(item.before), after = logical(item.after);
         let start = 0, end = text.length;
         if (item.scope) {
@@ -71,17 +96,13 @@
         const matches = occurrences(text, old, start, end).filter((at) => anchored(at, old) && !applied.some((done) => done <= at && done + next.length >= at + old.length));
         if (matches.length !== 1) return { ok: false, code: matches.length > 1 ? "ambiguous_match" : applied.length ? "already_applied" : "original_missing" };
         const offset = matches[0];
-        let raw = 0, logicalOffset = 0, from = 0, to = 0;
-        while (logicalOffset < offset + old.length) {
-          if (logicalOffset === offset) from = raw;
-          raw += source[raw] === "\r" && source[raw + 1] === "\n" ? 2 : 1;
-          logicalOffset++;
-        }
-        if (offset === logicalOffset) from = raw;
-        to = raw;
-        return { ok: true, patch: { from, to, expected: source.slice(from, to), insert: next }, line: text.slice(0, offset).split("\n").length };
+        const from = offset + upper(indexed.carriageReturns, offset, false);
+        const endOffset = offset + old.length;
+        const to = endOffset + upper(indexed.carriageReturns, endOffset, false);
+        return { ok: true, patch: { from, to, expected: source.slice(from, to), insert: next }, line: upper(indexed.lines, offset) };
       }
       var skipped = {
+        position_mismatch: "\u5B9A\u4F4D\u540E\u7684\u5B57\u7B26\u4E0E\u539F\u6587\u4E0D\u4E00\u81F4\uFF0C\u8DF3\u8FC7",
         overlapping_change: "\u4E0E\u5DF2\u63A5\u53D7\u4FEE\u6539\u91CD\u53E0\u51B2\u7A81\uFF0C\u8DF3\u8FC7",
         diff_too_complex: "\u5B57\u7B26\u5DEE\u5F02\u8FC7\u4E8E\u590D\u6742\uFF0C\u8DF3\u8FC7",
         original_missing: "\u539F\u6587\u6216\u4E0A\u4E0B\u6587\u5DF2\u7ECF\u53D8\u5316\uFF0C\u8DF3\u8FC7",
@@ -94,7 +115,7 @@
         file_changed: "\u5F53\u524D\u6587\u4EF6\u5DF2\u5207\u6362\uFF0C\u8DF3\u8FC7",
         editor_changed: "\u7F16\u8F91\u5668\u72B6\u6001\u5DF2\u53D8\u5316\uFF0C\u8DF3\u8FC7"
       };
-      module.exports = { parsePack, normalizeItem, normalizePath, locate, skipped, MAX_PACK_BYTES };
+      module.exports = { parsePack, normalizeItem, normalizePath, locate, skipped, MAX_PACK_BYTES, lineAtSource };
     }
   });
 

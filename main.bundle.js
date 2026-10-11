@@ -51,8 +51,33 @@
         }
         return found;
       }
+      var sourceIndexes = /* @__PURE__ */ new Map();
+      function upper(array, offset, inclusive = true) {
+        let lo = 0, hi = array.length;
+        while (lo < hi) {
+          const mid = lo + hi >>> 1;
+          if (inclusive ? array[mid] <= offset : array[mid] < offset) lo = mid + 1;
+          else hi = mid;
+        }
+        return lo;
+      }
+      function sourceIndex(source) {
+        if (sourceIndexes.has(source)) return sourceIndexes.get(source);
+        const text = logical(source), lines = [0], carriageReturns = [];
+        for (let at = text.indexOf("\n"); at >= 0; at = text.indexOf("\n", at + 1)) lines.push(at + 1);
+        for (let at = source.indexOf("\r\n"); at >= 0; at = source.indexOf("\r\n", at + 2)) carriageReturns.push(at - carriageReturns.length);
+        const rawLines = carriageReturns.length ? lines.map((at) => at + upper(carriageReturns, at, false)) : lines;
+        const value = { text, lines, rawLines, carriageReturns };
+        if (sourceIndexes.size >= 2) sourceIndexes.delete(sourceIndexes.keys().next().value);
+        sourceIndexes.set(source, value);
+        return value;
+      }
+      function lineAtSource(source, offset) {
+        return upper(sourceIndex(source).rawLines, offset);
+      }
       function locate(source, rawItem) {
-        const item = normalizeItem(rawItem), text = logical(source), old = logical(item.original), next = logical(item.replacement);
+        const indexed = sourceIndex(source);
+        const item = normalizeItem(rawItem), text = indexed.text, old = logical(item.original), next = logical(item.replacement);
         const before = logical(item.before), after = logical(item.after);
         let start = 0, end = text.length;
         if (item.scope) {
@@ -71,17 +96,13 @@
         const matches = occurrences(text, old, start, end).filter((at) => anchored(at, old) && !applied.some((done) => done <= at && done + next.length >= at + old.length));
         if (matches.length !== 1) return { ok: false, code: matches.length > 1 ? "ambiguous_match" : applied.length ? "already_applied" : "original_missing" };
         const offset = matches[0];
-        let raw = 0, logicalOffset = 0, from = 0, to = 0;
-        while (logicalOffset < offset + old.length) {
-          if (logicalOffset === offset) from = raw;
-          raw += source[raw] === "\r" && source[raw + 1] === "\n" ? 2 : 1;
-          logicalOffset++;
-        }
-        if (offset === logicalOffset) from = raw;
-        to = raw;
-        return { ok: true, patch: { from, to, expected: source.slice(from, to), insert: next }, line: text.slice(0, offset).split("\n").length };
+        const from = offset + upper(indexed.carriageReturns, offset, false);
+        const endOffset = offset + old.length;
+        const to = endOffset + upper(indexed.carriageReturns, endOffset, false);
+        return { ok: true, patch: { from, to, expected: source.slice(from, to), insert: next }, line: upper(indexed.lines, offset) };
       }
       var skipped = {
+        position_mismatch: "\u5B9A\u4F4D\u540E\u7684\u5B57\u7B26\u4E0E\u539F\u6587\u4E0D\u4E00\u81F4\uFF0C\u8DF3\u8FC7",
         overlapping_change: "\u4E0E\u5DF2\u63A5\u53D7\u4FEE\u6539\u91CD\u53E0\u51B2\u7A81\uFF0C\u8DF3\u8FC7",
         diff_too_complex: "\u5B57\u7B26\u5DEE\u5F02\u8FC7\u4E8E\u590D\u6742\uFF0C\u8DF3\u8FC7",
         original_missing: "\u539F\u6587\u6216\u4E0A\u4E0B\u6587\u5DF2\u7ECF\u53D8\u5316\uFF0C\u8DF3\u8FC7",
@@ -94,7 +115,7 @@
         file_changed: "\u5F53\u524D\u6587\u4EF6\u5DF2\u5207\u6362\uFF0C\u8DF3\u8FC7",
         editor_changed: "\u7F16\u8F91\u5668\u72B6\u6001\u5DF2\u53D8\u5316\uFF0C\u8DF3\u8FC7"
       };
-      module.exports = { parsePack, normalizeItem, normalizePath, locate, skipped, MAX_PACK_BYTES };
+      module.exports = { parsePack, normalizeItem, normalizePath, locate, skipped, MAX_PACK_BYTES, lineAtSource };
     }
   });
 
@@ -2085,6 +2106,7 @@
       }
       function index(ledger) {
         if (ledger.index && ledger.index.version === ledger.version) return ledger.index;
+        ledger.edits.sort((a, b) => a.from - b.from || a.to - b.to);
         const ends = [], liveEnds = [], deltas = [];
         let delta = 0;
         for (const edit of ledger.edits) {
@@ -2169,7 +2191,7 @@
           const match = Core.locate(text, item);
           if (!match.ok) return match;
           const edits = characterEdits(match.patch, ledger.base);
-          return edits ? { ...match, baselineChanges: edits } : { ok: false, code: "diff_too_complex" };
+          return edits ? { ...match, baselineChanges: edits, characterChanges: edits } : { ok: false, code: "diff_too_complex" };
         }
         const base = Core.locate(ledger.base, item);
         if (!base.ok) return Core.locate(text, item);
@@ -2189,9 +2211,10 @@
         if (!remaining.length) return { ok: false, code: "already_applied" };
         const from = map(ledger, base.patch.from), to = map(ledger, base.patch.to);
         const changes = remaining.map((p) => ({ ...p, from: map(ledger, p.from), to: map(ledger, p.to) }));
+        if (from < 0 || to < from || to > text.length || changes.some((p) => p.from < from || p.to > to || p.from > p.to || text.slice(p.from, p.to) !== p.expected)) return { ok: false, code: "position_mismatch" };
         let insert = text.slice(from, to);
         for (const p of [...changes].reverse()) insert = insert.slice(0, p.from - from) + p.insert + insert.slice(p.to - from);
-        return { ok: true, line: text.slice(0, from).split("\n").length, patch: { from, to, expected: text.slice(from, to), insert }, baselineChanges: remaining };
+        return { ok: true, line: Core.lineAtSource(text, from), patch: { from, to, expected: text.slice(from, to), insert }, baselineChanges: remaining, characterChanges: changes };
       }
       module.exports = { resolve, sync, add, map };
     }
@@ -2202,6 +2225,8 @@
     "src/i18n.js"(exports, module) {
       "use strict";
       var english = {
+        "\u5F53\u524D\u539F\u6587\u5DF2\u53D8\u5316\uFF0C\u6B64\u9879\u5DF2\u5931\u6548\uFF1B\u53EF\u7EE7\u7EED\u7F16\u8F91\uFF0C\u70B9\u51FB\u5BFC\u822A\u540E\u8DF3\u8FC7": "The original changed; this item is stale. Continue editing; navigation will skip it.",
+        "\u5B9A\u4F4D\u540E\u7684\u5B57\u7B26\u4E0E\u539F\u6587\u4E0D\u4E00\u81F4\uFF0C\u8DF3\u8FC7": "Located characters do not match the original; skipped",
         "\u914D\u5BF9\u4EE4\u724C\u683C\u5F0F\u4E0D\u6B63\u786E": "Invalid pairing token format",
         "\u5EFA\u8BAE\u4F1A\u8BDD\u5DF2\u66F4\u65B0\uFF0C\u8BF7\u91CD\u65B0\u8F7D\u5165": "Suggestion session changed; reload the pack",
         "\u5EFA\u8BAE\u5305\u5206\u5757\u987A\u5E8F\u65E0\u6548": "Invalid suggestion pack chunk order",
@@ -2381,6 +2406,30 @@
     }
   });
 
+  // src/navigation.js
+  var require_navigation = __commonJS({
+    "src/navigation.js"(exports, module) {
+      "use strict";
+      function adjacent(index, total, direction, isPending) {
+        for (let step = 1; step < total; step++) {
+          const i = (index + direction * step + total) % total;
+          if (isPending(i)) return i;
+        }
+        return null;
+      }
+      function nearest(matches, cursor, direction, currentIndex) {
+        let best = null;
+        for (const match of matches) {
+          if (match.index === currentIndex && cursor >= match.from && cursor <= match.to) continue;
+          if (direction < 0 ? match.from >= cursor : match.from <= cursor) continue;
+          if (!best || (direction < 0 ? match.from > best.from : match.from < best.from) || match.from === best.from && match.index < best.index) best = match;
+        }
+        return best?.index ?? null;
+      }
+      module.exports = { adjacent, nearest };
+    }
+  });
+
   // src/service.js
   var require_service = __commonJS({
     "src/service.js"(exports, module) {
@@ -2389,6 +2438,7 @@
       var Rebase = require_rebase();
       var I18n = require_i18n();
       var Diff = require_reviewDiff();
+      var Navigation = require_navigation();
       var { characterEdits } = require_characterEdits();
       function create({ adapter: adapter2, preview: preview2, crypto }) {
         let pending = null, generation = 0, scan = null, language = "zh-CN";
@@ -2412,9 +2462,10 @@
           journals = [];
           for (const [file, data] of Object.entries(saved.ledgers || {})) {
             if (typeof data.base !== "string" || !Array.isArray(data.edits)) continue;
+            const edits = data.edits.map((p) => ({ ...p })).sort((a, b) => a.from - b.from || a.to - b.to);
             let current2 = data.base;
-            for (const p of [...data.edits].sort((a, b) => b.from - a.from || b.to - a.to)) current2 = current2.slice(0, p.from) + p.insert + current2.slice(p.to);
-            ledgers.set(key(adapter2.projectId(), file), { base: data.base, current: current2, edits: data.edits, version: 0 });
+            for (const p of [...edits].reverse()) current2 = current2.slice(0, p.from) + p.insert + current2.slice(p.to);
+            ledgers.set(key(adapter2.projectId(), file), { base: data.base, current: current2, edits, version: 0 });
           }
           return { ok: true };
         }
@@ -2458,11 +2509,19 @@
               cache = { ledger, version: ledger.version, positions: /* @__PURE__ */ new Map() };
               navigationCache.set(view.state.doc, cache);
             }
-            scan = { id: crypto.randomUUID(), view, doc: view.state.doc, text, file, ledger, cache: cache.positions, cursor: view.state.selection.main.head };
-            return { ok: true, scanId: scan.id, file, cursor: scan.cursor, journal: drain() };
+            if (!cache.indexed || cache.catalogId !== params.catalogId) {
+              cache.catalogId = params.catalogId;
+              cache.complete = false;
+              cache.indexed = /* @__PURE__ */ new Map();
+            }
+            scan = { id: crypto.randomUUID(), view, doc: view.state.doc, text, file, ledger, cache: cache.positions, index: cache, cursor: view.state.selection.main.head };
+            const cached = Boolean(params.catalogId && cache.complete);
+            const excluded = new Set(params.excludedIndexes || []);
+            const target = cached ? Navigation.nearest([...cache.indexed.values()].filter((p) => !excluded.has(p.index)), scan.cursor, params.direction, params.currentIndex) : null;
+            return { ok: true, scanId: scan.id, file, cursor: scan.cursor, cached, target, journal: drain() };
           }
           if (!scan || scan.id !== params.scanId || view !== scan.view || file !== scan.file || (typeof view.state.doc.length === "number" ? view.state.doc !== scan.doc : textOf(view) !== scan.text) || view.state.selection.main.head !== scan.cursor) return failure("navigation_changed");
-          if (!Array.isArray(params.items) || params.items.length > 32) return failure("invalid_navigation");
+          if (!Array.isArray(params.items) || params.items.length > 128) return failure("invalid_navigation");
           const matches = [];
           let processed = 0;
           const started = performance.now();
@@ -2472,16 +2531,21 @@
               const identity = entry.item.reviewKey || JSON.stringify(item);
               if (!scan.cache.has(identity)) {
                 const match = Rebase.resolve(scan.text, item, scan.ledger);
-                const edits = match.ok ? characterEdits(match.patch, scan.text) : null;
+                const edits = match.ok ? match.characterChanges || characterEdits(match.patch, scan.text) : null;
                 if (scan.cache.size >= 1e4) scan.cache.clear();
                 scan.cache.set(identity, edits?.length ? { from: edits[0].from, to: edits[edits.length - 1].to } : null);
               }
               const position = scan.cache.get(identity);
-              if (position) matches.push({ index: entry.index, ...position });
+              if (position) {
+                const match = { index: entry.index, ...position };
+                matches.push(match);
+                scan.index.indexed.set(entry.index, match);
+              }
             }
             processed++;
             if (performance.now() - started >= 8) break;
           }
+          if (params.complete === true && !params.items.length && scan.index.catalogId) scan.index.complete = true;
           return { ok: true, scanId: scan.id, processed, matches };
         }
         async function prepare(params) {
@@ -2489,7 +2553,8 @@
           cancel();
           const attempt = generation;
           if (!current(owner)) return failure("project_changed");
-          const ready = await adapter2.open(item.file, owner);
+          const reveal = params.reveal !== false;
+          const ready = reveal ? await adapter2.open(item.file, owner) : adapter2.path() === item.file;
           if (attempt !== generation) return failure("cancelled");
           if (!current(owner)) return failure("project_changed");
           if (!ready || adapter2.path() !== item.file) return failure("file_not_ready");
@@ -2504,6 +2569,7 @@
           const token = crypto.randomUUID();
           pending = { item, projectId: owner, token, view, text, doc: view.state.doc, line: match.line };
           const shown = await preview2.show({
+            reveal,
             token,
             runProjectId: owner,
             path: item.file,
@@ -2541,7 +2607,7 @@
             return failure("file_not_ready");
           }
           if (view !== item.view || (typeof view.state.doc.length === "number" ? view.state.doc !== item.doc : textOf(view) !== item.text)) {
-            const result2 = await prepare({ item: item.item, projectId: item.projectId });
+            const result2 = await prepare({ item: item.item, projectId: item.projectId, reveal: false });
             return { ...result2, refreshed: result2.ok };
           }
           const result = item.inline ? preview2.read({ token: item.token }) : { ok: true, token: item.token, decision: null };
@@ -4472,7 +4538,7 @@
             const owner = ++generation;
             dispose();
             if (!params.token || typeof params.base !== "string" || !params.patch || params.runProjectId !== deps.getProjectId()) return fail("review_preview_invalid");
-            const opened = await deps.navigate({ path: params.path, from: 0, to: 0, runProjectId: params.runProjectId });
+            const opened = params.reveal === false ? { ok: true } : await deps.navigate({ path: params.path, from: 0, to: 0, runProjectId: params.runProjectId });
             if (owner !== generation || cancelledTokens.has(params.token)) return fail("review_preview_expired");
             if (!opened.ok) return opened;
             const view = deps.getEditorView();
@@ -4487,7 +4553,7 @@
             if (params.runProjectId !== deps.getProjectId() || params.path !== deps.getActiveFilePath()) return fail("review_context_changed");
             const highlights = params.highlightPatches || [patch];
             if (!highlights.length || highlights.some((p) => !Number.isInteger(p.from) || !Number.isInteger(p.to) || p.from < patch.from || p.to > patch.to || p.from > p.to || text.slice(p.from, p.to) !== p.expected)) return fail("review_preview_invalid");
-            Scroll.reveal(view, highlights[0]);
+            if (params.reveal !== false) Scroll.reveal(view, highlights[0]);
             const host = document2.createElement("div");
             host.dataset.codexInlineReview = "";
             host.style.cssText = "position:fixed;z-index:2147483000;pointer-events:none;overflow:visible;";

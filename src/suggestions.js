@@ -41,8 +41,32 @@ function occurrences(text, value, from = 0, to = text.length) {
   }
   return found;
 }
+// At most two source snapshots: the baseline and current document.
+const sourceIndexes = new Map();
+function upper(array, offset, inclusive = true) {
+  let lo = 0, hi = array.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (inclusive ? array[mid] <= offset : array[mid] < offset) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+function sourceIndex(source) {
+  if (sourceIndexes.has(source)) return sourceIndexes.get(source);
+  const text = logical(source), lines = [0], carriageReturns = [];
+  for (let at = text.indexOf('\n'); at >= 0; at = text.indexOf('\n', at + 1)) lines.push(at + 1);
+  for (let at = source.indexOf('\r\n'); at >= 0; at = source.indexOf('\r\n', at + 2)) carriageReturns.push(at - carriageReturns.length);
+  const rawLines = carriageReturns.length ? lines.map(at => at + upper(carriageReturns, at, false)) : lines;
+  const value = { text, lines, rawLines, carriageReturns };
+  if (sourceIndexes.size >= 2) sourceIndexes.delete(sourceIndexes.keys().next().value);
+  sourceIndexes.set(source, value);
+  return value;
+}
+function lineAtSource(source, offset) { return upper(sourceIndex(source).rawLines, offset); }
 function locate(source, rawItem) {
-  const item = normalizeItem(rawItem), text = logical(source), old = logical(item.original), next = logical(item.replacement);
+  const indexed=sourceIndex(source);
+  const item = normalizeItem(rawItem), text = indexed.text, old = logical(item.original), next = logical(item.replacement);
   const before = logical(item.before), after = logical(item.after);
   let start = 0, end = text.length;
   if (item.scope) {
@@ -63,22 +87,18 @@ function locate(source, rawItem) {
     && !applied.some(done => done <= at && done + next.length >= at + old.length));
   if (matches.length !== 1) return { ok: false, code: matches.length > 1 ? 'ambiguous_match' : applied.length ? 'already_applied' : 'original_missing' };
   const offset = matches[0];
-  // Convert logical LF offsets back to the editor's actual UTF-16 string.
-  let raw = 0, logicalOffset = 0, from = 0, to = 0;
-  while (logicalOffset < offset + old.length) {
-    if (logicalOffset === offset) from = raw;
-    raw += source[raw] === '\r' && source[raw + 1] === '\n' ? 2 : 1;
-    logicalOffset++;
-  }
-  if (offset === logicalOffset) from = raw;
-  to = raw;
-  return { ok: true, patch: { from, to, expected: source.slice(from, to), insert: next }, line: text.slice(0, offset).split('\n').length };
+  // LF uses direct UTF-16 offsets; CRLF uses the cached removed-CR index.
+  const from = offset + upper(indexed.carriageReturns, offset, false);
+  const endOffset = offset + old.length;
+  const to = endOffset + upper(indexed.carriageReturns, endOffset, false);
+  return { ok: true, patch: { from, to, expected: source.slice(from, to), insert: next }, line: upper(indexed.lines, offset) };
 }
 const skipped = {
+  position_mismatch: '定位后的字符与原文不一致，跳过',
   overlapping_change: '与已接受修改重叠冲突，跳过',
   diff_too_complex: '字符差异过于复杂，跳过',
   original_missing: '原文或上下文已经变化，跳过', already_applied: '已经应用，跳过', ambiguous_match: '匹配到多处原文，跳过',
   scope_missing: '板块标记已经变化，跳过', ambiguous_scope: '板块标记不唯一，跳过', no_change: '内容没有变化，跳过',
   file_not_ready: '文件或 Code 编辑器未就绪，跳过', file_changed: '当前文件已切换，跳过', editor_changed: '编辑器状态已变化，跳过'
 };
-module.exports = { parsePack, normalizeItem, normalizePath, locate, skipped, MAX_PACK_BYTES };
+module.exports = { parsePack, normalizeItem, normalizePath, locate, skipped, MAX_PACK_BYTES, lineAtSource };

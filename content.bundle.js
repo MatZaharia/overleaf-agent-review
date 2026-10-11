@@ -51,8 +51,33 @@
         }
         return found;
       }
+      var sourceIndexes = /* @__PURE__ */ new Map();
+      function upper(array, offset, inclusive = true) {
+        let lo = 0, hi = array.length;
+        while (lo < hi) {
+          const mid = lo + hi >>> 1;
+          if (inclusive ? array[mid] <= offset : array[mid] < offset) lo = mid + 1;
+          else hi = mid;
+        }
+        return lo;
+      }
+      function sourceIndex(source) {
+        if (sourceIndexes.has(source)) return sourceIndexes.get(source);
+        const text = logical(source), lines = [0], carriageReturns = [];
+        for (let at = text.indexOf("\n"); at >= 0; at = text.indexOf("\n", at + 1)) lines.push(at + 1);
+        for (let at = source.indexOf("\r\n"); at >= 0; at = source.indexOf("\r\n", at + 2)) carriageReturns.push(at - carriageReturns.length);
+        const rawLines = carriageReturns.length ? lines.map((at) => at + upper(carriageReturns, at, false)) : lines;
+        const value = { text, lines, rawLines, carriageReturns };
+        if (sourceIndexes.size >= 2) sourceIndexes.delete(sourceIndexes.keys().next().value);
+        sourceIndexes.set(source, value);
+        return value;
+      }
+      function lineAtSource(source, offset) {
+        return upper(sourceIndex(source).rawLines, offset);
+      }
       function locate(source, rawItem) {
-        const item = normalizeItem(rawItem), text = logical(source), old = logical(item.original), next = logical(item.replacement);
+        const indexed = sourceIndex(source);
+        const item = normalizeItem(rawItem), text = indexed.text, old = logical(item.original), next = logical(item.replacement);
         const before = logical(item.before), after = logical(item.after);
         let start = 0, end = text.length;
         if (item.scope) {
@@ -71,17 +96,13 @@
         const matches = occurrences(text, old, start, end).filter((at) => anchored(at, old) && !applied.some((done) => done <= at && done + next.length >= at + old.length));
         if (matches.length !== 1) return { ok: false, code: matches.length > 1 ? "ambiguous_match" : applied.length ? "already_applied" : "original_missing" };
         const offset = matches[0];
-        let raw = 0, logicalOffset = 0, from = 0, to = 0;
-        while (logicalOffset < offset + old.length) {
-          if (logicalOffset === offset) from = raw;
-          raw += source[raw] === "\r" && source[raw + 1] === "\n" ? 2 : 1;
-          logicalOffset++;
-        }
-        if (offset === logicalOffset) from = raw;
-        to = raw;
-        return { ok: true, patch: { from, to, expected: source.slice(from, to), insert: next }, line: text.slice(0, offset).split("\n").length };
+        const from = offset + upper(indexed.carriageReturns, offset, false);
+        const endOffset = offset + old.length;
+        const to = endOffset + upper(indexed.carriageReturns, endOffset, false);
+        return { ok: true, patch: { from, to, expected: source.slice(from, to), insert: next }, line: upper(indexed.lines, offset) };
       }
       var skipped = {
+        position_mismatch: "\u5B9A\u4F4D\u540E\u7684\u5B57\u7B26\u4E0E\u539F\u6587\u4E0D\u4E00\u81F4\uFF0C\u8DF3\u8FC7",
         overlapping_change: "\u4E0E\u5DF2\u63A5\u53D7\u4FEE\u6539\u91CD\u53E0\u51B2\u7A81\uFF0C\u8DF3\u8FC7",
         diff_too_complex: "\u5B57\u7B26\u5DEE\u5F02\u8FC7\u4E8E\u590D\u6742\uFF0C\u8DF3\u8FC7",
         original_missing: "\u539F\u6587\u6216\u4E0A\u4E0B\u6587\u5DF2\u7ECF\u53D8\u5316\uFF0C\u8DF3\u8FC7",
@@ -94,7 +115,7 @@
         file_changed: "\u5F53\u524D\u6587\u4EF6\u5DF2\u5207\u6362\uFF0C\u8DF3\u8FC7",
         editor_changed: "\u7F16\u8F91\u5668\u72B6\u6001\u5DF2\u53D8\u5316\uFF0C\u8DF3\u8FC7"
       };
-      module.exports = { parsePack, normalizeItem, normalizePath, locate, skipped, MAX_PACK_BYTES };
+      module.exports = { parsePack, normalizeItem, normalizePath, locate, skipped, MAX_PACK_BYTES, lineAtSource };
     }
   });
 
@@ -193,6 +214,11 @@
           deps.assertCurrent();
           if (Number.isInteger(decision.navigate)) {
             if (decision.navigate < 0 || decision.navigate >= total || finished.has(decision.navigate)) throw new Error("\u65E0\u6548\u7684\u5BA1\u9605\u5BFC\u822A\u76EE\u6807");
+            if (decision.skipped) {
+              const result2 = { item, state: "skipped", code: decision.skipped };
+              save(index, result2);
+              await deps.record(result2);
+            }
             await deps.call("cancel", {});
             deps.assertCurrent();
             index = decision.navigate;
@@ -341,6 +367,8 @@
     "src/i18n.js"(exports, module) {
       "use strict";
       var english = {
+        "\u5F53\u524D\u539F\u6587\u5DF2\u53D8\u5316\uFF0C\u6B64\u9879\u5DF2\u5931\u6548\uFF1B\u53EF\u7EE7\u7EED\u7F16\u8F91\uFF0C\u70B9\u51FB\u5BFC\u822A\u540E\u8DF3\u8FC7": "The original changed; this item is stale. Continue editing; navigation will skip it.",
+        "\u5B9A\u4F4D\u540E\u7684\u5B57\u7B26\u4E0E\u539F\u6587\u4E0D\u4E00\u81F4\uFF0C\u8DF3\u8FC7": "Located characters do not match the original; skipped",
         "\u914D\u5BF9\u4EE4\u724C\u683C\u5F0F\u4E0D\u6B63\u786E": "Invalid pairing token format",
         "\u5EFA\u8BAE\u4F1A\u8BDD\u5DF2\u66F4\u65B0\uFF0C\u8BF7\u91CD\u65B0\u8F7D\u5165": "Suggestion session changed; reload the pack",
         "\u5EFA\u8BAE\u5305\u5206\u5757\u987A\u5E8F\u65E0\u6548": "Invalid suggestion pack chunk order",
@@ -713,9 +741,9 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
       if (!languageTouched) changeLanguage(saved.reviewLanguage || "zh-CN");
     }).catch(() => {
     });
-    function review(item, prepared, options, itemAt) {
+    function review(item, prepared, options, itemAt, catalogId) {
       return new Promise((resolve, reject) => {
-        let token = prepared.token, settled = false, timer = null, navigating = false;
+        let token = prepared.token, settled = false, timer = null, navigating = false, staleCode = null;
         const card = document.createElement("section");
         card.className = "card";
         card.innerHTML = '<strong></strong><div class="path"></div><p class="reason"></p><div>\u539F\u6587 \xB7 \u6807\u51FA\u5220\u9664</div><pre class="source old"></pre><div>\u4FEE\u6539\u540E \xB7 \u6807\u51FA\u65B0\u589E</div><pre class="source new"></pre><div class="toolbar navigation"><button class="previous">\u4E0A\u4E00\u9879</button><button class="next">\u4E0B\u4E00\u9879</button><button class="cursor-previous">\u5149\u6807\u4E0A\u4E00\u5904</button><button class="cursor-next">\u5149\u6807\u4E0B\u4E00\u5904</button></div><div class="actions"><button class="reject">\u62D2\u7EDD\u8FD9\u4E00\u9879</button><button class="primary accept">\u63A5\u53D7\u8FD9\u4E00\u9879</button></div>';
@@ -774,18 +802,25 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
               } while (options.isDecided(await itemAt(target)));
             } else {
               status("\u6B63\u5728\u6309\u5F53\u524D\u5149\u6807\u67E5\u627E\u5EFA\u8BAE\u2026");
-              const scan = await call("navigation", { projectId: owner });
+              const excludedIndexes = [];
+              for (let i = 0; i < options.total; i++) if (!options.isPending(i)) excludedIndexes.push(i);
+              const scan = await call("navigation", { projectId: owner, catalogId, direction, currentIndex: options.index, excludedIndexes });
               if (!scan.ok) throw new Error(scan.code);
               let best = null;
-              for (let index = 0; index < options.total; ) {
+              for (let index = 0; !scan.cached && index < options.total; ) {
                 if (settled) return;
                 assertCurrent();
                 const items = [];
-                while (index < options.total && items.length < 32) {
+                let bytes = 0;
+                while (index < options.total && items.length < 128) {
                   const position = index++;
                   if (!options.isPending(position)) continue;
                   const candidate = await itemAt(position);
-                  if (candidate.file === scan.file && !options.isDecided(candidate)) items.push({ index: position, item: candidate });
+                  if (candidate.file === scan.file && !options.isDecided(candidate)) {
+                    items.push({ index: position, item: candidate });
+                    bytes += JSON.stringify(candidate).length;
+                    if (bytes >= 131072) break;
+                  }
                 }
                 let offset = 0;
                 while (offset < items.length) {
@@ -799,13 +834,13 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
                   best = candidates.find((match) => match.index === nearest) || null;
                 }
               }
-              const check = await call("navigation", { projectId: owner, scanId: scan.scanId, items: [] });
+              const check = await call("navigation", { projectId: owner, scanId: scan.scanId, items: [], complete: !scan.cached });
               if (!check.ok) throw new Error(check.code);
-              target = best?.index ?? null;
+              target = scan.cached ? scan.target : best?.index ?? null;
             }
             if (settled) return;
             if (target !== null) {
-              finish(void 0, void 0, target);
+              finish(void 0, staleCode, target);
               return;
             }
             status(fromCursor ? "\u5F53\u524D\u6587\u4EF6\u7684\u5149\u6807\u8FD9\u4E00\u4FA7\u6CA1\u6709\u53EF\u5B9A\u4F4D\u7684\u5F85\u5904\u7406\u5EFA\u8BAE" : "\u6CA1\u6709\u5176\u4ED6\u5F85\u5904\u7406\u5EFA\u8BAE\uFF1B\u5F53\u524D\u9879\u4ECD\u7B49\u5F85\u786E\u8BA4");
@@ -815,9 +850,9 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
             navigating = false;
             if (!settled) {
               card.querySelectorAll("button").forEach((button) => {
-                button.disabled = false;
+                button.disabled = Boolean(staleCode && button.classList.contains("accept"));
               });
-              timer = setTimeout(poll, 300);
+              if (!staleCode) timer = setTimeout(poll, 300);
             }
           }
         }
@@ -826,11 +861,12 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
         card.querySelector(".cursor-previous").addEventListener("click", () => navigate(-1, true));
         card.querySelector(".cursor-next").addEventListener("click", () => navigate(1, true));
         card.querySelector(".accept").addEventListener("click", () => finish(true));
-        card.querySelector(".reject").addEventListener("click", () => finish(false));
+        card.querySelector(".reject").addEventListener("click", () => finish(false, staleCode));
         Keyboard.attach(card, (choice) => {
           if (settled || navigating) return;
-          if (choice === "accept") finish(true);
-          else navigate(choice === "previous" ? -1 : 1, false);
+          if (choice === "accept") {
+            if (!staleCode) finish(true);
+          } else navigate(choice === "previous" ? -1 : 1, false);
         });
         Scroll.panel($(".body"), card);
         pendingAbort = () => {
@@ -847,6 +883,12 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
             const response = await call("status", { token, projectId: owner });
             if (settled || navigating) return;
             if (!response.ok) {
+              if (["original_missing", "already_applied", "ambiguous_match", "scope_missing", "ambiguous_scope", "overlapping_change", "position_mismatch", "no_change", "diff_too_complex"].includes(response.code)) {
+                staleCode = response.code;
+                card.querySelector(".accept").disabled = true;
+                status("\u5F53\u524D\u539F\u6587\u5DF2\u53D8\u5316\uFF0C\u6B64\u9879\u5DF2\u5931\u6548\uFF1B\u53EF\u7EE7\u7EED\u7F16\u8F91\uFF0C\u70B9\u51FB\u5BFC\u822A\u540E\u8DF3\u8FC7");
+                return;
+              }
               finish(false, response.code);
               return;
             }
@@ -954,6 +996,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
       showScreen("review");
       try {
         await call("begin", { ledgers: session.ledgers });
+        const catalogId = crypto.randomUUID();
         let itemBuffer = [], bufferStart = -1;
         const itemAt = persistent ? async (index) => {
           if (index < bufferStart || index >= bufferStart + itemBuffer.length) {
@@ -964,7 +1007,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
           }
           return itemBuffer[index - bufferStart];
         } : async (index) => pack.suggestions[index];
-        const results = await Runner.run(pack, { projectId: owner, assertCurrent, call, review: (item, prepared, options) => review(item, prepared, options, itemAt), record, initialCounts: session.initialCounts, decidedIndexes: session.decidedIndexes, decisions: session.decisions, itemAt, retained: (result) => {
+        const results = await Runner.run(pack, { projectId: owner, assertCurrent, call, review: (item, prepared, options) => review(item, prepared, options, itemAt, catalogId), record, initialCounts: session.initialCounts, decidedIndexes: session.decidedIndexes, decisions: session.decisions, itemAt, retained: (result) => {
           if (bridgeRevision) bridgeResults.push({ revision: bridgeRevision, id: result.item.id, state: result.state, code: "retained_decision" });
         } });
         const count = (state) => results.filter((result) => result.state === state).length;

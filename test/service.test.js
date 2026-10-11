@@ -67,3 +67,15 @@ test('preview character diffs refresh from live source with no implicit editor w
  const pending=await h.prepare();assert.deepEqual(pending.diff,shown.diff);assert.equal(pending.diff.before.map(p=>p.text).join(''),'old');assert.equal(pending.diff.after.map(p=>p.text).join(''),'new');
  h.edit('prefix\nlead\nold\ntail');const refreshed=await h.service.status({token:pending.token});assert.equal(refreshed.refreshed,true);assert.deepEqual(refreshed.diff,pending.diff);assert.equal(h.writes.length,0);
 });
+
+test('typing elsewhere refreshes highlights without reopening, selecting or scrolling; explicit navigation reveals again',async()=>{
+ const h=fixture(),shown=[];let opens=0;
+ h.adapter.open=async()=>{opens++;return true};
+ h.preview.show=async params=>{shown.push(params);return {ok:true}};
+ let p=await h.prepare();assert.equal(shown.at(-1).reveal,true);assert.equal(opens,1);
+ for(const prefix of ['manual\n','manual\nsecond\n']){
+  h.edit(prefix+'lead\nold\ntail');p=await h.service.status({token:p.token});
+  assert.equal(p.refreshed,true);assert.equal(shown.at(-1).reveal,false);assert.equal(opens,1);
+ }
+ await h.prepare();assert.equal(shown.at(-1).reveal,true);assert.equal(opens,2);assert.equal(h.writes.length,0);
+});

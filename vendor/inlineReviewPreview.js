@@ -53,7 +53,7 @@ const Scroll = require('../src/reviewScroll');
       dispose();
       if (!params.token || typeof params.base !== 'string' || !params.patch
         || params.runProjectId !== deps.getProjectId()) return fail('review_preview_invalid');
-      const opened = await deps.navigate({ path: params.path, from: 0, to: 0, runProjectId: params.runProjectId });
+      const opened = params.reveal===false ? {ok:true} : await deps.navigate({ path: params.path, from: 0, to: 0, runProjectId: params.runProjectId });
       if (owner !== generation || cancelledTokens.has(params.token)) return fail('review_preview_expired');
       if (!opened.ok) return opened;
       const view = deps.getEditorView();
@@ -71,7 +71,7 @@ const Scroll = require('../src/reviewScroll');
       const highlights = params.highlightPatches || [patch];
       if (!highlights.length || highlights.some(p => !Number.isInteger(p.from) || !Number.isInteger(p.to) || p.from < patch.from || p.to > patch.to || p.from > p.to || text.slice(p.from, p.to) !== p.expected)) return fail('review_preview_invalid');
       // Selection/scroll only: no changes transaction, no document mutation.
-      Scroll.reveal(view,highlights[0]);
+      if(params.reveal!==false)Scroll.reveal(view,highlights[0]);
       const host = document.createElement('div');
       host.dataset.codexInlineReview = '';
       host.style.cssText = 'position:fixed;z-index:2147483000;pointer-events:none;overflow:visible;';

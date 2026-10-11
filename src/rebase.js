@@ -5,6 +5,7 @@ const { diffChars } = require('diff');
 function upper(array, value) { let lo=0,hi=array.length;while(lo<hi){const mid=(lo+hi)>>>1;if(array[mid]<=value)lo=mid+1;else hi=mid}return lo; }
 function index(ledger) {
  if(ledger.index && ledger.index.version===ledger.version)return ledger.index;
+ ledger.edits.sort((a,b)=>a.from-b.from||a.to-b.to);
  const ends=[],liveEnds=[],deltas=[];let delta=0;
  for(const edit of ledger.edits){delta+=edit.insert.length-(edit.to-edit.from);ends.push(edit.to);liveEnds.push(edit.to+delta);deltas.push(delta)}
  return ledger.index={version:ledger.version,ends,liveEnds,deltas};
@@ -50,7 +51,7 @@ function sync(ledger,text,recompute=true){
 }
 function resolve(text,item,ledger){
  if(!ledger || ledger.current!==text)return Core.locate(text,item);
- if(!ledger.edits.length){const match=Core.locate(text,item);if(!match.ok)return match;const edits=characterEdits(match.patch,ledger.base);return edits?{...match,baselineChanges:edits}:{ok:false,code:'diff_too_complex'}}
+ if(!ledger.edits.length){const match=Core.locate(text,item);if(!match.ok)return match;const edits=characterEdits(match.patch,ledger.base);return edits?{...match,baselineChanges:edits,characterChanges:edits}:{ok:false,code:'diff_too_complex'}}
  const base=Core.locate(ledger.base,item);
  if(!base.ok)return Core.locate(text,item);
  // Keep live ambiguity checks even when baseline coordinates are known.
@@ -70,8 +71,10 @@ function resolve(text,item,ledger){
  // Avoid incorporating a boundary insertion into the wrong baseline range.
  const from=map(ledger,base.patch.from),to=map(ledger,base.patch.to);
  const changes=remaining.map(p=>({...p,from:map(ledger,p.from),to:map(ledger,p.to)}));
+ // A mapped coordinate is never evidence that the source characters still match.
+ if(from<0 || to<from || to>text.length || changes.some(p=>p.from<from || p.to>to || p.from>p.to || text.slice(p.from,p.to)!==p.expected))return {ok:false,code:'position_mismatch'};
  let insert=text.slice(from,to);
  for(const p of [...changes].reverse())insert=insert.slice(0,p.from-from)+p.insert+insert.slice(p.to-from);
- return {ok:true,line:text.slice(0,from).split('\n').length,patch:{from,to,expected:text.slice(from,to),insert},baselineChanges:remaining};
+ return {ok:true,line:Core.lineAtSource(text,from),patch:{from,to,expected:text.slice(from,to),insert},baselineChanges:remaining,characterChanges:changes};
 }
 module.exports={resolve,sync,add,map};

@@ -82,9 +82,9 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
   async function changeLanguage(value){language=I18n.normalize(value);$('.language').value=language;refreshUI();reviewLanguageRefresh?.();await call('language',{language}).catch(()=>{});}
   $('.language').addEventListener('change',()=>{languageTouched=true;changeLanguage($('.language').value);if(persistent && chrome.storage?.local)chrome.storage.local.set({reviewLanguage:language});});
   if(persistent && chrome.storage?.local)chrome.storage.local.get('reviewLanguage').then(saved=>{if(!languageTouched)changeLanguage(saved.reviewLanguage || 'zh-CN')}).catch(()=>{});
-  function review(item, prepared, options, itemAt) {
+  function review(item, prepared, options, itemAt, catalogId) {
     return new Promise((resolve, reject) => {
-      let token = prepared.token, settled = false, timer = null, navigating=false;
+      let token = prepared.token, settled = false, timer = null, navigating=false,staleCode=null;
       const card = document.createElement('section'); card.className = 'card';
       card.innerHTML = '<strong></strong><div class="path"></div><p class="reason"></p><div>原文 · 标出删除</div><pre class="source old"></pre><div>修改后 · 标出新增</div><pre class="source new"></pre><div class="toolbar navigation"><button class="previous">上一项</button><button class="next">下一项</button><button class="cursor-previous">光标上一处</button><button class="cursor-next">光标下一处</button></div><div class="actions"><button class="reject">拒绝这一项</button><button class="primary accept">接受这一项</button></div>';
       $('.pending').replaceChildren(card);
@@ -123,13 +123,14 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
           }
           else{
             status('正在按当前光标查找建议…');
-            const scan=await call('navigation',{projectId:owner});
+            const excludedIndexes=[];for(let i=0;i<options.total;i++)if(!options.isPending(i))excludedIndexes.push(i);
+            const scan=await call('navigation',{projectId:owner,catalogId,direction,currentIndex:options.index,excludedIndexes});
             if(!scan.ok)throw new Error(scan.code);
             let best=null;
-            for(let index=0;index<options.total;){
+            for(let index=0;!scan.cached && index<options.total;){
               if(settled)return;assertCurrent();
-              const items=[];
-              while(index<options.total && items.length<32){const position=index++;if(!options.isPending(position))continue;const candidate=await itemAt(position);if(candidate.file===scan.file && !options.isDecided(candidate))items.push({index:position,item:candidate})}
+              const items=[];let bytes=0;
+              while(index<options.total && items.length<128){const position=index++;if(!options.isPending(position))continue;const candidate=await itemAt(position);if(candidate.file===scan.file && !options.isDecided(candidate)){items.push({index:position,item:candidate});bytes+=JSON.stringify(candidate).length;if(bytes>=131072)break}}
               let offset=0;
               while(offset<items.length){
                 if(settled)return;assertCurrent();
@@ -143,23 +144,23 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
               }
             }
             // Recheck file, source and cursor after the final batch.
-            const check=await call('navigation',{projectId:owner,scanId:scan.scanId,items:[]});
+            const check=await call('navigation',{projectId:owner,scanId:scan.scanId,items:[],complete:!scan.cached});
             if(!check.ok)throw new Error(check.code);
-            target=best?.index ?? null;
+            target=scan.cached?scan.target:best?.index ?? null;
           }
           if(settled)return;
-          if(target!==null){finish(undefined,undefined,target);return}
+          if(target!==null){finish(undefined,staleCode,target);return}
           status(fromCursor?'当前文件的光标这一侧没有可定位的待处理建议':'没有其他待处理建议；当前项仍等待确认');
         }catch(error){if(!settled)status(error.message==='navigation_changed'?'正文、文件或光标有变化，请重新点击导航':'导航未完成：'+error.message)}
-        finally{navigating=false;if(!settled){card.querySelectorAll('button').forEach(button=>{button.disabled=false});timer=setTimeout(poll,300)}}
+        finally{navigating=false;if(!settled){card.querySelectorAll('button').forEach(button=>{button.disabled=Boolean(staleCode && button.classList.contains('accept'))});if(!staleCode)timer=setTimeout(poll,300)}}
       }
       card.querySelector('.previous').addEventListener('click',()=>navigate(-1,false));
       card.querySelector('.next').addEventListener('click',()=>navigate(1,false));
       card.querySelector('.cursor-previous').addEventListener('click',()=>navigate(-1,true));
       card.querySelector('.cursor-next').addEventListener('click',()=>navigate(1,true));
       card.querySelector('.accept').addEventListener('click', () => finish(true));
-      card.querySelector('.reject').addEventListener('click', () => finish(false));
-      Keyboard.attach(card,choice=>{if(settled || navigating)return;if(choice==='accept')finish(true);else navigate(choice==='previous'?-1:1,false)});
+      card.querySelector('.reject').addEventListener('click', () => finish(false,staleCode));
+      Keyboard.attach(card,choice=>{if(settled || navigating)return;if(choice==='accept'){if(!staleCode)finish(true)}else navigate(choice==='previous'?-1:1,false)});
       Scroll.panel($('.body'),card);
       pendingAbort = () => { if (!settled) { settled = true; clearTimeout(timer); reject(Object.assign(new Error('已停止'), { code: 'cancelled' })); } };
       async function poll() {
@@ -168,7 +169,12 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
           assertCurrent();
           const response = await call('status', { token, projectId: owner });
           if (settled || navigating) return;
-          if (!response.ok) { finish(false, response.code); return; }
+          if (!response.ok) {
+            if(['original_missing','already_applied','ambiguous_match','scope_missing','ambiguous_scope','overlapping_change','position_mismatch','no_change','diff_too_complex'].includes(response.code)){
+              staleCode=response.code;card.querySelector('.accept').disabled=true;status('当前原文已变化，此项已失效；可继续编辑，点击导航后跳过');return;
+            }
+            finish(false,response.code);return;
+          }
           if (response.refreshed) { displayed=response;renderDiff(); token = response.token; card.querySelector('.path').textContent = item.file + ' · L' + response.line+' · #'+(options.index+1); status('正文有变化，已重新定位这一项，等待确认'); }
           else if (response.navigation===-1 || response.navigation===1){await navigate(response.navigation,false);return;}
           else if (typeof response.decision === 'boolean') { finish(response.decision); return; }
@@ -217,9 +223,10 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
     historyMessages=[];$('.history-list').replaceChildren();$('.history-details').open=false;showScreen('review');
     try {
       await call('begin', {ledgers:session.ledgers});
+      const catalogId=crypto.randomUUID();
       let itemBuffer=[],bufferStart=-1;
       const itemAt=persistent?async index=>{if(index<bufferStart||index>=bufferStart+itemBuffer.length){const fetched=await chrome.runtime.sendMessage({type:'items',ref:pack.ref,index});if(!fetched.ok)throw new Error(fetched.error);bufferStart=index;itemBuffer=fetched.items}return itemBuffer[index-bufferStart]}:async index=>pack.suggestions[index];
-      const results = await Runner.run(pack, { projectId: owner, assertCurrent, call, review:(item,prepared,options)=>review(item,prepared,options,itemAt), record, initialCounts:session.initialCounts, decidedIndexes:session.decidedIndexes, decisions:session.decisions, itemAt, retained:result=>{if(bridgeRevision)bridgeResults.push({revision:bridgeRevision,id:result.item.id,state:result.state,code:'retained_decision'})} });
+      const results = await Runner.run(pack, { projectId: owner, assertCurrent, call, review:(item,prepared,options)=>review(item,prepared,options,itemAt,catalogId), record, initialCounts:session.initialCounts, decidedIndexes:session.decidedIndexes, decisions:session.decisions, itemAt, retained:result=>{if(bridgeRevision)bridgeResults.push({revision:bridgeRevision,id:result.item.id,state:result.state,code:'retained_decision'})} });
       const count = state => results.filter(result => result.state === state).length;
       status('审阅结束：写入 ' + count('written') + ' 项，拒绝 ' + count('rejected') + ' 项，跳过 ' + count('skipped') + ' 项，保留先前决定 ' + count('retained') + ' 项。');
     } catch (error) {

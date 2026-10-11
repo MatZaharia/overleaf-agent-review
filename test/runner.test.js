@@ -88,3 +88,10 @@ test('circular navigation preserves counts and never reopens saved or settled su
  assert.deepEqual(seen,[['1',1,2],['3',2,2],['1',1,2],['3',1,1]]);
  assert.deepEqual(records,['1','3']);assert.deepEqual(writes,[]);assert.equal(prepared.includes('2'),false);
 });
+
+test('explicit navigation settles a stale manually edited item once, without applying it',async()=>{
+ const suggestions=[{id:'edited',file:'main.tex',original:'old',replacement:'new'},{id:'later',file:'main.tex',original:'other',replacement:'next'}];
+ const records=[],calls=[];
+ const results=await Runner.run({suggestions},{projectId:'owner',assertCurrent(){},call:async(method,params)=>{calls.push({method,params});if(method==='apply')throw new Error('must not write');return {ok:true,token:params?.item?.id}},review:async(item)=>item.id==='edited'?{navigate:1,skipped:'original_missing'}:{accepted:false},record:result=>records.push(result)});
+ assert.deepEqual(results.map(r=>r.state),['skipped','rejected']);assert.equal(records.filter(r=>r.item.id==='edited').length,1);assert.equal(calls.some(c=>c.method==='apply'),false);
+});

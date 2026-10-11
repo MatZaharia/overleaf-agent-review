@@ -73,3 +73,17 @@ test('navigation cache survives cursor moves but invalidates with suggestion con
  h.view.state.doc={length:22,toString:()=>{reads++;return 'prefix alpha old omega'}};
  assert.equal(locate(item)[0].from,13);assert.equal(reads,2);
 });
+
+test('a completed cursor index serves moves in one query and excludes newly decided items',()=>{
+ const h=fixture();h.view.state.doc={length:15,toString:()=> 'alpha old omega'};
+ const start=extra=>h.service.navigation({projectId:'owner',catalogId:'pack-1',direction:1,currentIndex:99,...extra});
+ let scan=start();assert.equal(scan.cached,false);
+ h.service.navigation({projectId:'owner',scanId:scan.scanId,items:[{index:7,item}]});
+ h.service.navigation({projectId:'owner',scanId:scan.scanId,items:[],complete:true});
+ scan=start();assert.equal(scan.cached,true);assert.equal(scan.target,7);
+ h.cursor(14);scan=start({direction:-1});assert.equal(scan.cached,true);assert.equal(scan.target,7);
+ scan=start({direction:-1,excludedIndexes:[7]});assert.equal(scan.target,null);
+ scan=start({catalogId:'pack-2'});assert.equal(scan.cached,false);
+ h.view.state.doc={length:22,toString:()=> 'prefix alpha old omega'};
+ scan=start();assert.equal(scan.cached,false);assert.equal(h.writes.length,0);
+});

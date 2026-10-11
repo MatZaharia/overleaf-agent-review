@@ -47,3 +47,14 @@ test('pack rejects arbitrary paths, invalid field types and duplicate IDs before
 test('whitespace is not silently rewritten while locating', () => {
  assert.equal(Core.locate('old  words', { ...item, original: 'old words' }).code, 'original_missing');
 });
+
+test('cached LF and CRLF indexes preserve line numbers and raw UTF-16 positions across snapshots',()=>{
+ for(const newline of ['\n','\r\n']){
+  const source='😀'+newline+'prefix'+newline+'old'+newline+'tail';
+  const match=Core.locate(source,{id:'x',file:'main.tex',original:'old',replacement:'new'});
+  assert.equal(match.line,3);assert.equal(match.patch.from,source.indexOf('old'));assert.equal(match.patch.expected,'old');
+  assert.equal(Core.lineAtSource(source,source.indexOf('tail')),4);
+  const boundary=Core.locate(source,{id:'boundary',file:'main.tex',original:'\nprefix\n',replacement:'\nchanged\n'});
+  assert.equal(boundary.patch.expected,newline+'prefix'+newline);assert.equal(boundary.line,1);
+ }
+});
