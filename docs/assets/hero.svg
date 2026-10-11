@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="480" viewBox="0 0 1200 480" role="img" aria-labelledby="title desc">
+<title id="title">Overleaf Agent Review — Your paper. Your call.</title>
+<desc id="desc">An Agent sends a suggestion pack to an editor. Only the highlighted capital P changes to lowercase p after the author accepts. Suggestions can be accepted, rejected or reviewed later.</desc>
+<defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#edf0ff"/><stop offset="1" stop-color="#f8fbff"/></linearGradient><linearGradient id="accent" x2="1" y2="1"><stop stop-color="#7563db"/><stop offset="1" stop-color="#394eae"/></linearGradient></defs>
+<rect width="1200" height="480" rx="24" fill="url(#bg)"/>
+<circle cx="1094" cy="52" r="154" fill="#e6e1fa" opacity=".6"/><circle cx="654" cy="437" r="127" fill="#dcefe9" opacity=".65"/>
+<g font-family="Arial,Helvetica,sans-serif">
+<rect x="46" y="39" width="34" height="34" rx="10" fill="url(#accent)"/><path d="M55 57l6 6 11-13" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+<text x="94" y="62" fill="#3b4667" font-size="16" font-weight="700" letter-spacing="2">OVERLEAF AGENT REVIEW</text>
+<text x="46" y="174" fill="#1e2b48" font-family="Georgia,serif" font-size="67" font-weight="700">Your paper.</text>
+<text x="46" y="249" fill="#6752c7" font-family="Georgia,serif" font-size="67" font-weight="700">Your call.</text>
+<text x="49" y="300" fill="#52617b" font-size="20">Agent proposes. You review, one change at a time.</text>
+<rect x="48" y="335" width="142" height="32" rx="16" fill="#fff"/><text x="119" y="357" text-anchor="middle" font-size="13" fill="#536181">Character edits</text>
+<rect x="200" y="335" width="135" height="32" rx="16" fill="#fff"/><text x="267" y="357" text-anchor="middle" font-size="13" fill="#536181">Live matching</text>
+<rect x="345" y="335" width="126" height="32" rx="16" fill="#fff"/><text x="408" y="357" text-anchor="middle" font-size="13" fill="#536181">Your decision</text>
+<path d="M511 185h29l12 12-12 12h-29" fill="none" stroke="#a7a6ce" stroke-width="2" stroke-linecap="round"/>
+<rect x="587" y="65" width="556" height="346" rx="16" fill="#cbd2eb" opacity=".35"/>
+<rect x="580" y="57" width="556" height="346" rx="16" fill="#fff" stroke="#d4dced"/>
+<path d="M596 57h524q16 0 16 16v40H580V73q0-16 16-16" fill="#233250"/>
+<circle cx="604" cy="86" r="5" fill="#ed9a97"/><circle cx="622" cy="86" r="5" fill="#edce90"/><circle cx="640" cy="86" r="5" fill="#83c0ad"/>
+<text x="671" y="91" fill="#eef2ff" font-size="14">main.tex</text><text x="1113" y="91" text-anchor="end" fill="#cbd3e9" font-size="12">CODE · REVIEW</text>
+<text x="605" y="147" fill="#73809b" font-size="12" letter-spacing="1.5">01 / SUGGESTION PACK</text>
+<text x="605" y="177" fill="#293653" font-size="18" font-weight="700">A small change. An explicit choice.</text>
+<rect x="605" y="195" width="505" height="50" rx="7" fill="#f5f7fc"/>
+<text x="624" y="226" fill="#8994aa" font-family="monospace" font-size="16">16</text>
+<text x="670" y="227" fill="#465575" font-family="monospace" font-size="21">\title{Your </text>
+<rect x="821" y="205" width="20" height="30" rx="4" fill="#ffe6ce"/><text x="823" y="227" fill="#985426" font-family="monospace" font-size="21">P</text>
+<text x="841" y="227" fill="#465575" font-family="monospace" font-size="21">aper}</text>
+<rect x="919" y="207" width="172" height="25" rx="12" fill="#e4f4ed"/><text x="1005" y="224" text-anchor="middle" fill="#217557" font-size="13">P → p · one character</text>
+<text x="607" y="275" fill="#65728b" font-size="14">Highlight first. Write only after acceptance.</text>
+<rect x="605" y="294" width="146" height="41" rx="8" fill="#278262"/><path d="M621 314l4 4 7-9" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/><text x="684" y="320" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">Accept</text>
+<rect x="763" y="294" width="127" height="41" rx="8" fill="#fff" stroke="#ced6e5"/><text x="826" y="320" text-anchor="middle" fill="#455472" font-size="14">Reject</text>
+<rect x="902" y="294" width="208" height="41" rx="8" fill="#f0edfb"/><text x="1006" y="320" text-anchor="middle" fill="#6d58b8" font-size="14">← Previous · Next →</text>
+<circle cx="612" cy="372" r="4" fill="#278262"/><text x="624" y="377" fill="#65728b" font-size="12">Stale or ambiguous? Skip safely.</text>
+<text x="49" y="441" fill="#74819e" font-size="11" letter-spacing="1.1">LOCAL CLI → LIVE EDITOR → HUMAN REVIEW</text>
+<text x="1135" y="441" text-anchor="end" fill="#8590a6" font-size="11">Workflow illustration</text>
+</g></svg>
