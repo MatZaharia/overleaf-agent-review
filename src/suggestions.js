@@ -29,7 +29,7 @@ function parsePack(input) {
   if (pack.projectId !== undefined && (typeof pack.projectId !== 'string' || !/^[a-f0-9]{24}$/i.test(pack.projectId))) throw new Error('projectId 必须是 Overleaf 项目 ID');
   const suggestions = pack.suggestions.map(normalizeItem);
   if (new Set(suggestions.map(s => s.id)).size !== suggestions.length) throw new Error('每项 id 必须唯一');
-  return { format: pack.format, version: 1, projectId: pack.projectId || '', suggestions };
+  return { format: pack.format, version: 1, projectId: pack.projectId || undefined, suggestions };
 }
 const logical = text => text.replace(/\r\n/g, '\n');
 function occurrences(text, value, from = 0, to = text.length) {

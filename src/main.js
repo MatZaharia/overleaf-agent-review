@@ -19,7 +19,7 @@ window.addEventListener('message', event => {
   if (responses.has(message.id)) { responses.get(message.id).then(reply); return; }
   const pending = Promise.resolve().then(() => {
     if (message.method === 'hello') return { ok: true };
-    if (message.method === 'begin') return service.begin();
+    if (message.method === 'begin') return service.begin(message.params);
     if (message.method === 'snapshot') return service.snapshot();
     if (message.method === 'cancel') return service.cancel();
     if (message.method === 'project') return { ok: true, projectId: adapter.projectId(), file: adapter.path() };
@@ -28,6 +28,6 @@ window.addEventListener('message', event => {
     return service[message.method](message.params);
   }).catch(error => ({ ok: false, code: 'bridge_failed', error: error.message }));
   responses.set(message.id, pending);
-  if (responses.size > 600) responses.delete(responses.keys().next().value);
-  pending.then(reply);
+  if (responses.size > 64) responses.delete(responses.keys().next().value);
+  pending.then(result=>{reply(result);if(message.method!=='apply')responses.delete(message.id)});
 });

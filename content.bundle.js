@@ -39,7 +39,7 @@
         if (pack.projectId !== void 0 && (typeof pack.projectId !== "string" || !/^[a-f0-9]{24}$/i.test(pack.projectId))) throw new Error("projectId \u5FC5\u987B\u662F Overleaf \u9879\u76EE ID");
         const suggestions = pack.suggestions.map(normalizeItem);
         if (new Set(suggestions.map((s) => s.id)).size !== suggestions.length) throw new Error("\u6BCF\u9879 id \u5FC5\u987B\u552F\u4E00");
-        return { format: pack.format, version: 1, projectId: pack.projectId || "", suggestions };
+        return { format: pack.format, version: 1, projectId: pack.projectId || void 0, suggestions };
       }
       var logical = (text) => text.replace(/\r\n/g, "\n");
       function occurrences(text, value, from = 0, to = text.length) {
@@ -108,9 +108,19 @@
       }
       async function run(pack, deps) {
         const results = [];
-        for (let index = 0; index < pack.suggestions.length; index++) {
+        const compact = (result) => ({ ...result, item: { id: result.item.id, file: result.item.file, reviewKey: result.item.reviewKey } });
+        const total = pack.count ?? pack.suggestions.length;
+        for (let index = 0; index < total; index++) {
           deps.assertCurrent();
-          const item = pack.suggestions[index];
+          const item = deps.itemAt ? await deps.itemAt(index) : pack.suggestions[index];
+          const retained = deps.decisions?.[item.reviewKey];
+          if (retained?.state === "unknown") throw Object.assign(new Error("\u5148\u6838\u5BF9\u4E0A\u6B21\u672A\u786E\u8BA4\u7684\u5199\u5165"), { code: "write_unconfirmed", results });
+          if (retained && ["written", "rejected"].includes(retained.state)) {
+            results.push(compact({ item, state: "retained", previous: retained.state }));
+            await deps.retained?.({ item, state: retained.state });
+            if (index % 100 === 0) await new Promise((resolve) => setTimeout(resolve, 0));
+            continue;
+          }
           let prepared;
           try {
             prepared = await deps.call("prepare", { item, projectId: deps.projectId });
@@ -120,25 +130,25 @@
           deps.assertCurrent();
           if (!prepared.ok) {
             const result2 = { item, state: "skipped", code: prepared.code };
-            results.push(result2);
-            deps.record(result2);
+            results.push(compact(result2));
+            await deps.record(result2);
             if (halt(prepared.code)) throw Object.assign(new Error("\u5BA1\u9605\u5DF2\u505C\u6B62"), { code: prepared.code, results });
             continue;
           }
-          const decision = await deps.review(item, prepared, { index, total: pack.suggestions.length });
+          const decision = await deps.review(item, prepared, { index, total });
           deps.assertCurrent();
           if (decision.skipped) {
             const result2 = { item, state: "skipped", code: decision.skipped };
-            results.push(result2);
-            deps.record(result2);
+            results.push(compact(result2));
+            await deps.record(result2);
             if (halt(decision.skipped)) throw Object.assign(new Error("\u5BA1\u9605\u5DF2\u505C\u6B62"), { code: decision.skipped, results });
             continue;
           }
           if (decision.accepted !== true) {
             await deps.call("cancel", {});
             const result2 = { item, state: "rejected" };
-            results.push(result2);
-            deps.record(result2);
+            results.push(compact(result2));
+            await deps.record(result2);
             continue;
           }
           let applied;
@@ -150,8 +160,8 @@
           const verified = applied.ok === true && applied.verified === true;
           const code = applied.code || (verified ? "" : "write_unconfirmed");
           const result = { item, state: verified ? "written" : applied.changedDocument ? "unknown" : "skipped", code };
-          results.push(result);
-          deps.record(result);
+          results.push(compact(result));
+          await deps.record(result);
           if (!verified && halt(code)) throw Object.assign(new Error("\u5199\u5165\u672A\u786E\u8BA4\uFF0C\u505C\u6B62\u540E\u7EED\u9879"), { code, results });
         }
         return results;
@@ -170,12 +180,13 @@
     host.style.cssText = "position:fixed;right:16px;bottom:16px;z-index:2147483100;";
     const shadow = host.attachShadow({ mode: "open" });
     shadow.innerHTML = `<style>
-:host{font:13px/1.5 system-ui;color:#273342}*{box-sizing:border-box}button,textarea,input{font:inherit}button{border:1px solid #cdd6df;border-radius:6px;background:#fff;color:#273342;padding:7px 11px;cursor:pointer}button:disabled{opacity:.45;cursor:default}button:focus-visible,textarea:focus-visible{outline:3px solid #8aafe3;outline-offset:2px}.primary,.launch{background:#176347;color:#fff;border-color:#176347}.launch{box-shadow:0 4px 18px #18352925}.drawer{width:390px;max-width:calc(100vw - 32px);max-height:85vh;overflow:auto;background:#fff;border:1px solid #cbd5de;border-radius:10px;box-shadow:0 10px 40px #14253630;margin-bottom:10px}.head{padding:14px 16px;border-bottom:1px solid #e0e6ec;display:flex;align-items:center;justify-content:space-between}.head strong{font-size:15px}.head button{padding:3px 8px}.body{padding:16px}.muted{color:#657687;font-size:12px;margin:0 0 12px}.label{display:block;margin-bottom:6px;font-weight:600}textarea{display:block;width:100%;height:130px;padding:10px;border:1px solid #ccd7e0;border-radius:6px;resize:vertical;font:12px/1.45 ui-monospace,monospace}.toolbar{display:flex;gap:8px;margin:12px 0}.message{font-size:12px;padding:10px;background:#f0f5f4;border-radius:5px}.card{border:1px solid #d2dce4;border-radius:7px;padding:12px;margin-top:12px}.card strong{display:block}.path{font:11px/1.5 ui-monospace,monospace;color:#687888}.reason{font-size:12px;margin:8px 0}.source{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 ui-monospace,monospace;margin:6px 0 10px;padding:8px;max-height:180px;overflow:auto;border-radius:4px}.old{background:#fff1e5;color:#74451f}.new{background:#eef8ee;color:#23572c}.actions{display:flex;gap:8px}.history{padding:8px 0;border-bottom:1px solid #e3e9ed;font-size:12px}.history b{color:#176347}.unknown{color:#9a452c}.footer{margin-top:14px;font-size:11px;color:#6b7b88}[hidden]{display:none!important}
-</style><section class="drawer" hidden><div class="head"><strong>\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE</strong><button class="close" aria-label="\u6536\u8D77">\xD7</button></div><div class="body"><p class="muted">\u5148\u5BFC\u5165\u5EFA\u8BAE\u5305\uFF0C\u518D\u9010\u9879\u786E\u8BA4\u3002\u6BCF\u6B21\u63A5\u53D7\u90FD\u4F1A\u641C\u7D22\u5F53\u524D\u539F\u6587\uFF1B\u8FC7\u65F6\u6216\u4E0D\u552F\u4E00\u7684\u9879\u81EA\u52A8\u8DF3\u8FC7\u3002</p><label class="label" for="pack">\u5EFA\u8BAE\u5305 JSON</label><textarea id="pack" spellcheck="false" placeholder="\u7C98\u8D34 Codex \u751F\u6210\u7684\u5EFA\u8BAE\u5305"></textarea><input type="file" accept=".json,application/json" hidden><div class="toolbar"><button class="connect">\u8FDE\u63A5 Codex</button><button class="disconnect">\u65AD\u5F00</button></div><div class="bridge-status" role="status"></div><input class="bridge-token" type="password" placeholder="\u672C\u5730\u8FDE\u63A5\u914D\u5BF9\u4EE4\u724C" autocomplete="off"><div class="toolbar"><button class="file">\u9009\u62E9 JSON \u6587\u4EF6</button><button class="primary start">\u5F00\u59CB\u5BA1\u9605</button><button class="stop" hidden>\u505C\u6B62</button></div><div class="message" role="status" aria-live="polite">\u7B49\u5F85\u5BFC\u5165\u5EFA\u8BAE\u5305</div><div class="pending"></div><div class="history-list"></div><p class="footer">\u5DF2\u5199\u5165\u8868\u793A\u7F16\u8F91\u5668\u5185\u5BB9\u5DF2\u6838\u9A8C\uFF0C\u670D\u52A1\u5668\u4FDD\u5B58\u9700\u5728 Overleaf \u68C0\u67E5\u3002\u53EF\u4F7F\u7528 Overleaf \u7684\u64A4\u9500\u6309\u94AE\u3002</p></div></section><button class="launch">\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE</button>`;
+:host{font:13px/1.5 system-ui;color:#273342}*{box-sizing:border-box}button,textarea,input{font:inherit}button{border:1px solid #cdd6df;border-radius:6px;background:#fff;color:#273342;padding:7px 11px;cursor:pointer}button:disabled{opacity:.45;cursor:default}button:focus-visible,textarea:focus-visible{outline:3px solid #8aafe3;outline-offset:2px}.primary,.launch{background:#176347;color:#fff;border-color:#176347}.launch{box-shadow:0 4px 18px #18352925}.drawer{width:390px;max-width:calc(100vw - 32px);max-height:85vh;overflow:auto;background:#fff;border:1px solid #cbd5de;border-radius:10px;box-shadow:0 10px 40px #14253630;margin-bottom:10px}.head{padding:14px 16px;border-bottom:1px solid #e0e6ec;display:flex;align-items:center;justify-content:space-between}.head strong{font-size:15px}.head button{padding:3px 8px}.body{padding:16px}.muted{color:#657687;font-size:12px;margin:0 0 12px}.label{display:block;margin-bottom:6px;font-weight:600}textarea{display:block;width:100%;height:130px;padding:10px;border:1px solid #ccd7e0;border-radius:6px;resize:vertical;font:12px/1.45 ui-monospace,monospace}.toolbar{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.message{font-size:12px;padding:10px;background:#f0f5f4;border-radius:5px}.card{border:1px solid #d2dce4;border-radius:7px;padding:12px;margin-top:12px}.card strong{display:block}.path{font:11px/1.5 ui-monospace,monospace;color:#687888}.reason{font-size:12px;margin:8px 0}.source{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 ui-monospace,monospace;margin:6px 0 10px;padding:8px;max-height:180px;overflow:auto;border-radius:4px}.old{background:#fff1e5;color:#74451f}.new{background:#eef8ee;color:#23572c}.actions{display:flex;gap:8px}.history{padding:8px 0;border-bottom:1px solid #e3e9ed;font-size:12px}.history b{color:#176347}.unknown{color:#9a452c}.footer{margin-top:14px;font-size:11px;color:#6b7b88}[hidden]{display:none!important}
+</style><section class="drawer" hidden><div class="head"><strong>\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE</strong><button class="close" aria-label="\u6536\u8D77">\xD7</button></div><div class="body"><p class="muted">\u5148\u5BFC\u5165\u5EFA\u8BAE\u5305\uFF0C\u518D\u9010\u9879\u786E\u8BA4\u3002\u6BCF\u6B21\u63A5\u53D7\u90FD\u4F1A\u641C\u7D22\u5F53\u524D\u539F\u6587\uFF1B\u8FC7\u65F6\u6216\u4E0D\u552F\u4E00\u7684\u9879\u81EA\u52A8\u8DF3\u8FC7\u3002</p><label class="label" for="pack">\u5EFA\u8BAE\u5305 JSON</label><textarea id="pack" spellcheck="false" placeholder="\u7C98\u8D34 Codex \u751F\u6210\u7684\u5EFA\u8BAE\u5305"></textarea><input type="file" accept=".json,application/json" hidden><div class="toolbar"><button class="connect">\u8FDE\u63A5 Codex</button><button class="disconnect">\u65AD\u5F00</button></div><div class="bridge-status" role="status"></div><input class="bridge-token" type="password" placeholder="\u672C\u5730\u8FDE\u63A5\u914D\u5BF9\u4EE4\u724C" autocomplete="off"><div class="toolbar"><button class="file">\u9009\u62E9 JSON \u6587\u4EF6</button><button class="primary start">\u5F00\u59CB\u5BA1\u9605</button><button class="resume">\u6062\u590D\u4E0A\u6B21\u5BA1\u9605</button><button class="reset">\u6E05\u9664\u8FDB\u5EA6</button><button class="stop" hidden>\u505C\u6B62</button></div><div class="message" role="status" aria-live="polite">\u7B49\u5F85\u5BFC\u5165\u5EFA\u8BAE\u5305</div><div class="pending"></div><div class="history-list"></div><p class="footer">\u5DF2\u5199\u5165\u8868\u793A\u7F16\u8F91\u5668\u5185\u5BB9\u5DF2\u6838\u9A8C\uFF0C\u670D\u52A1\u5668\u4FDD\u5B58\u9700\u5728 Overleaf \u68C0\u67E5\u3002\u53EF\u4F7F\u7528 Overleaf \u7684\u64A4\u9500\u6309\u94AE\u3002</p></div></section><button class="launch">\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE</button>`;
     document.body.append(host);
     const $ = (selector) => shadow.querySelector(selector);
     const capability = Array.from(crypto.getRandomValues(new Uint8Array(32)), (b) => b.toString(16).padStart(2, "0")).join("");
-    let startEpoch = 0;
+    const persistent = typeof chrome !== "undefined" && !!chrome.runtime?.id;
+    let startEpoch = 0, sessionActive = false;
     let importedPack = null, initialized = null, running = false, starting = false, owner = "", cancelled = false, pendingAbort = null;
     function send(method, params) {
       const id = crypto.randomUUID();
@@ -201,7 +212,12 @@
       if (!initialized) initialized = send("hello", {});
       const handshake = await initialized;
       if (!handshake.ok) throw new Error("\u65E0\u6CD5\u8FDE\u63A5\u9875\u9762");
-      return send(method, params);
+      const result = await send(method, params);
+      if (persistent && sessionActive && result.journal?.length) {
+        const saved = await chrome.runtime.sendMessage({ type: "progress", journal: result.journal });
+        if (!saved.ok) throw new Error("\u4FDD\u5B58\u5B9A\u4F4D\u8BB0\u5F55\u5931\u8D25\uFF1A" + saved.error);
+      }
+      return result;
     }
     const assertCurrent = () => {
       const current = location.pathname.match(/^\/project\/([a-f\d]{24})(?:\/|$)/i)?.[1];
@@ -273,33 +289,67 @@
         poll();
       });
     }
-    function record(result) {
+    let historyMessages = [], historyFrame = null;
+    function renderHistory() {
+      if (historyFrame !== null) return;
+      historyFrame = requestAnimationFrame(() => {
+        historyFrame = null;
+        $(".history-list").replaceChildren(...historyMessages.map((text) => {
+          const row = document.createElement("div");
+          row.className = "history";
+          row.textContent = text;
+          return row;
+        }));
+      });
+    }
+    async function record(result) {
+      if (persistent && ["written", "rejected", "unknown"].includes(result.state)) {
+        const saved = await chrome.runtime.sendMessage({ type: "progress", decision: { reviewKey: result.item.reviewKey, state: result.state, code: result.code } });
+        if (!saved.ok) throw new Error("\u4FDD\u5B58\u5BA1\u9605\u51B3\u5B9A\u5931\u8D25\uFF1A" + saved.error);
+      }
       if (bridgeRevision) bridgeResults.push({ revision: bridgeRevision, id: result.item.id, state: result.state, code: result.code });
-      $(".pending").replaceChildren();
-      const row = document.createElement("div");
-      row.className = "history";
+      if ($(".pending").firstChild) $(".pending").replaceChildren();
       const word = result.state === "written" ? "\u5DF2\u5199\u5165" : result.state === "rejected" ? "\u5DF2\u62D2\u7EDD" : result.state === "unknown" ? "\u5199\u5165\u672A\u786E\u8BA4" : Core.skipped[result.code] || "\u5DF2\u8DF3\u8FC7\uFF1A" + result.code;
-      row.textContent = result.item.file + " \xB7 \u4FEE\u6539 " + result.item.id + "\uFF1A" + word;
-      $(".history-list").append(row);
-      while ($(".history-list").children.length > 100) $(".history-list").firstElementChild.remove();
+      historyMessages.push(result.item.file + " \xB7 \u4FEE\u6539 " + result.item.id + "\uFF1A" + word);
+      if (historyMessages.length > 100) historyMessages.shift();
+      renderHistory();
       if (result.state === "written") status("\u5F53\u524D\u9879\u5DF2\u5199\u5165\u7F16\u8F91\u5668\uFF0C\u7EE7\u7EED\u6838\u5BF9\u4E0B\u4E00\u9879");
+    }
+    async function parseInput(input) {
+      if (!persistent) return Core.parsePack(input);
+      let response;
+      if (input?.ref) return input;
+      if (typeof input === "string" && input.length > 262144) {
+        const uploadId = crypto.randomUUID();
+        let index = 0;
+        for (let from = 0; from < input.length; from += 262144) {
+          response = await chrome.runtime.sendMessage({ type: "parseChunk", uploadId, index: index++, chunk: input.slice(from, from + 262144), last: from + 262144 >= input.length });
+          if (!response.ok) throw new Error(response.error);
+        }
+      } else response = await chrome.runtime.sendMessage({ type: "parse", input });
+      if (!response.ok) throw new Error(response.error);
+      return response.pack;
     }
     async function start() {
       if (running || starting) return;
       const epoch = ++startEpoch;
       starting = true;
       $(".start").disabled = true;
-      let pack;
+      let pack, session = { decisions: {}, ledgers: {} };
       try {
-        pack = typeof chrome !== "undefined" && chrome.runtime?.id ? await chrome.runtime.sendMessage({ type: "parse", input: importedPack || $("#pack").value }).then((r) => {
-          if (!r.ok) throw new Error(r.error);
-          return r.pack;
-        }) : Core.parsePack(importedPack || $("#pack").value);
+        pack = await parseInput(importedPack || $("#pack").value);
         const current = await call("project", {});
         if (!current.ok || !current.projectId) throw new Error("\u8BF7\u5148\u6253\u5F00 Overleaf \u9879\u76EE");
         if (pack.projectId && pack.projectId !== current.projectId) throw new Error("\u5EFA\u8BAE\u5305\u5C5E\u4E8E\u5176\u4ED6\u9879\u76EE\uFF0C\u6CA1\u6709\u5199\u5165");
         if (epoch !== startEpoch) throw new Error("\u5EFA\u8BAE\u5DF2\u66F4\u65B0\u6216\u5BA1\u9605\u5DF2\u505C\u6B62");
+        if (persistent) {
+          session = await chrome.runtime.sendMessage({ type: "session", pack });
+          if (!session.ok) throw new Error(session.error);
+          pack = session.pack;
+        }
+        if (epoch !== startEpoch) throw new Error("\u5EFA\u8BAE\u5DF2\u66F4\u65B0\u6216\u5BA1\u9605\u5DF2\u505C\u6B62");
         owner = current.projectId;
+        sessionActive = true;
       } catch (error) {
         status(error.message);
         starting = false;
@@ -310,15 +360,30 @@
       starting = false;
       cancelled = false;
       $(".start").disabled = true;
+      $(".resume").disabled = true;
+      $(".reset").disabled = true;
       $(".file").disabled = true;
       $("#pack").disabled = true;
       $(".stop").hidden = false;
+      historyMessages = [];
       $(".history-list").replaceChildren();
       try {
-        await call("begin", {});
-        const results = await Runner.run(pack, { projectId: owner, assertCurrent, call, review, record });
+        await call("begin", { ledgers: session.ledgers });
+        let itemBuffer = [], bufferStart = -1;
+        const itemAt = persistent ? async (index) => {
+          if (index < bufferStart || index >= bufferStart + itemBuffer.length) {
+            const fetched = await chrome.runtime.sendMessage({ type: "items", ref: pack.ref, index });
+            if (!fetched.ok) throw new Error(fetched.error);
+            bufferStart = index;
+            itemBuffer = fetched.items;
+          }
+          return itemBuffer[index - bufferStart];
+        } : null;
+        const results = await Runner.run(pack, { projectId: owner, assertCurrent, call, review, record, decisions: session.decisions, itemAt, retained: (result) => {
+          if (bridgeRevision) bridgeResults.push({ revision: bridgeRevision, id: result.item.id, state: result.state, code: "retained_decision" });
+        } });
         const count = (state) => results.filter((result) => result.state === state).length;
-        status("\u5BA1\u9605\u7ED3\u675F\uFF1A\u5199\u5165 " + count("written") + " \u9879\uFF0C\u62D2\u7EDD " + count("rejected") + " \u9879\uFF0C\u8DF3\u8FC7 " + count("skipped") + " \u9879\u3002");
+        status("\u5BA1\u9605\u7ED3\u675F\uFF1A\u5199\u5165 " + count("written") + " \u9879\uFF0C\u62D2\u7EDD " + count("rejected") + " \u9879\uFF0C\u8DF3\u8FC7 " + count("skipped") + " \u9879\uFF0C\u4FDD\u7559\u5148\u524D\u51B3\u5B9A " + count("retained") + " \u9879\u3002");
       } catch (error) {
         status(error.code === "write_unconfirmed" ? "\u5199\u5165\u7ED3\u679C\u672A\u786E\u8BA4\uFF0C\u5DF2\u505C\u6B62\u3002\u8BF7\u68C0\u67E5\u5F53\u524D\u6B63\u6587\uFF0C\u4E0D\u8981\u91CD\u590D\u63A5\u53D7\u3002" : "\u5BA1\u9605\u5DF2\u505C\u6B62\uFF1A" + (error.code || error.message));
       } finally {
@@ -329,6 +394,8 @@
         $(".pending").replaceChildren();
         running = false;
         $(".start").disabled = false;
+        $(".resume").disabled = false;
+        $(".reset").disabled = false;
         $(".file").disabled = false;
         $("#pack").disabled = false;
         $(".stop").hidden = true;
@@ -386,7 +453,7 @@
           bridgeRevision = result.revision;
           bridgeResults = [];
           importedPack = result.pack;
-          $("#pack").value = "Codex \u5EFA\u8BAE\u7248\u672C " + bridgeRevision + "\uFF0C\u5171 " + result.pack.suggestions.length + " \u9879";
+          $("#pack").value = "Codex \u5EFA\u8BAE\u7248\u672C " + bridgeRevision + "\uFF0C\u5171 " + (result.pack.count ?? result.pack.suggestions.length) + " \u9879";
           $(".drawer").hidden = false;
           start();
         }
@@ -423,6 +490,34 @@
     });
     $("#pack").addEventListener("input", () => {
       importedPack = null;
+    });
+    $(".resume").addEventListener("click", async () => {
+      if (!persistent) {
+        status("\u6062\u590D\u8FDB\u5EA6\u9700\u8981 Chrome \u6269\u5C55");
+        return;
+      }
+      try {
+        const session = await chrome.runtime.sendMessage({ type: "session" });
+        if (!session.ok) throw new Error(session.error);
+        if (!session.pack) throw new Error("\u5F53\u524D\u9879\u76EE\u6CA1\u6709\u4FDD\u5B58\u7684\u5EFA\u8BAE\u5305");
+        importedPack = session.pack;
+        $("#pack").value = "\u5DF2\u6062\u590D " + (session.pack.count ?? session.pack.suggestions.length) + " \u9879\u5EFA\u8BAE";
+        start();
+      } catch (error) {
+        status(error.message);
+      }
+    });
+    $(".reset").addEventListener("click", async () => {
+      if (running || starting) return;
+      if (persistent) {
+        const saved = await chrome.runtime.sendMessage({ type: "clearProgress" });
+        if (!saved.ok) {
+          status(saved.error);
+          return;
+        }
+      }
+      sessionActive = false;
+      status("\u5DF2\u6E05\u9664\u5F53\u524D\u9879\u76EE\u7684\u5BA1\u9605\u8FDB\u5EA6\uFF1B\u6B63\u6587\u4E0D\u53D8\uFF0C\u53EF\u91CD\u65B0\u5BFC\u5165\u5BA1\u9605");
     });
     $(".start").addEventListener("click", start);
     $(".stop").addEventListener("click", () => {

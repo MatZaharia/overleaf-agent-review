@@ -39,7 +39,7 @@
         if (pack.projectId !== void 0 && (typeof pack.projectId !== "string" || !/^[a-f0-9]{24}$/i.test(pack.projectId))) throw new Error("projectId \u5FC5\u987B\u662F Overleaf \u9879\u76EE ID");
         const suggestions = pack.suggestions.map(normalizeItem);
         if (new Set(suggestions.map((s) => s.id)).size !== suggestions.length) throw new Error("\u6BCF\u9879 id \u5FC5\u987B\u552F\u4E00");
-        return { format: pack.format, version: 1, projectId: pack.projectId || "", suggestions };
+        return { format: pack.format, version: 1, projectId: pack.projectId || void 0, suggestions };
       }
       var logical = (text) => text.replace(/\r\n/g, "\n");
       function occurrences(text, value, from = 0, to = text.length) {
@@ -98,15 +98,194 @@
     }
   });
 
+  // src/progress.js
+  var require_progress = __commonJS({
+    "src/progress.js"(exports, module) {
+      "use strict";
+      var request2 = (r) => new Promise((resolve, reject) => {
+        r.onsuccess = () => resolve(r.result);
+        r.onerror = () => reject(r.error);
+      });
+      function create(indexedDB2, crypto2) {
+        let opening;
+        function db() {
+          return opening ||= new Promise((resolve, reject) => {
+            const r = indexedDB2.open("codex-overleaf-review", 1);
+            r.onupgradeneeded = () => {
+              for (const name of ["packs", "decisions", "bases", "edits"]) {
+                const store = r.result.createObjectStore(name, { keyPath: "key" });
+                store.createIndex("project", "project");
+              }
+            };
+            r.onsuccess = () => resolve(r.result);
+            r.onerror = () => reject(r.error);
+          });
+        }
+        const complete = (tx) => new Promise((resolve, reject) => {
+          tx.oncomplete = resolve;
+          tx.onerror = () => reject(tx.error);
+          tx.onabort = () => reject(tx.error || new Error("Progress transaction aborted"));
+        });
+        async function keys(pack) {
+          const suggestions = [];
+          for (let offset = 0; offset < pack.suggestions.length; offset += 64) {
+            suggestions.push(...await Promise.all(pack.suggestions.slice(offset, offset + 64).map(async (item) => {
+              const fields = [item.id, item.file, item.original, item.replacement, item.before, item.after, item.scope || null];
+              const hash = await crypto2.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(fields)));
+              return { ...item, reviewKey: Array.from(new Uint8Array(hash), (b) => b.toString(16).padStart(2, "0")).join("") };
+            })));
+          }
+          return { ...pack, suggestions };
+        }
+        async function load(project) {
+          const database = await db(), tx = database.transaction(["packs", "decisions", "bases", "edits"], "readonly"), done = complete(tx);
+          const reads = ["packs", "decisions", "bases", "edits"].map((name) => request2(tx.objectStore(name).index("project").getAll(project)));
+          const [packs, records, bases, chunks] = await Promise.all(reads);
+          await done;
+          const ledgers = {};
+          for (const base of bases) ledgers[base.file] = { base: base.base, edits: chunks.filter((c) => c.file === base.file && c.generation === base.generation).sort((a, b) => a.sequence - b.sequence).flatMap((c) => c.edits) };
+          return { pack: packs[0]?.pack || null, decisions: Object.fromEntries(records.map((r) => [r.key[1], { state: r.state, code: r.code }])), ledgers };
+        }
+        async function savePack(project, pack) {
+          const prepared = await keys(pack), database = await db(), tx = database.transaction("packs", "readwrite"), done = complete(tx);
+          tx.objectStore("packs").put({ key: project, project, pack: prepared });
+          await done;
+        }
+        async function save(project, { decision, journal = [] }) {
+          const database = await db(), tx = database.transaction(["decisions", "bases", "edits"], "readwrite"), done = complete(tx);
+          if (decision) tx.objectStore("decisions").put({ key: [project, decision.reviewKey], project, state: decision.state, code: decision.code || "" });
+          for (const entry of journal) {
+            const chunksStore = tx.objectStore("edits");
+            if (entry.id && await request2(chunksStore.get([project, "receipt", entry.id]))) continue;
+            const store = tx.objectStore("bases"), key = [project, entry.file];
+            const existing = await request2(store.get(key));
+            let base = existing;
+            if (typeof entry.base === "string") {
+              base = { key, project, file: entry.file, base: entry.base, generation: crypto2.randomUUID(), sequence: 0 };
+              store.put(base);
+              const chunks = await request2(tx.objectStore("edits").index("project").getAll(project));
+              for (const chunk of chunks) if (chunk.file === entry.file) tx.objectStore("edits").delete(chunk.key);
+            }
+            if (entry.replace) {
+              const chunks = await request2(chunksStore.index("project").getAll(project));
+              for (const chunk of chunks) if (chunk.file === entry.file) chunksStore.delete(chunk.key);
+            }
+            if (entry.id) chunksStore.put({ key: [project, "receipt", entry.id], project, file: "", edits: [] });
+            if (base && entry.edits?.length) {
+              base.sequence++;
+              store.put(base);
+              tx.objectStore("edits").put({ key: crypto2.randomUUID(), project, file: entry.file, generation: base.generation, sequence: base.sequence, edits: entry.edits });
+            }
+          }
+          await done;
+        }
+        async function clear(project) {
+          const database = await db(), tx = database.transaction(["packs", "decisions", "bases", "edits"], "readwrite"), done = complete(tx);
+          for (const name of ["packs", "decisions", "bases", "edits"]) {
+            const store = tx.objectStore(name), rows = await request2(store.index("project").getAll(project));
+            for (const row of rows) store.delete(row.key);
+          }
+          await done;
+        }
+        return { load, savePack, save, clear, keys };
+      }
+      module.exports = { create };
+    }
+  });
+
+  // src/catalog.js
+  var require_catalog = __commonJS({
+    "src/catalog.js"(exports, module) {
+      "use strict";
+      var Core2 = require_suggestions();
+      function create(crypto2) {
+        const packs = /* @__PURE__ */ new Map(), uploads = /* @__PURE__ */ new Map();
+        function put(project, pack) {
+          const ref = crypto2.randomUUID();
+          packs.set(ref, { project, pack });
+          const previous = [...packs].filter(([id, p]) => p.project === project && id !== ref);
+          for (const [id] of previous.slice(0, -1)) packs.delete(id);
+          return { ref, count: pack.suggestions.length, projectId: pack.projectId };
+        }
+        function get(project, ref) {
+          const entry = packs.get(ref);
+          if (!entry || entry.project !== project) throw new Error("\u5EFA\u8BAE\u4F1A\u8BDD\u5DF2\u66F4\u65B0\uFF0C\u8BF7\u91CD\u65B0\u8F7D\u5165");
+          return entry.pack;
+        }
+        function parse(project, input) {
+          return put(project, Core2.parsePack(input));
+        }
+        function chunk(project, message) {
+          for (const [id, upload2] of uploads) if (upload2.expires < Date.now()) uploads.delete(id);
+          let upload = uploads.get(project);
+          if (message.index === 0) {
+            upload = { id: message.uploadId, next: 0, chunks: [], bytes: 0, expires: Date.now() + 6e4 };
+            uploads.set(project, upload);
+          }
+          if (!upload || upload.id !== message.uploadId || upload.next !== message.index || typeof message.chunk !== "string" || message.chunk.length > 262144) throw new Error("\u5EFA\u8BAE\u5305\u5206\u5757\u987A\u5E8F\u65E0\u6548");
+          upload.bytes += new TextEncoder().encode(message.chunk).length;
+          upload.expires = Date.now() + 6e4;
+          if (upload.bytes > Core2.MAX_PACK_BYTES) {
+            uploads.delete(project);
+            throw new Error("\u5EFA\u8BAE\u5305\u4E0D\u80FD\u8D85\u8FC7 64 MiB");
+          }
+          upload.chunks.push(message.chunk);
+          upload.next++;
+          if (message.last) {
+            uploads.delete(project);
+            return parse(project, upload.chunks.join(""));
+          }
+          return null;
+        }
+        function items(project, ref, index) {
+          const pack = get(project, ref), values = [];
+          let bytes = 0;
+          if (!Number.isInteger(index) || index < 0 || index >= pack.suggestions.length) throw new Error("\u5EFA\u8BAE\u7D22\u5F15\u65E0\u6548");
+          for (const item of pack.suggestions.slice(index, index + 32)) {
+            const size = JSON.stringify(item).length;
+            if (values.length && bytes + size > 131072) break;
+            values.push(item);
+            bytes += size;
+          }
+          return values;
+        }
+        return { put, get, parse, chunk, items };
+      }
+      module.exports = { create };
+    }
+  });
+
   // src/background.js
   var Core = require_suggestions();
+  var Progress = require_progress();
+  var progress = Progress.create(indexedDB, crypto);
+  var catalog = require_catalog().create(crypto);
   chrome.runtime.onMessage.addListener((message, sender, reply) => {
     if (sender.id !== chrome.runtime.id) return;
     (async () => {
-      if (message.type === "parse") return { ok: true, pack: Core.parsePack(message.input) };
       if (!/^https:\/\/(www\.)?overleaf\.com\/project\/([a-f\d]{24})(?:\/|$)/i.test(sender.url || "")) throw new Error("Overleaf project required");
       const projectId = sender.url.match(/\/project\/([a-f\d]{24})/i)[1];
       const name = "bridge-" + projectId;
+      if (message.type === "parse") return { ok: true, pack: catalog.parse(projectId, message.input) };
+      if (message.type === "parseChunk") return { ok: true, pack: catalog.chunk(projectId, message) };
+      if (message.type === "items") return { ok: true, items: catalog.items(projectId, message.ref, message.index) };
+      if (message.type === "session") {
+        if (message.pack) {
+          const pack = message.pack.ref ? catalog.get(projectId, message.pack.ref) : Core.parsePack(message.pack);
+          if (pack.projectId && pack.projectId !== projectId) throw new Error("Project mismatch");
+          await progress.savePack(projectId, pack);
+        }
+        const state = await progress.load(projectId);
+        return { ok: true, ...state, pack: state.pack ? catalog.put(projectId, state.pack) : null };
+      }
+      if (message.type === "progress") {
+        await progress.save(projectId, message);
+        return { ok: true };
+      }
+      if (message.type === "clearProgress") {
+        await progress.clear(projectId);
+        return { ok: true };
+      }
       if (message.type === "disconnect") {
         await chrome.storage.local.remove(name);
         return { ok: true };
@@ -123,7 +302,7 @@
         const data = await request("sync", projectId, token, { snapshot: message.snapshot, requestId: message.requestId, results: message.results });
         if (data.revision !== message.revision) {
           const next = await request("pack", projectId, token);
-          return { ...data, ok: true, ...next };
+          return { ...data, ok: true, ...next, pack: next.pack ? catalog.parse(projectId, next.pack) : null };
         }
         return { ok: true, ...data };
       }

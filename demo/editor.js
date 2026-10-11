@@ -1,3 +1,4 @@
+import './runtime';
 import { EditorState } from '@codemirror/state';
 import { EditorView, lineNumbers } from '@codemirror/view';
 const docs = {
@@ -20,8 +21,10 @@ This is the introduction.
  'sections/results.tex': String.raw`\section{Results}
 The result is old.
 `};
+const persistent=new URL(location.href).searchParams.has('persistent');
+if(persistent){try{Object.assign(docs,JSON.parse(localStorage.getItem('fixture-docs')||'{}'))}catch{}}
 let current='main.tex',view;
-const state = () => EditorState.create({doc:docs[current],extensions:[lineNumbers(),EditorView.lineWrapping,EditorView.theme({'&':{height:'100%'},'.cm-scroller':{fontFamily:'ui-monospace,monospace',fontSize:'14px',overflow:'auto'},'.cm-content':{padding:'20px 0'}}),EditorView.updateListener.of(update=>{if(update.docChanged){const ranges=[]; update.changes.iterChanges((from,to,_a,_b,insert)=>ranges.push({from,to,insert:insert.toString()})); document.querySelector('#last-changes').textContent=JSON.stringify(ranges); docs[current]=update.state.doc.toString();document.querySelector('#editor-writes').textContent=Number(document.querySelector('#editor-writes').textContent)+1;}})]});
+const state = () => EditorState.create({doc:docs[current],extensions:[lineNumbers(),EditorView.lineWrapping,EditorView.theme({'&':{height:'100%'},'.cm-scroller':{fontFamily:'ui-monospace,monospace',fontSize:'14px',overflow:'auto'},'.cm-content':{padding:'20px 0'}}),EditorView.updateListener.of(update=>{if(update.docChanged){const ranges=[]; update.changes.iterChanges((from,to,_a,_b,insert)=>ranges.push({from,to,insert:insert.toString()})); document.querySelector('#last-changes').textContent=JSON.stringify(ranges.map(p=>({...p,insert:p.insert.length>500?p.insert.slice(0,100)+'… ('+p.insert.length+' characters)':p.insert}))); docs[current]=update.state.doc.toString();if(persistent)localStorage.setItem('fixture-docs',JSON.stringify(docs));document.querySelector('#editor-writes').textContent=Number(document.querySelector('#editor-writes').textContent)+1;}})]});
 function open(file){if(view){docs[current]=view.state.doc.toString();view.destroy();}current=file;view=new EditorView({state:state(),parent:document.querySelector('#editor')});window.overleaf.unstable.editorView=view;document.querySelector('#filename').textContent=current;document.querySelectorAll('[data-path]').forEach(node=>node.setAttribute('aria-selected',String(node.dataset.path===current)));}
 window.overleaf={unstable:{store:{get(path){return {'editor.view':view,'editor.open_doc_name':current,'editor.open_doc_id':current==='main.tex'?'0123456789abcdef01234568':'0123456789abcdef01234569'}[path];}},editorView:null}};
 window._ide={project:{_id:'0123456789abcdef01234567'}};
@@ -35,6 +38,24 @@ document.querySelector('#load-sample').addEventListener('click',()=>{
  {id:'author',file:'main.tex',original:String.raw`\author{You}`,replacement:String.raw`\author{Alice}`,reason:'测试拒绝后保留作者'},
  {id:'abstract',file:'main.tex',original:'Your abstract.',replacement:'This is a test of sequential review.',scope:{start:String.raw`\begin{abstract}`,end:String.raw`\end{abstract}`},reason:'只搜索摘要板块'},
  {id:'results',file:'sections/results.tex',original:'The result is old.',replacement:'The result is new.',reason:'测试自动打开嵌套文件'}]},null,2);
+ importer.querySelector('textarea').dispatchEvent(new Event('input',{bubbles:true}));
 });
 document.querySelector('#shift').addEventListener('click',()=>view.dispatch({changes:{from:0,insert:'% inserted by coauthor\n\n'}}));
 document.querySelector('#stale').addEventListener('click',()=>{const text=view.state.doc.toString(),target=String.raw`\title{Your Paper}`,from=text.indexOf(target);if(from>=0)view.dispatch({changes:{from,to:from+target.length,insert:String.raw`\title{Changed by coauthor}`}})});
+
+document.querySelector('#large').addEventListener('click',()=>view.dispatch({changes:{from:view.state.doc.length,insert:'\n'+('Long unchanged paragraph for interactive performance testing.\n'.repeat(10000))}}));
+document.querySelector('#stress').addEventListener('click',()=>{
+ const importer=document.querySelector('[data-suggestion-importer]').shadowRoot;
+ importer.querySelector('.drawer').hidden=false;
+ const textarea=importer.querySelector('textarea');
+ textarea.value=JSON.stringify({format:'codex-overleaf-suggestions',version:1,suggestions:Array.from({length:10000},(_,i)=>({id:'stale-'+i,file:'main.tex',original:'MISSING_SENTENCE_'+i,replacement:'replacement '+i}))});
+ textarea.dispatchEvent(new Event('input',{bubbles:true}));
+});
+let elapsedStart=0,longest=0;
+if(window.PerformanceObserver){try{new PerformanceObserver(list=>{for(const task of list.getEntries())longest=Math.max(longest,task.duration);document.querySelector('#longest').textContent=Math.round(longest)}).observe({type:'longtask',buffered:false})}catch{}}
+const watch=new MutationObserver(()=>{
+ const importer=document.querySelector('[data-suggestion-importer]')?.shadowRoot;if(!importer)return;
+ watch.disconnect();
+ importer.querySelector('.start').addEventListener('click',()=>{elapsedStart=performance.now();longest=0;document.querySelector('#longest').textContent='0'});
+ new MutationObserver(()=>{const message=importer.querySelector('.message').textContent;if(elapsedStart&&message.startsWith('审阅结束')){document.querySelector('#elapsed').textContent=Math.round(performance.now()-elapsedStart);elapsedStart=0}}).observe(importer.querySelector('.message'),{childList:true});
+});watch.observe(document.body,{childList:true});
