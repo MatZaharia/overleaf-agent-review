@@ -11,6 +11,10 @@
 - 知道目标项目 URL 和实际文件路径。项目 ID 是 URL `/project/` 后的 24 位十六进制字符串，不要使用演示 ID。
 - 掌握与意见对应的精确 LaTeX 原文，来源可以是用户提供的片段、已有文件或可选的按需读取。
 
+### 已写好的审阅意见
+
+用户已提供建议包时，保存并校验后直接 publish，不必 read 或重新生成意见。用户提供的意见已包含文件路径、精确原文和改后文本时，直接转换为建议包即可。仅有“改善论证”这样的抽象意见时，还缺少可执行的匹配原文，需要补充对应片段；这不意味着每次必须读取整篇文章。
+
 ### 生成、校验、发布
 
 1. 在仓库或解压目录中创建 `work/`，把建议包保存为 UTF-8 的 `work/suggestions.json`。使用 JSON 序列化工具生成文件，避免 shell 转义损坏 LaTeX。完整字段见 [README](../README.zh-CN.md#建议包格式)，最小结构如下：
@@ -77,6 +81,8 @@ node bridge/cli.js read --project PROJECT_ID --file main.tex --output work/curre
 ## English: deliver review suggestions
 
 Use this repository to **generate → validate → publish → let the user review**. Source reading is optional when exact source is already available. The CLI and JSON interface are provider-independent; the workflow has been developed with Codex, while other Agent integrations have not been separately verified.
+
+If the user already supplies a suggestion pack, validate and publish it directly without reading source or regenerating suggestions. Review notes with file paths, exact originals and replacements can be converted directly. Vague notes still need the corresponding source fragment.
 
 1. Obtain the actual project ID from the Overleaf URL and the project-relative file path. Copy original text from source you have seen; never guess it. Node.js 22+ is required. Runtime CLI commands work from the repository or extracted release without npm installation.
 2. Generate a UTF-8 `work/suggestions.json` in the format shown above. Replace the example ID and source. Keep `format: "codex-overleaf-suggestions"` and `version: 1` for compatibility. Make each item one independent decision, preferably a small character/word/punctuation change. Use exact adjacent context or a unique scope for ambiguous originals. An empty replacement deletes text; an insertion needs a nonempty neighboring original as its anchor. Even a longer original is applied as character edits.

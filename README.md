@@ -8,7 +8,7 @@ Suggestions can be generated earlier. Every acceptance searches the **current so
 
 ## Install
 
-1. Download the extension ZIP from [Releases](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.3.0) and extract it. Use the extension asset, rather than GitHub's automatically generated source ZIP.
+1. Download the extension ZIP from [Releases](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.4.0) and extract it. Use the extension asset, rather than GitHub's automatically generated source ZIP.
 2. Open `chrome://extensions` in Chrome and enable **Developer mode**.
 3. Click **Load unpacked** and select the extracted `overleaf-agent-review` folder containing `manifest.json`.
 4. Open your Overleaf project and refresh the page. Select **Code** mode.
@@ -44,7 +44,7 @@ The displayed line number is informational. It is never used as the replacement 
 
 ## Workflow with an Agent
 
-**Agent entry point: [AGENTS.md](AGENTS.md) → [Agent guide (English / 中文)](docs/agent-guide.md).** The main workflow is to generate, validate and publish a review pack, then let the user accept or reject each item in Overleaf. Source reading is an optional capability.
+**Agent entry point: [AGENTS.md](AGENTS.md) → [Agent guide (English / 中文)](docs/agent-guide.md).** The main workflow is to generate, validate and publish a review pack, then let the user accept or reject each item in Overleaf. Source reading is an optional capability. Already-written packs can be validated and published directly; notes containing exact originals, replacements and file paths can be converted without reading the online manuscript.
 
 After the one-time [local bridge setup](docs/local-bridge.md), ask your Agent to write `work/suggestions.json` from exact source it already has, then run:
 
@@ -80,6 +80,10 @@ Escape LaTeX backslashes as `\\` inside JSON. LF and CRLF are equivalent for loc
 
 Even when `original` contains a whole sentence for reliable matching, the write is a character diff: unchanged runs between edits remain outside the transaction. Disjoint edits within one suggestion are accepted together in one atomic editor transaction. Split independent suggestions if you want separate decisions.
 
+## Review navigation
+
+**上一项 / 下一项** move between undecided suggestions in pack order. **光标上一处 / 光标下一处** find the nearest locatable undecided suggestion before/after the editor cursor in the current file, using live character-change positions rather than JSON order or line numbers. Navigation moves the preview only; it does not reject or write an item. Deferred items remain pending and return after later items are settled. Accepted/rejected items are excluded. If source, file or cursor changes during a search, retry the navigation.
+
 ## Behavior and limits
 
 - Each acceptance rechecks project, file, and live original before dispatch. No stale line offsets or fuzzy matching.
@@ -94,6 +98,8 @@ Even when `original` contains a whole sentence for reliable matching, the write 
 The v1.0.1 review flow was tested in a signed-in Chrome Overleaf test project: source highlighting, character replacement, rejection, stale skipping, already-applied skipping, refresh persistence, and restoration of the source/PDF. v1.1 own-edit rebasing and a 10,000-item queue were verified in a real CodeMirror browser fixture. The localhost bridge passed server, extension-background integration and CLI tests; pairing the upgraded extension with live Overleaf is still pending. Nested-file switching and relocation after unrelated edits were tested with a real CodeMirror fixture; multi-user collaboration and every Overleaf layout have not been verified.
 
 See [v1.2 validation details](docs/validation-v1.2.md) for the Chrome performance and refresh-resume checks.
+
+See [v1.4 navigation validation](docs/validation-v1.4.md) for reordered-pack, refresh and 10,000-item cursor-search checks.
 
 ## Privacy
 
@@ -117,7 +123,7 @@ npm run package
 
 The demo URL is printed in the terminal; it uses a local CodeMirror editor and does not connect to Overleaf. The generated demo is in `work/`, the installable release ZIP in `dist/`. To load a development checkout directly, run `npm run build`, then select its repository root in Chrome's Load unpacked dialog.
 
-55 automated tests cover matching, Unicode character edits, CRLF preservation, live relocation, stale guards, explicit acceptance, cancellation, and non-replayed writes. GitHub Actions runs the tests and build on pushes and pull requests.
+64 automated tests cover matching, Unicode character edits, CRLF preservation, live relocation, stale guards, explicit acceptance, cancellation, and non-replayed writes. GitHub Actions runs the tests and build on pushes and pull requests.
 
 Report problems through [Issues](https://github.com/MatZaharia/overleaf-agent-review/issues). Include Chrome version, extension version, reproduction steps, and a minimal non-sensitive example. Contributions are welcome; see [CONTRIBUTING](CONTRIBUTING.md).
 

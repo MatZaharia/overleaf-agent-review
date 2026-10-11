@@ -23,7 +23,7 @@ window.addEventListener('message', event => {
     if (message.method === 'snapshot') return service.snapshot();
     if (message.method === 'cancel') return service.cancel();
     if (message.method === 'project') return { ok: true, projectId: adapter.projectId(), file: adapter.path() };
-    if (!['prepare', 'status', 'apply'].includes(message.method)) return { ok: false, code: 'unknown_method' };
+    if (!['prepare', 'status', 'apply', 'navigation'].includes(message.method)) return { ok: false, code: 'unknown_method' };
     if (!message.params?.projectId || adapter.projectId() !== message.params.projectId) return { ok: false, code: 'project_changed' };
     return service[message.method](message.params);
   }).catch(error => ({ ok: false, code: 'bridge_failed', error: error.message }));

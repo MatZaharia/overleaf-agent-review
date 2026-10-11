@@ -4,7 +4,7 @@ These instructions apply when asked to prepare or deliver **Overleaf review sugg
 
 ## Deliver a review
 
-1. Read [docs/agent-guide.md](docs/agent-guide.md). Prioritize **generate → validate → publish → user review**. Reading source is optional, not a prerequisite if exact source is already available.
+1. If the user already supplied a valid suggestion pack, preserve it and go straight to validation/publishing; do not fetch source or regenerate its suggestions. If supplied review notes include exact originals, replacements and file paths, convert them to the pack without reading the online document. Read [docs/agent-guide.md](docs/agent-guide.md). Prioritize **generate → validate → publish → user review**. Reading source is optional, not a prerequisite if exact source is already available.
 2. Obtain the target project ID from the user's Overleaf URL and use actual project-relative file paths. Never use the example ID for a real project.
 3. Use original text you have actually seen. Make each suggestion an independent decision. Prefer small character/word/punctuation changes with enough exact context for unique matching. Never invent source or use line numbers as replacement addresses.
 4. Save a UTF-8 JSON pack to `work/suggestions.json` using `format: "codex-overleaf-suggestions"`, `version: 1`, and the target `projectId`. This legacy format marker works for all Agents. Keep stable IDs when updating unchanged suggestions.

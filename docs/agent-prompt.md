@@ -18,6 +18,6 @@ Copy originals from source you have actually read, never guess or use line numbe
 
 ## Connected workflow / 本地连接流程
 
-Read [AGENTS.md](../AGENTS.md) and the [Agent guide](agent-guide.md). Generate `work/suggestions.json` from exact source already available, validate it, then publish through the paired bridge. Report the revision and count as submitted for user review. Only request source with `read` if needed. Do not directly edit the manuscript or accept suggestions automatically.
+Read [AGENTS.md](../AGENTS.md) and the [Agent guide](agent-guide.md). Use the provided pack directly, or generate `work/suggestions.json` from already-written review notes with exact originals and replacements. Validate it, then publish through the paired bridge. Report the revision and count as submitted for user review. Only request source with `read` if needed. Do not directly edit the manuscript or accept suggestions automatically.
 
-先阅读 [AGENTS.md](../AGENTS.md) 和 [Agent 操作指南](agent-guide.md)。根据已掌握的精确原文生成建议包，校验后通过已配对的连接发布，报告版本与项数，等待用户确认；需要原文时才调用 read。不要直接改稿件或自动接受。
+先阅读 [AGENTS.md](../AGENTS.md) 和 [Agent 操作指南](agent-guide.md)。已有建议包直接使用；已有意见含精确原文和改后文本时直接转成建议包，校验后通过已配对的连接发布，报告版本与项数，等待用户确认；需要原文时才调用 read。不要直接改稿件或自动接受。

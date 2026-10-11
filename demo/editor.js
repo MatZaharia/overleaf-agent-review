@@ -59,3 +59,12 @@ const watch=new MutationObserver(()=>{
  importer.querySelector('.start').addEventListener('click',()=>{elapsedStart=performance.now();longest=0;document.querySelector('#longest').textContent='0'});
  new MutationObserver(()=>{const message=importer.querySelector('.message').textContent;if(elapsedStart&&message.startsWith('审阅结束')){document.querySelector('#elapsed').textContent=Math.round(performance.now()-elapsedStart);elapsedStart=0}}).observe(importer.querySelector('.message'),{childList:true});
 });watch.observe(document.body,{childList:true});
+
+document.querySelector('#navigation-stress').addEventListener('click',()=>{
+ const importer=document.querySelector('[data-suggestion-importer]').shadowRoot;
+ importer.querySelector('.drawer').hidden=false;
+ const suggestions=[{id:'navigation-first',file:'main.tex',original:String.raw`\title{Your Paper}`,replacement:String.raw`\title{Your paper}`,reason:'导航压力测试起点'}];
+ for(let i=1;i<9999;i++)suggestions.push({id:'missing-'+i,file:'main.tex',original:'NAV_MISSING_'+i,replacement:'new '+i});
+ suggestions.push({id:'navigation-last',file:'main.tex',original:'Your abstract.',replacement:'Our abstract.',reason:'从光标查找应到达第10000项'});
+ const textarea=importer.querySelector('textarea');textarea.value=JSON.stringify({format:'codex-overleaf-suggestions',version:1,suggestions});textarea.dispatchEvent(new Event('input',{bubbles:true}));
+});

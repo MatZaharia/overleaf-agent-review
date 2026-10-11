@@ -30,3 +30,13 @@ test('cancellation after choice stops before dispatch',async()=>{
  let cancelled=false,writes=0;
  await assert.rejects(Runner.run(pack,{projectId:'project',assertCurrent(){if(cancelled)throw Object.assign(new Error('cancel'),{code:'cancelled'})},async call(method){if(method==='apply')writes++;return{ok:true,token:'one'}},async review(){cancelled=true;return{accepted:true,token:'one'}},record(){}}),{code:'cancelled'});assert.equal(writes,0);
 });
+test('navigating forwards and backwards defers items without rejection or writes and revisits them',async()=>{
+ const seen=[],writes=[],records=[];let visit=0;
+ const result=await Runner.run(pack,{assertCurrent(){},async call(method,p){if(method==='prepare')return{ok:true,token:p.item.id};if(method==='apply'){writes.push(p.token);return{ok:true,verified:true}}return{ok:true}},async review(item,p){seen.push(item.id);visit++;if(visit===1)return{navigate:2};if(visit===2)return{navigate:1};return{accepted:visit===3,token:p.token}},record:r=>records.push(r)});
+ assert.deepEqual(seen,['1','3','2','3','1']);assert.deepEqual(writes,['2']);assert.equal(records.length,3);assert.deepEqual(result.map(r=>r.state),['rejected','written','rejected']);
+});
+test('navigation expires previous acceptance tokens before preparing a different suggestion',async()=>{
+ const events=[];let navigated=false;
+ await Runner.run({suggestions:suggestions.slice(0,2)},{assertCurrent(){},async call(method,p){events.push(method==='prepare'?method+p.item.id:method);return{ok:true,token:p?.item?.id}},async review(_i,_p){if(!navigated){navigated=true;return{navigate:1}}return{accepted:false}},record(){}});
+ assert.deepEqual(events.slice(0,3),['prepare1','cancel','prepare2']);assert.equal(events.includes('apply'),false);
+});

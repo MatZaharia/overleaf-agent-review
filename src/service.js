@@ -3,9 +3,9 @@ const Core = require('./suggestions');
 const Rebase = require('./rebase');
 const { characterEdits } = require('./characterEdits');
 function create({ adapter, preview, crypto }) {
-  let pending = null, generation = 0;
+  let pending = null, generation = 0, scan = null;
   const receipts = new Map(), ledgers = new Map();
-  let journals=[];const textCache=new WeakMap();
+  let journals=[];const textCache=new WeakMap(), navigationCache=new WeakMap();
   function textOf(view){const doc=view.state.doc;if(typeof doc.length!=='number')return doc.toString();if(!textCache.has(doc))textCache.set(doc,doc.toString());return textCache.get(doc)}
   const drain=()=>{const value=journals.map(entry=>({...entry,id:crypto.randomUUID()}));journals=[];return value};
   function begin(saved={}) { cancel(); ledgers.clear();journals=[];
@@ -27,8 +27,41 @@ function create({ adapter, preview, crypto }) {
   function cancel() {
     generation++;
     if (pending) preview.clear({ token: pending.token });
-    pending = null;
+    pending = null; scan = null;
     return { ok: true };
+  }
+  function navigation(params){
+    if(!current(params.projectId))return failure('project_changed');
+    const view=adapter.view(),file=adapter.path();
+    if(!view || !view.state.selection?.main)return failure('file_not_ready');
+    if(!params.scanId){
+      const text=textOf(view),ledger=ledgerFor(params.projectId,file,text);
+      let cache=navigationCache.get(view.state.doc);
+      if(typeof view.state.doc.length!=='number'||!cache||cache.ledger!==ledger||cache.version!==ledger.version){cache={ledger,version:ledger.version,positions:new Map()};navigationCache.set(view.state.doc,cache)}
+      scan={id:crypto.randomUUID(),view,doc:view.state.doc,text,file,ledger,cache:cache.positions,cursor:view.state.selection.main.head};
+      return {ok:true,scanId:scan.id,file,cursor:scan.cursor,journal:drain()};
+    }
+    if(!scan || scan.id!==params.scanId || view!==scan.view || file!==scan.file ||
+       (typeof view.state.doc.length==='number'?view.state.doc!==scan.doc:textOf(view)!==scan.text) || view.state.selection.main.head!==scan.cursor)return failure('navigation_changed');
+    if(!Array.isArray(params.items)||params.items.length>32)return failure('invalid_navigation');
+    const matches=[];let processed=0;const started=performance.now();
+    for(const entry of params.items){
+      const item=Core.normalizeItem(entry.item);
+      if(item.file===file){
+        const identity=entry.item.reviewKey || JSON.stringify(item);
+        if(!scan.cache.has(identity)){
+          const match=Rebase.resolve(scan.text,item,scan.ledger);
+          const edits=match.ok?characterEdits(match.patch,scan.text):null;
+          if(scan.cache.size>=10000)scan.cache.clear();
+          scan.cache.set(identity,edits?.length?{from:edits[0].from,to:edits[edits.length-1].to}:null);
+        }
+        const position=scan.cache.get(identity);
+        if(position)matches.push({index:entry.index,...position});
+      }
+      processed++;
+      if(performance.now()-started>=8)break;
+    }
+    return {ok:true,scanId:scan.id,processed,matches};
   }
   async function prepare(params) {
     const item = Core.normalizeItem(params.item), owner = params.projectId;
@@ -105,6 +138,6 @@ function create({ adapter, preview, crypto }) {
     if (receipts.size > 500) receipts.delete(receipts.keys().next().value);
     return result;
   }
-  return { prepare, status, apply, cancel, begin, snapshot };
+  return { prepare, status, apply, cancel, begin, snapshot, navigation };
 }
 module.exports = { create };

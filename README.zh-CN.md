@@ -8,7 +8,7 @@
 
 ## 安装
 
-1. 在 [Releases](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.3.0) 下载插件 ZIP 并解压。请选择插件安装包，不是 GitHub 自动生成的 Source code ZIP。
+1. 在 [Releases](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.4.0) 下载插件 ZIP 并解压。请选择插件安装包，不是 GitHub 自动生成的 Source code ZIP。
 2. 在 Chrome 打开 `chrome://extensions`，开启“开发者模式”。
 3. 点击“加载未打包的扩展程序”，选择解压后包含 `manifest.json` 的 `overleaf-agent-review` 文件夹。
 4. 打开 Overleaf 项目，刷新页面，切换到 **Code** 源码模式。
@@ -42,7 +42,7 @@
 
 ## 配合 Agent 使用
 
-**Agent 入口：[AGENTS.md](AGENTS.md) → [中英文操作指南](docs/agent-guide.md)。** 主流程是生成、校验并发布审阅建议包，由用户在 Overleaf 逐项确认。读取正文是可选能力。
+**Agent 入口：[AGENTS.md](AGENTS.md) → [中英文操作指南](docs/agent-guide.md)。** 主流程是生成、校验并发布审阅建议包，由用户在 Overleaf 逐项确认。读取正文是可选能力。已有建议包可直接校验发布；已写好的意见含文件路径、精确原文和改后文本时，可直接转换，无需读取在线正文。
 
 完成一次[本地连接配置](docs/local-bridge.md)后，让 Agent 根据已掌握的精确原文生成 `work/suggestions.json`，然后执行：
 
@@ -78,6 +78,10 @@ JSON 中 LaTeX 反斜杠需转义为 `\\`。定位时 LF 和 CRLF 换行等价�
 
 即使 original 为整句话以便可靠定位，实际写入仍按字符计算差异，前后及中间没有变化的文本不会进入写入范围。同一建议内不连续的字符修改在一个编辑器事务中一起接受；若希望分别确认，请拆成独立建议。
 
+## 审阅导航
+
+**上一项／下一项**按建议包顺序切换未决定项。**光标上一处／光标下一处**在当前文件中，按实时修改字符的位置查找光标前后最近的可定位待处理建议，不按 JSON 顺序或行号寻找。切换只移动预览，不拒绝、不写入；暂不处理的项仍待确认，其他项处理后会回来。已接受／拒绝的项不参与导航。搜索期间正文、文件或光标变化时，请重新点击导航。
+
 ## 行为和限制
 
 - 每次接受重新核对项目、文件和当前原文；不沿用旧行号，不做模糊替换。
@@ -92,6 +96,8 @@ JSON 中 LaTeX 反斜杠需转义为 `\\`。定位时 LF 和 CRLF 换行等价�
 v1.0.1 审阅流程已在登录态 Chrome 的真实 Overleaf 测试项目验证源码高亮、字符替换、拒绝、过时跳过、已应用跳过、刷新后保留，以及源码和 PDF 恢复。v1.1 的相邻字符修改合并与万项队列已在浏览器真实 CodeMirror 演示验证。本地连接已通过服务端、扩展后台集成及 CLI 测试；新版扩展与真实 Overleaf 的配对测试尚待完成。嵌套文件打开和前文变化后重新定位使用真实 CodeMirror 演示验证；多用户协同及所有 Overleaf 布局尚未验证。
 
 v1.2 的 Chrome 压力测试和刷新恢复见[验证记录](docs/validation-v1.2.md)。
+
+v1.4 导航的乱序包、刷新恢复和万项光标查找见[验证记录](docs/validation-v1.4.md)。
 
 ## 隐私
 
@@ -115,7 +121,7 @@ npm run package
 
 演示地址会打印在终端，使用本地 CodeMirror 编辑器，不连接 Overleaf。演示产物位于 `work/`，安装 ZIP 位于 `dist/`。开发时可以先构建，再在 Chrome 中直接加载仓库根目录。
 
-55 项自动化测试覆盖精确匹配、Unicode 字符修改、CRLF 保留、实时重新定位、过时保护、逐项确认、取消和写入不重放。GitHub Actions 在 push 和 pull request 时运行测试及构建。
+64 项自动化测试覆盖精确匹配、Unicode 字符修改、CRLF 保留、实时重新定位、过时保护、逐项确认、取消和写入不重放。GitHub Actions 在 push 和 pull request 时运行测试及构建。
 
 遇到问题请提交 [Issue](https://github.com/MatZaharia/overleaf-agent-review/issues)，包含 Chrome/插件版本、复现步骤和最小非敏感样例。欢迎贡献，见 [CONTRIBUTING](CONTRIBUTING.md)。
 

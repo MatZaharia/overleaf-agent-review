@@ -1,6 +1,7 @@
 'use strict';
 const Core = require('./suggestions');
 const Runner = require('./runner');
+const Navigation = require('./navigation');
 if (!document.querySelector('[data-suggestion-importer]')) mount();
 function mount() {
   const host = document.createElement('div'); host.dataset.suggestionImporter = '';
@@ -42,11 +43,11 @@ function mount() {
     if (cancelled || current !== owner) throw Object.assign(new Error('已停止'), { code: cancelled ? 'cancelled' : 'project_changed' });
   };
   const status = text => { $('.message').textContent = text; };
-  function review(item, prepared, options) {
+  function review(item, prepared, options, itemAt) {
     return new Promise((resolve, reject) => {
-      let token = prepared.token, settled = false, timer = null;
+      let token = prepared.token, settled = false, timer = null, navigating=false;
       const card = document.createElement('section'); card.className = 'card';
-      card.innerHTML = '<strong></strong><div class="path"></div><p class="reason"></p><div>原文</div><pre class="source old"></pre><div>建议修改</div><pre class="source new"></pre><div class="actions"><button class="reject">拒绝这一项</button><button class="primary accept">接受这一项</button></div>';
+      card.innerHTML = '<strong></strong><div class="path"></div><p class="reason"></p><div>原文</div><pre class="source old"></pre><div>建议修改</div><pre class="source new"></pre><div class="toolbar navigation"><button class="previous">上一项</button><button class="next">下一项</button><button class="cursor-previous">光标上一处</button><button class="cursor-next">光标下一处</button></div><div class="actions"><button class="reject">拒绝这一项</button><button class="primary accept">接受这一项</button></div>';
       card.querySelector('strong').textContent = '修改 ' + (options.index + 1) + ' / ' + options.total;
       card.querySelector('.path').textContent = item.file + ' · L' + prepared.line;
       card.querySelector('.reason').textContent = item.reason;
@@ -54,12 +55,57 @@ function mount() {
       card.querySelector('.new').textContent = (prepared.item?.replacement ?? item.replacement) || '（删除此段）';
       $('.pending').replaceChildren(card);
       status(prepared.inline ? '原文已在源码中高亮，等待确认' : '高亮暂不可用，请在此核对原文与建议');
-      function finish(accepted, skipped) {
+      function finish(accepted, skipped, navigate) {
         if (settled) return;
         settled = true; clearTimeout(timer); pendingAbort = null;
         card.querySelectorAll('button').forEach(button => { button.disabled = true; });
-        resolve({ accepted, skipped, token });
+        resolve({ accepted, skipped, token, navigate });
       }
+      async function navigate(direction,fromCursor){
+        if(settled||navigating)return;
+        navigating=true;clearTimeout(timer);card.querySelectorAll('button').forEach(button=>{button.disabled=true});
+        try{
+          assertCurrent();let target;
+          if(!fromCursor){
+            target=Navigation.adjacent(options.index,options.total,direction,options.isPending);
+            while(target!==null && options.isDecided(await itemAt(target)))target=Navigation.adjacent(target,options.total,direction,options.isPending);
+          }
+          else{
+            status('正在按当前光标查找建议…');
+            const scan=await call('navigation',{projectId:owner});
+            if(!scan.ok)throw new Error(scan.code);
+            let best=null;
+            for(let index=0;index<options.total;){
+              if(settled)return;assertCurrent();
+              const items=[];
+              while(index<options.total && items.length<32){const position=index++;if(!options.isPending(position))continue;const candidate=await itemAt(position);if(candidate.file===scan.file && !options.isDecided(candidate))items.push({index:position,item:candidate})}
+              let offset=0;
+              while(offset<items.length){
+                if(settled)return;assertCurrent();
+                const response=await call('navigation',{projectId:owner,scanId:scan.scanId,items:items.slice(offset)});
+                if(!response.ok)throw new Error(response.code);
+                offset+=response.processed;
+                const candidates=best?[best,...response.matches]:response.matches;
+                const nearest=Navigation.nearest(candidates,scan.cursor,direction,options.index);
+                best=candidates.find(match=>match.index===nearest) || null;
+                // Each RPC crosses a window message task boundary; matching is time-bounded in the page service.
+              }
+            }
+            // Recheck file, source and cursor after the final batch.
+            const check=await call('navigation',{projectId:owner,scanId:scan.scanId,items:[]});
+            if(!check.ok)throw new Error(check.code);
+            target=best?.index ?? null;
+          }
+          if(settled)return;
+          if(target!==null){finish(undefined,undefined,target);return}
+          status(fromCursor?'当前文件的光标这一侧没有可定位的待处理建议':'这一侧没有待处理建议；当前项仍等待确认');
+        }catch(error){if(!settled)status(error.message==='navigation_changed'?'正文、文件或光标有变化，请重新点击导航':'导航未完成：'+error.message)}
+        finally{navigating=false;if(!settled){card.querySelectorAll('button').forEach(button=>{button.disabled=false});timer=setTimeout(poll,300)}}
+      }
+      card.querySelector('.previous').addEventListener('click',()=>navigate(-1,false));
+      card.querySelector('.next').addEventListener('click',()=>navigate(1,false));
+      card.querySelector('.cursor-previous').addEventListener('click',()=>navigate(-1,true));
+      card.querySelector('.cursor-next').addEventListener('click',()=>navigate(1,true));
       card.querySelector('.accept').addEventListener('click', () => finish(true));
       card.querySelector('.reject').addEventListener('click', () => finish(false));
       card.querySelector('.reject').focus();
@@ -69,7 +115,7 @@ function mount() {
         try {
           assertCurrent();
           const response = await call('status', { token, projectId: owner });
-          if (settled) return;
+          if (settled || navigating) return;
           if (!response.ok) { finish(false, response.code); return; }
           if (response.refreshed) { if(response.item){card.querySelector('.old').textContent=response.item.original;card.querySelector('.new').textContent=response.item.replacement || '（删除此段）';} token = response.token; card.querySelector('.path').textContent = item.file + ' · L' + response.line; status('正文有变化，已重新定位这一项，等待确认'); }
           else if (typeof response.decision === 'boolean') { finish(response.decision); return; }
@@ -119,8 +165,8 @@ function mount() {
     try {
       await call('begin', {ledgers:session.ledgers});
       let itemBuffer=[],bufferStart=-1;
-      const itemAt=persistent?async index=>{if(index<bufferStart||index>=bufferStart+itemBuffer.length){const fetched=await chrome.runtime.sendMessage({type:'items',ref:pack.ref,index});if(!fetched.ok)throw new Error(fetched.error);bufferStart=index;itemBuffer=fetched.items}return itemBuffer[index-bufferStart]}:null;
-      const results = await Runner.run(pack, { projectId: owner, assertCurrent, call, review, record, decisions:session.decisions, itemAt, retained:result=>{if(bridgeRevision)bridgeResults.push({revision:bridgeRevision,id:result.item.id,state:result.state,code:'retained_decision'})} });
+      const itemAt=persistent?async index=>{if(index<bufferStart||index>=bufferStart+itemBuffer.length){const fetched=await chrome.runtime.sendMessage({type:'items',ref:pack.ref,index});if(!fetched.ok)throw new Error(fetched.error);bufferStart=index;itemBuffer=fetched.items}return itemBuffer[index-bufferStart]}:async index=>pack.suggestions[index];
+      const results = await Runner.run(pack, { projectId: owner, assertCurrent, call, review:(item,prepared,options)=>review(item,prepared,options,itemAt), record, decisions:session.decisions, itemAt, retained:result=>{if(bridgeRevision)bridgeResults.push({revision:bridgeRevision,id:result.item.id,state:result.state,code:'retained_decision'})} });
       const count = state => results.filter(result => result.state === state).length;
       status('审阅结束：写入 ' + count('written') + ' 项，拒绝 ' + count('rejected') + ' 项，跳过 ' + count('skipped') + ' 项，保留先前决定 ' + count('retained') + ' 项。');
     } catch (error) {

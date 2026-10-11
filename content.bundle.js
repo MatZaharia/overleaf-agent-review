@@ -107,72 +107,120 @@
         return ["project_changed", "cancelled", "write_unconfirmed", "bridge_failed", "bridge_timeout"].includes(code);
       }
       async function run(pack, deps) {
-        const results = [];
+        const results = /* @__PURE__ */ new Map(), settled = /* @__PURE__ */ new Set();
+        const list = () => [...results.entries()].sort((a, b) => a[0] - b[0]).map(([, result]) => result);
+        const save = (index2, result) => {
+          results.set(index2, compact(result));
+          settled.add(index2);
+        };
         const compact = (result) => ({ ...result, item: { id: result.item.id, file: result.item.file, reviewKey: result.item.reviewKey } });
         const total = pack.count ?? pack.suggestions.length;
-        for (let index = 0; index < total; index++) {
+        let index = 0;
+        while (settled.size < total) {
+          if (index >= total) {
+            index = 0;
+            while (settled.has(index)) index++;
+          }
+          if (settled.has(index)) {
+            index++;
+            continue;
+          }
           deps.assertCurrent();
           const item = deps.itemAt ? await deps.itemAt(index) : pack.suggestions[index];
           const retained = deps.decisions?.[item.reviewKey];
-          if (retained?.state === "unknown") throw Object.assign(new Error("\u5148\u6838\u5BF9\u4E0A\u6B21\u672A\u786E\u8BA4\u7684\u5199\u5165"), { code: "write_unconfirmed", results });
+          if (retained?.state === "unknown") throw Object.assign(new Error("\u5148\u6838\u5BF9\u4E0A\u6B21\u672A\u786E\u8BA4\u7684\u5199\u5165"), { code: "write_unconfirmed", results: list() });
           if (retained && ["written", "rejected"].includes(retained.state)) {
-            results.push(compact({ item, state: "retained", previous: retained.state }));
+            save(index, { item, state: "retained", previous: retained.state });
             await deps.retained?.({ item, state: retained.state });
             if (index % 100 === 0) await new Promise((resolve) => setTimeout(resolve, 0));
+            index++;
             continue;
           }
           let prepared;
           try {
             prepared = await deps.call("prepare", { item, projectId: deps.projectId });
           } catch (_) {
-            throw Object.assign(new Error("\u8FDE\u63A5\u4E2D\u65AD\uFF0C\u6CA1\u6709\u81EA\u52A8\u91CD\u8BD5"), { code: "bridge_timeout", results });
+            throw Object.assign(new Error("\u8FDE\u63A5\u4E2D\u65AD\uFF0C\u6CA1\u6709\u81EA\u52A8\u91CD\u8BD5"), { code: "bridge_timeout", results: list() });
           }
           deps.assertCurrent();
           if (!prepared.ok) {
             const result2 = { item, state: "skipped", code: prepared.code };
-            results.push(compact(result2));
+            save(index, result2);
             await deps.record(result2);
-            if (halt(prepared.code)) throw Object.assign(new Error("\u5BA1\u9605\u5DF2\u505C\u6B62"), { code: prepared.code, results });
+            if (halt(prepared.code)) throw Object.assign(new Error("\u5BA1\u9605\u5DF2\u505C\u6B62"), { code: prepared.code, results: list() });
+            index++;
             continue;
           }
-          const decision = await deps.review(item, prepared, { index, total });
+          const decision = await deps.review(item, prepared, { index, total, isPending: (i) => !settled.has(i), isDecided: (item2) => ["written", "rejected"].includes(deps.decisions?.[item2.reviewKey]?.state) });
           deps.assertCurrent();
+          if (Number.isInteger(decision.navigate)) {
+            if (decision.navigate < 0 || decision.navigate >= total || settled.has(decision.navigate)) throw new Error("\u65E0\u6548\u7684\u5BA1\u9605\u5BFC\u822A\u76EE\u6807");
+            await deps.call("cancel", {});
+            deps.assertCurrent();
+            index = decision.navigate;
+            continue;
+          }
           if (decision.skipped) {
             const result2 = { item, state: "skipped", code: decision.skipped };
-            results.push(compact(result2));
+            save(index, result2);
             await deps.record(result2);
-            if (halt(decision.skipped)) throw Object.assign(new Error("\u5BA1\u9605\u5DF2\u505C\u6B62"), { code: decision.skipped, results });
+            if (halt(decision.skipped)) throw Object.assign(new Error("\u5BA1\u9605\u5DF2\u505C\u6B62"), { code: decision.skipped, results: list() });
+            index++;
             continue;
           }
           if (decision.accepted !== true) {
             await deps.call("cancel", {});
             const result2 = { item, state: "rejected" };
-            results.push(compact(result2));
+            save(index, result2);
             await deps.record(result2);
+            index++;
             continue;
           }
           let applied;
           try {
             applied = await deps.call("apply", { token: decision.token, projectId: deps.projectId });
           } catch (_) {
-            throw Object.assign(new Error("\u5199\u5165\u72B6\u6001\u672A\u786E\u8BA4\uFF0C\u68C0\u67E5\u5F53\u524D\u6587\u4EF6\uFF1B\u4E0D\u8981\u91CD\u590D\u63A5\u53D7"), { code: "write_unconfirmed", results });
+            throw Object.assign(new Error("\u5199\u5165\u72B6\u6001\u672A\u786E\u8BA4\uFF0C\u68C0\u67E5\u5F53\u524D\u6587\u4EF6\uFF1B\u4E0D\u8981\u91CD\u590D\u63A5\u53D7"), { code: "write_unconfirmed", results: list() });
           }
           const verified = applied.ok === true && applied.verified === true;
           const code = applied.code || (verified ? "" : "write_unconfirmed");
           const result = { item, state: verified ? "written" : applied.changedDocument ? "unknown" : "skipped", code };
-          results.push(compact(result));
+          save(index, result);
           await deps.record(result);
-          if (!verified && halt(code)) throw Object.assign(new Error("\u5199\u5165\u672A\u786E\u8BA4\uFF0C\u505C\u6B62\u540E\u7EED\u9879"), { code, results });
+          if (!verified && halt(code)) throw Object.assign(new Error("\u5199\u5165\u672A\u786E\u8BA4\uFF0C\u505C\u6B62\u540E\u7EED\u9879"), { code, results: list() });
+          index++;
         }
-        return results;
+        return list();
       }
       module.exports = { run, halt };
+    }
+  });
+
+  // src/navigation.js
+  var require_navigation = __commonJS({
+    "src/navigation.js"(exports, module) {
+      "use strict";
+      function adjacent(index, total, direction, isPending) {
+        for (let i = index + direction; i >= 0 && i < total; i += direction) if (isPending(i)) return i;
+        return null;
+      }
+      function nearest(matches, cursor, direction, currentIndex) {
+        let best = null;
+        for (const match of matches) {
+          if (match.index === currentIndex && cursor >= match.from && cursor <= match.to) continue;
+          if (direction < 0 ? match.from >= cursor : match.from <= cursor) continue;
+          if (!best || (direction < 0 ? match.from > best.from : match.from < best.from) || match.from === best.from && match.index < best.index) best = match;
+        }
+        return best?.index ?? null;
+      }
+      module.exports = { adjacent, nearest };
     }
   });
 
   // src/content.js
   var Core = require_suggestions();
   var Runner = require_runner();
+  var Navigation = require_navigation();
   if (!document.querySelector("[data-suggestion-importer]")) mount();
   function mount() {
     const host = document.createElement("div");
@@ -226,12 +274,12 @@
     const status = (text) => {
       $(".message").textContent = text;
     };
-    function review(item, prepared, options) {
+    function review(item, prepared, options, itemAt) {
       return new Promise((resolve, reject) => {
-        let token = prepared.token, settled = false, timer = null;
+        let token = prepared.token, settled = false, timer = null, navigating = false;
         const card = document.createElement("section");
         card.className = "card";
-        card.innerHTML = '<strong></strong><div class="path"></div><p class="reason"></p><div>\u539F\u6587</div><pre class="source old"></pre><div>\u5EFA\u8BAE\u4FEE\u6539</div><pre class="source new"></pre><div class="actions"><button class="reject">\u62D2\u7EDD\u8FD9\u4E00\u9879</button><button class="primary accept">\u63A5\u53D7\u8FD9\u4E00\u9879</button></div>';
+        card.innerHTML = '<strong></strong><div class="path"></div><p class="reason"></p><div>\u539F\u6587</div><pre class="source old"></pre><div>\u5EFA\u8BAE\u4FEE\u6539</div><pre class="source new"></pre><div class="toolbar navigation"><button class="previous">\u4E0A\u4E00\u9879</button><button class="next">\u4E0B\u4E00\u9879</button><button class="cursor-previous">\u5149\u6807\u4E0A\u4E00\u5904</button><button class="cursor-next">\u5149\u6807\u4E0B\u4E00\u5904</button></div><div class="actions"><button class="reject">\u62D2\u7EDD\u8FD9\u4E00\u9879</button><button class="primary accept">\u63A5\u53D7\u8FD9\u4E00\u9879</button></div>';
         card.querySelector("strong").textContent = "\u4FEE\u6539 " + (options.index + 1) + " / " + options.total;
         card.querySelector(".path").textContent = item.file + " \xB7 L" + prepared.line;
         card.querySelector(".reason").textContent = item.reason;
@@ -239,7 +287,7 @@
         card.querySelector(".new").textContent = (prepared.item?.replacement ?? item.replacement) || "\uFF08\u5220\u9664\u6B64\u6BB5\uFF09";
         $(".pending").replaceChildren(card);
         status(prepared.inline ? "\u539F\u6587\u5DF2\u5728\u6E90\u7801\u4E2D\u9AD8\u4EAE\uFF0C\u7B49\u5F85\u786E\u8BA4" : "\u9AD8\u4EAE\u6682\u4E0D\u53EF\u7528\uFF0C\u8BF7\u5728\u6B64\u6838\u5BF9\u539F\u6587\u4E0E\u5EFA\u8BAE");
-        function finish(accepted, skipped) {
+        function finish(accepted, skipped, navigate2) {
           if (settled) return;
           settled = true;
           clearTimeout(timer);
@@ -247,8 +295,74 @@
           card.querySelectorAll("button").forEach((button) => {
             button.disabled = true;
           });
-          resolve({ accepted, skipped, token });
+          resolve({ accepted, skipped, token, navigate: navigate2 });
         }
+        async function navigate(direction, fromCursor) {
+          if (settled || navigating) return;
+          navigating = true;
+          clearTimeout(timer);
+          card.querySelectorAll("button").forEach((button) => {
+            button.disabled = true;
+          });
+          try {
+            assertCurrent();
+            let target;
+            if (!fromCursor) {
+              target = Navigation.adjacent(options.index, options.total, direction, options.isPending);
+              while (target !== null && options.isDecided(await itemAt(target))) target = Navigation.adjacent(target, options.total, direction, options.isPending);
+            } else {
+              status("\u6B63\u5728\u6309\u5F53\u524D\u5149\u6807\u67E5\u627E\u5EFA\u8BAE\u2026");
+              const scan = await call("navigation", { projectId: owner });
+              if (!scan.ok) throw new Error(scan.code);
+              let best = null;
+              for (let index = 0; index < options.total; ) {
+                if (settled) return;
+                assertCurrent();
+                const items = [];
+                while (index < options.total && items.length < 32) {
+                  const position = index++;
+                  if (!options.isPending(position)) continue;
+                  const candidate = await itemAt(position);
+                  if (candidate.file === scan.file && !options.isDecided(candidate)) items.push({ index: position, item: candidate });
+                }
+                let offset = 0;
+                while (offset < items.length) {
+                  if (settled) return;
+                  assertCurrent();
+                  const response = await call("navigation", { projectId: owner, scanId: scan.scanId, items: items.slice(offset) });
+                  if (!response.ok) throw new Error(response.code);
+                  offset += response.processed;
+                  const candidates = best ? [best, ...response.matches] : response.matches;
+                  const nearest = Navigation.nearest(candidates, scan.cursor, direction, options.index);
+                  best = candidates.find((match) => match.index === nearest) || null;
+                }
+              }
+              const check = await call("navigation", { projectId: owner, scanId: scan.scanId, items: [] });
+              if (!check.ok) throw new Error(check.code);
+              target = best?.index ?? null;
+            }
+            if (settled) return;
+            if (target !== null) {
+              finish(void 0, void 0, target);
+              return;
+            }
+            status(fromCursor ? "\u5F53\u524D\u6587\u4EF6\u7684\u5149\u6807\u8FD9\u4E00\u4FA7\u6CA1\u6709\u53EF\u5B9A\u4F4D\u7684\u5F85\u5904\u7406\u5EFA\u8BAE" : "\u8FD9\u4E00\u4FA7\u6CA1\u6709\u5F85\u5904\u7406\u5EFA\u8BAE\uFF1B\u5F53\u524D\u9879\u4ECD\u7B49\u5F85\u786E\u8BA4");
+          } catch (error) {
+            if (!settled) status(error.message === "navigation_changed" ? "\u6B63\u6587\u3001\u6587\u4EF6\u6216\u5149\u6807\u6709\u53D8\u5316\uFF0C\u8BF7\u91CD\u65B0\u70B9\u51FB\u5BFC\u822A" : "\u5BFC\u822A\u672A\u5B8C\u6210\uFF1A" + error.message);
+          } finally {
+            navigating = false;
+            if (!settled) {
+              card.querySelectorAll("button").forEach((button) => {
+                button.disabled = false;
+              });
+              timer = setTimeout(poll, 300);
+            }
+          }
+        }
+        card.querySelector(".previous").addEventListener("click", () => navigate(-1, false));
+        card.querySelector(".next").addEventListener("click", () => navigate(1, false));
+        card.querySelector(".cursor-previous").addEventListener("click", () => navigate(-1, true));
+        card.querySelector(".cursor-next").addEventListener("click", () => navigate(1, true));
         card.querySelector(".accept").addEventListener("click", () => finish(true));
         card.querySelector(".reject").addEventListener("click", () => finish(false));
         card.querySelector(".reject").focus();
@@ -264,7 +378,7 @@
           try {
             assertCurrent();
             const response = await call("status", { token, projectId: owner });
-            if (settled) return;
+            if (settled || navigating) return;
             if (!response.ok) {
               finish(false, response.code);
               return;
@@ -378,8 +492,8 @@
             itemBuffer = fetched.items;
           }
           return itemBuffer[index - bufferStart];
-        } : null;
-        const results = await Runner.run(pack, { projectId: owner, assertCurrent, call, review, record, decisions: session.decisions, itemAt, retained: (result) => {
+        } : async (index) => pack.suggestions[index];
+        const results = await Runner.run(pack, { projectId: owner, assertCurrent, call, review: (item, prepared, options) => review(item, prepared, options, itemAt), record, decisions: session.decisions, itemAt, retained: (result) => {
           if (bridgeRevision) bridgeResults.push({ revision: bridgeRevision, id: result.item.id, state: result.state, code: "retained_decision" });
         } });
         const count = (state) => results.filter((result) => result.state === state).length;

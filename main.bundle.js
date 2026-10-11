@@ -2205,10 +2205,10 @@
       var Rebase = require_rebase();
       var { characterEdits } = require_characterEdits();
       function create({ adapter: adapter2, preview: preview2, crypto }) {
-        let pending = null, generation = 0;
+        let pending = null, generation = 0, scan = null;
         const receipts = /* @__PURE__ */ new Map(), ledgers = /* @__PURE__ */ new Map();
         let journals = [];
-        const textCache = /* @__PURE__ */ new WeakMap();
+        const textCache = /* @__PURE__ */ new WeakMap(), navigationCache = /* @__PURE__ */ new WeakMap();
         function textOf(view) {
           const doc = view.state.doc;
           if (typeof doc.length !== "number") return doc.toString();
@@ -2258,7 +2258,45 @@
           generation++;
           if (pending) preview2.clear({ token: pending.token });
           pending = null;
+          scan = null;
           return { ok: true };
+        }
+        function navigation(params) {
+          if (!current(params.projectId)) return failure("project_changed");
+          const view = adapter2.view(), file = adapter2.path();
+          if (!view || !view.state.selection?.main) return failure("file_not_ready");
+          if (!params.scanId) {
+            const text = textOf(view), ledger = ledgerFor(params.projectId, file, text);
+            let cache = navigationCache.get(view.state.doc);
+            if (typeof view.state.doc.length !== "number" || !cache || cache.ledger !== ledger || cache.version !== ledger.version) {
+              cache = { ledger, version: ledger.version, positions: /* @__PURE__ */ new Map() };
+              navigationCache.set(view.state.doc, cache);
+            }
+            scan = { id: crypto.randomUUID(), view, doc: view.state.doc, text, file, ledger, cache: cache.positions, cursor: view.state.selection.main.head };
+            return { ok: true, scanId: scan.id, file, cursor: scan.cursor, journal: drain() };
+          }
+          if (!scan || scan.id !== params.scanId || view !== scan.view || file !== scan.file || (typeof view.state.doc.length === "number" ? view.state.doc !== scan.doc : textOf(view) !== scan.text) || view.state.selection.main.head !== scan.cursor) return failure("navigation_changed");
+          if (!Array.isArray(params.items) || params.items.length > 32) return failure("invalid_navigation");
+          const matches = [];
+          let processed = 0;
+          const started = performance.now();
+          for (const entry of params.items) {
+            const item = Core.normalizeItem(entry.item);
+            if (item.file === file) {
+              const identity = entry.item.reviewKey || JSON.stringify(item);
+              if (!scan.cache.has(identity)) {
+                const match = Rebase.resolve(scan.text, item, scan.ledger);
+                const edits = match.ok ? characterEdits(match.patch, scan.text) : null;
+                if (scan.cache.size >= 1e4) scan.cache.clear();
+                scan.cache.set(identity, edits?.length ? { from: edits[0].from, to: edits[edits.length - 1].to } : null);
+              }
+              const position = scan.cache.get(identity);
+              if (position) matches.push({ index: entry.index, ...position });
+            }
+            processed++;
+            if (performance.now() - started >= 8) break;
+          }
+          return { ok: true, scanId: scan.id, processed, matches };
         }
         async function prepare(params) {
           const item = Core.normalizeItem(params.item), owner = params.projectId;
@@ -2378,7 +2416,7 @@
           if (receipts.size > 500) receipts.delete(receipts.keys().next().value);
           return result;
         }
-        return { prepare, status, apply, cancel, begin, snapshot };
+        return { prepare, status, apply, cancel, begin, snapshot, navigation };
       }
       module.exports = { create };
     }
@@ -4492,7 +4530,7 @@
       if (message.method === "snapshot") return service.snapshot();
       if (message.method === "cancel") return service.cancel();
       if (message.method === "project") return { ok: true, projectId: adapter.projectId(), file: adapter.path() };
-      if (!["prepare", "status", "apply"].includes(message.method)) return { ok: false, code: "unknown_method" };
+      if (!["prepare", "status", "apply", "navigation"].includes(message.method)) return { ok: false, code: "unknown_method" };
       if (!message.params?.projectId || adapter.projectId() !== message.params.projectId) return { ok: false, code: "project_changed" };
       return service[message.method](message.params);
     }).catch((error) => ({ ok: false, code: "bridge_failed", error: error.message }));
