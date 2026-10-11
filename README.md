@@ -154,6 +154,10 @@ The displayed line number is informational. It is never used as the replacement 
 
 Drag either panel by its title and resize with the bottom-right grip. Layout survives item navigation and stays within the browser viewport. Focus a title/grip and use arrow keys for fine adjustment (Shift for larger steps). The left **↑ / ↓** buttons move through the pack; cursor navigation stays on the right. Switch **中文 / English** in the right header; the choice is saved locally and updates both panels without settling the pending item. Source, replacement text and Agent reasons are kept verbatim.
 
+The left preview shows the resulting text with additions emphasized; small red `−text` badges show pure deletions at their position. The right comparison strikes through removed characters and emphasizes inserted characters. The display uses the same character edits as the editor transaction. Accepting/navigating centers the next source target, and automatic preview placement avoids covering its highlighted line.
+
+With a review card focused (click its text), **↑ / ↓** select the previous/next pending item and **Enter** accepts the current item. These keys keep their usual behavior in the LaTeX editor, text inputs and panel move/resize controls. Holding Enter never accepts a sequence of items.
+
 These interface improvements are currently available in `main`; the existing v1.4.0 Release ZIP does not include them. Build and load the repository root, or reload an extension already loaded from source, then refresh Overleaf.
 
 **上一项 / 下一项** move between undecided suggestions in pack order. **光标上一处 / 光标下一处** find the nearest locatable undecided suggestion before/after the editor cursor in the current file, using live character-change positions rather than JSON order or line numbers. Navigation moves the preview only; it does not reject or write an item. Deferred items remain pending and return after later items are settled. Accepted/rejected items are excluded. If source, file or cursor changes during a search, retry the navigation.

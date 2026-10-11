@@ -68,3 +68,14 @@ document.querySelector('#navigation-stress').addEventListener('click',()=>{
  suggestions.push({id:'navigation-last',file:'main.tex',original:'Your abstract.',replacement:'Our abstract.',reason:'从光标查找应到达第10000项'});
  const textarea=importer.querySelector('textarea');textarea.value=JSON.stringify({format:'codex-overleaf-suggestions',version:1,suggestions});textarea.dispatchEvent(new Event('input',{bubbles:true}));
 });
+
+// Synthetic text only: grammar suffixes, insertion/replacement, a distant item and deletion.
+document.querySelector('#diff-demo').addEventListener('click',()=>{
+ view.destroy();view=null;
+ const originals=['The robots senses objects and produces maps.','A sensor is very noisy.','The measurement is useful.'];
+ docs['main.tex']=String.raw`\documentclass{article}`+'\n'+originals[0]+'\n'+('Unchanged filler line for scrolling.\n'.repeat(90))+originals[1]+'\n'+('Unchanged filler line for scrolling.\n'.repeat(90))+originals[2]+'\n';open('main.tex');
+ document.querySelector('#editor-writes').textContent='0';document.querySelector('#last-changes').textContent='无';
+ const importer=document.querySelector('[data-suggestion-importer]').shadowRoot;importer.querySelector('.drawer').hidden=false;
+ const suggestions=[{id:'suffix',file:'main.tex',original:originals[0],replacement:'The robots sense objects and produce maps.',reason:'Two independent suffix deletions.'},{id:'replacement',file:'main.tex',original:originals[1],replacement:'A sensor is slightly noisy.',reason:'Replace one word; the rest remains unchanged.'},{id:'deletion',file:'main.tex',original:originals[2],replacement:'',reason:'Delete one sentence.'}];
+ const textarea=importer.querySelector('textarea');textarea.value=JSON.stringify({format:'codex-overleaf-suggestions',version:1,suggestions});textarea.dispatchEvent(new Event('input',{bubbles:true}));
+});

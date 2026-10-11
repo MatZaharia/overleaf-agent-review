@@ -7,6 +7,7 @@ const english = {
  '建议包 JSON':'Suggestion pack JSON','粘贴 Agent 生成的建议包':'Paste an Agent suggestion pack',
  '连接 Agent':'Connect Agent','断开':'Disconnect','本地连接配对令牌':'Local pairing token','选择 JSON 文件':'Choose JSON file','开始审阅':'Start review','恢复上次审阅':'Resume review','清除进度':'Clear progress','停止':'Stop','等待导入建议包':'Import a suggestion pack to begin',
  '已写入表示编辑器内容已核验，服务器保存需在 Overleaf 检查。可使用 Overleaf 的撤销按钮。':'Written means editor content was verified. Check saving in Overleaf; use its Undo button if needed.',
+ '新增':'Added','删除':'Deleted','替换原文':'Replaces','原文 · 标出删除':'Original · deletions marked','修改后 · 标出新增':'After · additions marked','↑ 上一项 · ↓ 下一项 · Enter 接受（审阅卡片内）':'↑ Previous · ↓ Next · Enter Accept (in review card)',
  '原文':'Original','建议修改':'Proposed change','上一项':'Previous item','下一项':'Next item','光标上一处':'Before cursor','光标下一处':'After cursor','拒绝这一项':'Reject this item','接受这一项':'Accept this item','（删除此段）':'(delete this text)',
  '拖动标题移动面板；方向键微调':'Drag the title to move; arrow keys adjust position','拖动右下角调整大小；方向键微调':'Drag the bottom-right corner to resize; arrow keys adjust size','语言':'Language',
  '原文已高亮；接受时重新搜索，过时项跳过。':'Original highlighted. Accept searches again; stale items are skipped.',
@@ -38,5 +39,5 @@ function translate(text,language){
  return text;
 }
 function normalize(language){return language==='en'?'en':'zh-CN'}
-function previewLabels(item,line,language){const t=text=>translate(text,language);return{title:t('修改 '+item.id+' · L'+line),hint:t('原文已高亮；接受时重新搜索，过时项跳过。'),accept:t('接受这一项'),reject:t('拒绝这一项'),empty:t('（删除此段）'),previous:t('上一项'),next:t('下一项'),move:t('拖动标题移动面板；方向键微调'),resize:t('拖动右下角调整大小；方向键微调')}}
+function previewLabels(item,line,language){const t=text=>translate(text,language);return{added:t('新增'),removed:t('删除'),replaced:t('替换原文'),title:t('修改 '+item.id+' · L'+line),hint:t('↑ 上一项 · ↓ 下一项 · Enter 接受（审阅卡片内）'),accept:t('接受这一项'),reject:t('拒绝这一项'),empty:t('（删除此段）'),previous:t('上一项'),next:t('下一项'),move:t('拖动标题移动面板；方向键微调'),resize:t('拖动右下角调整大小；方向键微调')}}
 module.exports={translate,normalize,previewLabels,english};

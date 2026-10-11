@@ -1,4 +1,7 @@
 const Floating = require('../src/floatingPanel');
+const Diff = require('../src/reviewDiff');
+const Keyboard = require('../src/reviewKeyboard');
+const Scroll = require('../src/reviewScroll');
 (function (root, factory) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
@@ -68,18 +71,18 @@ const Floating = require('../src/floatingPanel');
       const highlights = params.highlightPatches || [patch];
       if (!highlights.length || highlights.some(p => !Number.isInteger(p.from) || !Number.isInteger(p.to) || p.from < patch.from || p.to > patch.to || p.from > p.to || text.slice(p.from, p.to) !== p.expected)) return fail('review_preview_invalid');
       // Selection/scroll only: no changes transaction, no document mutation.
-      view.dispatch({ selection: { anchor: highlights[0].from, head: highlights[0].to }, scrollIntoView: true });
+      Scroll.reveal(view,highlights[0]);
       const host = document.createElement('div');
       host.dataset.codexInlineReview = '';
       host.style.cssText = 'position:fixed;z-index:2147483000;pointer-events:none;overflow:visible;';
       const shadow = host.attachShadow({ mode: 'open' });
       const style = document.createElement('style');
-      style.textContent = ':host{font:13px/1.45 system-ui;color:#202833}*{box-sizing:border-box}.mark{position:absolute;background:rgba(255,176,104,.30);border-bottom:2px solid #c76827;pointer-events:none}.card{position:fixed;display:flex;flex-direction:column;pointer-events:auto;background:#fff;border:1px solid #d4dce5;border-radius:9px;padding:12px;box-shadow:0 8px 28px #14233325;overflow:hidden;padding-bottom:24px}.title{font-weight:650;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}.hint,.actions{flex-shrink:0}.actions{flex-wrap:wrap}.text{flex:1;min-height:24px}.text{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 ui-monospace,monospace;background:#eef9f0;color:#165d2a;padding:8px;margin:0 0 10px;overflow:auto}.hint{max-height:3em;overflow:auto;font-size:11px;color:#697383;margin:0 0 8px}.actions{display:flex;gap:8px}button{font:inherit;padding:6px 10px;border:1px solid #c8d0da;border-radius:6px;background:#fff;color:#263140;cursor:pointer}button.accept{background:#16764b;border-color:#16764b;color:#fff}button:focus-visible{outline:3px solid #78a9e6}button:disabled{opacity:.5;cursor:default}' + Floating.css;
+      style.textContent = ':host{font:13px/1.45 system-ui;color:#202833}*{box-sizing:border-box}.mark{position:absolute;background:rgba(255,176,104,.30);border-bottom:2px solid #c76827;pointer-events:none}.card{position:fixed;display:flex;flex-direction:column;pointer-events:auto;background:#fff;border:1px solid #d4dce5;border-radius:9px;padding:12px;box-shadow:0 8px 28px #14233325;overflow:hidden;padding-bottom:24px}.title{font-weight:650;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}.hint,.actions{flex-shrink:0}.actions{flex-wrap:wrap}.text{flex:1;min-height:24px}.text{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 ui-monospace,monospace;background:#eef9f0;color:#165d2a;padding:8px;margin:0 0 10px;overflow:auto}.hint{max-height:3em;overflow:auto;font-size:11px;color:#697383;margin:0 0 8px}.actions{display:flex;gap:8px}button{font:inherit;padding:6px 10px;border:1px solid #c8d0da;border-radius:6px;background:#fff;color:#263140;cursor:pointer}button.accept{background:#16764b;border-color:#16764b;color:#fff}button:focus-visible{outline:3px solid #78a9e6}button:disabled{opacity:.5;cursor:default}' + Floating.css + Diff.css;
       const marks = document.createElement('div');
       const card = document.createElement('section'); card.className = 'card'; card.setAttribute('aria-label', params.labels?.title || 'Review one change');
       const title = document.createElement('div'); title.className = 'title'; title.textContent = params.labels?.title || 'Review one change';
       const hint = document.createElement('p'); hint.className = 'hint'; hint.textContent = params.labels?.hint || 'Original highlighted. Source is unchanged until accepted.';
-      const proposed = document.createElement('pre'); proposed.className = 'text'; proposed.textContent = patch.insert || params.labels?.empty || '(empty)';
+      const proposed = document.createElement('pre'); proposed.className = 'text'; const diff=params.diff || Diff.parts(patch,highlights);Diff.render(proposed,diff.inline,params.labels);
       const actions = document.createElement('div'); actions.className = 'actions';
       for (const [direction, symbol, label] of [[-1, '↑', params.labels?.previous || 'Previous item'], [1, '↓', params.labels?.next || 'Next item']]) {
         const button = document.createElement('button');button.type='button';button.textContent=symbol;
@@ -102,7 +105,15 @@ const Floating = require('../src/floatingPanel');
       card.append(title, hint, proposed, actions, resize); shadow.append(style, marks, card); document.body.append(host);
       active = { token: params.token, projectId: params.runProjectId, path: params.path, view, text, patch, highlights, host, marks, card, navigation: null, decision: null, failure: '', timer: null };
       active.floating=Floating.attach({panel:card,drag:title,resize,window,state:panelState,minimum:{width:260,height:230},defaultRect:()=>active.defaultRect || {left:8,top:8,width:370,height:220}});
-      active.elements={title,hint,resize,actions,proposed};
+      active.elements={title,hint,resize,actions,proposed};active.diff=diff;
+      Keyboard.attach(card,choice=>{
+        if(!validate() || active.decision!==null)return;
+        if(choice==='accept'){active.decision=true;actions.querySelectorAll('button').forEach(button=>{button.disabled=true})}
+        else active.navigation=choice==='previous'?-1:1;
+      });
+      // Refresh immediately after CodeMirror's scheduled layout/scroll, instead
+      // of relying only on the periodic highlight renderer.
+      view.requestMeasure?.({key:host,read:()=>null,write:()=>window.requestAnimationFrame(()=>{if(active?.host===host)render()})});
       render();
       active.timer = window.setInterval(render, 250);
       return { ok: true, token: params.token, changedDocument: false };
@@ -141,8 +152,7 @@ const Floating = require('../src/floatingPanel');
       card.hidden = !visible.length || width < 160 || height < 100;
       if (card.hidden) return;
       const first = visible[0];
-      const panelWidth=Math.min(370, width-16),panelHeight=Math.min(270,height-16);
-      item.defaultRect={left:bounds.left+Math.max(8,Math.min(first.left-bounds.left,width-panelWidth-8)),top:bounds.top+Math.max(8,Math.min(first.bottom-bounds.top+8,height-panelHeight-8)),width:panelWidth,height:panelHeight};
+      item.defaultRect=Scroll.previewRect(bounds,first);
       item.floating.layout();
     }
     function labels(params) {
@@ -153,7 +163,7 @@ const Floating = require('../src/floatingPanel');
       actions.querySelector('[data-review-choice="true"]').textContent=value.accept;
       actions.querySelector('[data-review-choice="false"]').textContent=value.reject;
       for(const [direction,label] of [[-1,value.previous],[1,value.next]]){const button=actions.querySelector(`[data-review-navigate="${direction}"]`);button.title=label;button.setAttribute('aria-label',label)}
-      if(!active.patch.insert)proposed.textContent=value.empty;
+      Diff.render(proposed,active.diff.inline,value);
       return {ok:true};
     }
     function consumeNavigation(params){if(!active || active.token!==params.token)return fail('review_preview_expired');active.navigation=null;return {ok:true}}

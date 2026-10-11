@@ -319,6 +319,12 @@
         "\u505C\u6B62": "Stop",
         "\u7B49\u5F85\u5BFC\u5165\u5EFA\u8BAE\u5305": "Import a suggestion pack to begin",
         "\u5DF2\u5199\u5165\u8868\u793A\u7F16\u8F91\u5668\u5185\u5BB9\u5DF2\u6838\u9A8C\uFF0C\u670D\u52A1\u5668\u4FDD\u5B58\u9700\u5728 Overleaf \u68C0\u67E5\u3002\u53EF\u4F7F\u7528 Overleaf \u7684\u64A4\u9500\u6309\u94AE\u3002": "Written means editor content was verified. Check saving in Overleaf; use its Undo button if needed.",
+        "\u65B0\u589E": "Added",
+        "\u5220\u9664": "Deleted",
+        "\u66FF\u6362\u539F\u6587": "Replaces",
+        "\u539F\u6587 \xB7 \u6807\u51FA\u5220\u9664": "Original \xB7 deletions marked",
+        "\u4FEE\u6539\u540E \xB7 \u6807\u51FA\u65B0\u589E": "After \xB7 additions marked",
+        "\u2191 \u4E0A\u4E00\u9879 \xB7 \u2193 \u4E0B\u4E00\u9879 \xB7 Enter \u63A5\u53D7\uFF08\u5BA1\u9605\u5361\u7247\u5185\uFF09": "\u2191 Previous \xB7 \u2193 Next \xB7 Enter Accept (in review card)",
         "\u539F\u6587": "Original",
         "\u5EFA\u8BAE\u4FEE\u6539": "Proposed change",
         "\u4E0A\u4E00\u9879": "Previous item",
@@ -411,9 +417,116 @@
       }
       function previewLabels(item, line, language) {
         const t = (text) => translate(text, language);
-        return { title: t("\u4FEE\u6539 " + item.id + " \xB7 L" + line), hint: t("\u539F\u6587\u5DF2\u9AD8\u4EAE\uFF1B\u63A5\u53D7\u65F6\u91CD\u65B0\u641C\u7D22\uFF0C\u8FC7\u65F6\u9879\u8DF3\u8FC7\u3002"), accept: t("\u63A5\u53D7\u8FD9\u4E00\u9879"), reject: t("\u62D2\u7EDD\u8FD9\u4E00\u9879"), empty: t("\uFF08\u5220\u9664\u6B64\u6BB5\uFF09"), previous: t("\u4E0A\u4E00\u9879"), next: t("\u4E0B\u4E00\u9879"), move: t("\u62D6\u52A8\u6807\u9898\u79FB\u52A8\u9762\u677F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03"), resize: t("\u62D6\u52A8\u53F3\u4E0B\u89D2\u8C03\u6574\u5927\u5C0F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03") };
+        return { added: t("\u65B0\u589E"), removed: t("\u5220\u9664"), replaced: t("\u66FF\u6362\u539F\u6587"), title: t("\u4FEE\u6539 " + item.id + " \xB7 L" + line), hint: t("\u2191 \u4E0A\u4E00\u9879 \xB7 \u2193 \u4E0B\u4E00\u9879 \xB7 Enter \u63A5\u53D7\uFF08\u5BA1\u9605\u5361\u7247\u5185\uFF09"), accept: t("\u63A5\u53D7\u8FD9\u4E00\u9879"), reject: t("\u62D2\u7EDD\u8FD9\u4E00\u9879"), empty: t("\uFF08\u5220\u9664\u6B64\u6BB5\uFF09"), previous: t("\u4E0A\u4E00\u9879"), next: t("\u4E0B\u4E00\u9879"), move: t("\u62D6\u52A8\u6807\u9898\u79FB\u52A8\u9762\u677F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03"), resize: t("\u62D6\u52A8\u53F3\u4E0B\u89D2\u8C03\u6574\u5927\u5C0F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03") };
       }
       module.exports = { translate, normalize, previewLabels, english };
+    }
+  });
+
+  // src/reviewDiff.js
+  var require_reviewDiff = __commonJS({
+    "src/reviewDiff.js"(exports, module) {
+      "use strict";
+      function parts(patch, edits) {
+        const before = [], after = [], inline = [];
+        let offset = 0;
+        const push = (list, text, kind = "equal", previous = "") => {
+          if (text) list.push({ text, kind, previous });
+        };
+        for (const edit of edits) {
+          const from = edit.from - patch.from, to = edit.to - patch.from;
+          if (from < offset || to < from || to > patch.expected.length || patch.expected.slice(from, to) !== edit.expected) throw new Error("invalid_display_diff");
+          const equal2 = patch.expected.slice(offset, from);
+          for (const list of [before, after, inline]) push(list, equal2);
+          push(before, edit.expected, "removed");
+          push(after, edit.insert, "added", edit.expected);
+          if (edit.insert) push(inline, edit.insert, "added", edit.expected);
+          else push(inline, edit.expected, "deletion");
+          offset = to;
+        }
+        const equal = patch.expected.slice(offset);
+        for (const list of [before, after, inline]) push(list, equal);
+        return { before, after, inline };
+      }
+      var css = ".diff-equal{color:#586673}.diff-added{background:#bceac9;color:#105331;font-weight:700;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px;border-radius:2px}.diff-removed{background:#ffd5c3;color:#8b321b;font-weight:700;text-decoration:line-through;border-radius:2px}.diff-deletion{user-select:none;display:inline-block;background:#ffe1d6;color:#8b321b;font-weight:700;border:1px solid #f0b39d;border-radius:3px;padding:0 3px;margin:0 2px;font-size:.9em}.diff-empty{color:#687888}";
+      function render(element, parts2, labels = {}) {
+        const document2 = element.ownerDocument, fragment = document2.createDocumentFragment();
+        for (const part of parts2) {
+          const node = document2.createElement(part.kind === "equal" ? "span" : "mark");
+          node.className = "diff-" + part.kind;
+          node.textContent = part.kind === "deletion" ? "\u2212" + part.text : part.text;
+          if (part.kind !== "equal") {
+            const label = part.kind === "added" ? part.previous ? labels.replaced : labels.added : labels.removed;
+            node.title = (label || part.kind) + (part.previous ? ": " + part.previous : "");
+            if (part.kind === "deletion") node.setAttribute("aria-label", (labels.removed || "Deleted") + ": " + part.text);
+          }
+          fragment.append(node);
+        }
+        if (!parts2.length) {
+          const node = document2.createElement("span");
+          node.className = "diff-empty";
+          node.textContent = labels.empty || "(delete this text)";
+          fragment.append(node);
+        }
+        element.replaceChildren(fragment);
+      }
+      module.exports = { parts, render, css };
+    }
+  });
+
+  // src/reviewKeyboard.js
+  var require_reviewKeyboard = __commonJS({
+    "src/reviewKeyboard.js"(exports, module) {
+      "use strict";
+      function action(event) {
+        if (event.defaultPrevented || event.isComposing || event.repeat || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return null;
+        const path = event.composedPath?.() || [event.target];
+        if (path.some((node) => node?.matches?.('input,textarea,select,[contenteditable]:not([contenteditable="false"]),.panel-drag,.panel-resize'))) return null;
+        return { ArrowUp: "previous", ArrowDown: "next", Enter: "accept" }[event.key] || null;
+      }
+      function attach(card, handler) {
+        card.tabIndex = 0;
+        card.addEventListener("keydown", (event) => {
+          const choice = action(event);
+          if (!choice) return;
+          event.preventDefault();
+          event.stopPropagation();
+          handler(choice);
+        });
+        card.addEventListener("click", (event) => {
+          if (!event.target.closest?.("button,input,textarea,select,.panel-drag,.panel-resize")) card.focus({ preventScroll: true });
+        });
+      }
+      module.exports = { action, attach };
+    }
+  });
+
+  // src/reviewScroll.js
+  var require_reviewScroll = __commonJS({
+    "src/reviewScroll.js"(exports, module) {
+      "use strict";
+      function reveal(view, change) {
+        const transaction = { selection: { anchor: change.from, head: change.to } };
+        const scroll = view.constructor?.scrollIntoView;
+        if (typeof scroll === "function") transaction.effects = scroll.call(view.constructor, change.from, { y: "center", x: "nearest" });
+        else transaction.scrollIntoView = true;
+        view.dispatch(transaction);
+      }
+      function panel(body, card) {
+        const bounds = body.getBoundingClientRect(), rect = card.getBoundingClientRect();
+        if (rect.top < bounds.top || rect.bottom > bounds.bottom) body.scrollTop += rect.top - bounds.top - 12;
+        card.focus({ preventScroll: true });
+      }
+      function previewRect(bounds, target) {
+        const width = Math.min(370, bounds.right - bounds.left - 16);
+        const belowRoom = bounds.bottom - target.bottom - 16, aboveRoom = target.top - bounds.top - 16;
+        const below = belowRoom >= 230 || belowRoom >= aboveRoom;
+        const height = Math.min(270, Math.max(230, below ? belowRoom : aboveRoom));
+        const left = Math.max(bounds.left + 8, Math.min(target.left, bounds.right - width - 8));
+        const top = below ? target.bottom + 8 : target.top - height - 8;
+        return { left, top: Math.max(bounds.top + 8, Math.min(top, bounds.bottom - height - 8)), width, height };
+      }
+      module.exports = { reveal, panel, previewRect };
     }
   });
 
@@ -423,6 +536,9 @@
   var Navigation = require_navigation();
   var Floating = require_floatingPanel();
   var I18n = require_i18n();
+  var Diff = require_reviewDiff();
+  var Keyboard = require_reviewKeyboard();
+  var Scroll = require_reviewScroll();
   if (!document.querySelector("[data-suggestion-importer]")) mount();
   function mount() {
     const host = document.createElement("div");
@@ -430,13 +546,13 @@
     host.style.cssText = "position:fixed;right:16px;bottom:16px;z-index:2147483100;";
     const shadow = host.attachShadow({ mode: "open" });
     shadow.innerHTML = `<style>
-:host{font:13px/1.5 system-ui;color:#273342}*{box-sizing:border-box}button,textarea,input{font:inherit}button{border:1px solid #cdd6df;border-radius:6px;background:#fff;color:#273342;padding:7px 11px;cursor:pointer}button:disabled{opacity:.45;cursor:default}button:focus-visible,textarea:focus-visible{outline:3px solid #8aafe3;outline-offset:2px}.primary,.launch{background:#176347;color:#fff;border-color:#176347}.launch{box-shadow:0 4px 18px #18352925}.drawer{position:fixed;display:flex;flex-direction:column;overflow:hidden;background:#fff;border:1px solid #cbd5de;border-radius:10px;box-shadow:0 10px 40px #14253630;margin-bottom:10px}.head{padding:14px 16px;border-bottom:1px solid #e0e6ec;display:flex;align-items:center;justify-content:space-between}.head strong{font-size:15px}.head button{padding:3px 8px}.body{padding:16px 16px 26px;overflow:auto;min-height:0;flex:1}.head{flex-shrink:0;gap:12px}.head strong{flex:1}.language{font:inherit;border:1px solid #cdd6df;border-radius:5px;background:white;padding:3px}.muted{color:#657687;font-size:12px;margin:0 0 12px}.label{display:block;margin-bottom:6px;font-weight:600}textarea{display:block;width:100%;height:130px;padding:10px;border:1px solid #ccd7e0;border-radius:6px;resize:vertical;font:12px/1.45 ui-monospace,monospace}.toolbar{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.message{font-size:12px;padding:10px;background:#f0f5f4;border-radius:5px}.card{border:1px solid #d2dce4;border-radius:7px;padding:12px;margin-top:12px}.card strong{display:block}.path{font:11px/1.5 ui-monospace,monospace;color:#687888}.reason{font-size:12px;margin:8px 0}.source{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 ui-monospace,monospace;margin:6px 0 10px;padding:8px;max-height:180px;overflow:auto;border-radius:4px}.old{background:#fff1e5;color:#74451f}.new{background:#eef8ee;color:#23572c}.actions{display:flex;gap:8px}.history{padding:8px 0;border-bottom:1px solid #e3e9ed;font-size:12px}.history b{color:#176347}.unknown{color:#9a452c}.footer{margin-top:14px;font-size:11px;color:#6b7b88}[hidden]{display:none!important}
-${Floating.css}</style><section class="drawer" hidden><div class="head"><strong>\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE</strong><select class="language" aria-label="\u8BED\u8A00"><option value="zh-CN">\u4E2D\u6587</option><option value="en">English</option></select><button class="close" aria-label="\u6536\u8D77">\xD7</button></div><div class="body"><p class="muted">\u5148\u5BFC\u5165\u5EFA\u8BAE\u5305\uFF0C\u518D\u9010\u9879\u786E\u8BA4\u3002\u6BCF\u6B21\u63A5\u53D7\u90FD\u4F1A\u641C\u7D22\u5F53\u524D\u539F\u6587\uFF1B\u8FC7\u65F6\u6216\u4E0D\u552F\u4E00\u7684\u9879\u81EA\u52A8\u8DF3\u8FC7\u3002</p><label class="label" for="pack">\u5EFA\u8BAE\u5305 JSON</label><textarea id="pack" spellcheck="false" placeholder="\u7C98\u8D34 Agent \u751F\u6210\u7684\u5EFA\u8BAE\u5305"></textarea><input type="file" accept=".json,application/json" hidden><div class="toolbar"><button class="connect">\u8FDE\u63A5 Agent</button><button class="disconnect">\u65AD\u5F00</button></div><div class="bridge-status" role="status"></div><input class="bridge-token" type="password" placeholder="\u672C\u5730\u8FDE\u63A5\u914D\u5BF9\u4EE4\u724C" autocomplete="off"><div class="toolbar"><button class="file">\u9009\u62E9 JSON \u6587\u4EF6</button><button class="primary start">\u5F00\u59CB\u5BA1\u9605</button><button class="resume">\u6062\u590D\u4E0A\u6B21\u5BA1\u9605</button><button class="reset">\u6E05\u9664\u8FDB\u5EA6</button><button class="stop" hidden>\u505C\u6B62</button></div><div class="message" role="status" aria-live="polite">\u7B49\u5F85\u5BFC\u5165\u5EFA\u8BAE\u5305</div><div class="pending"></div><div class="history-list"></div><p class="footer">\u5DF2\u5199\u5165\u8868\u793A\u7F16\u8F91\u5668\u5185\u5BB9\u5DF2\u6838\u9A8C\uFF0C\u670D\u52A1\u5668\u4FDD\u5B58\u9700\u5728 Overleaf \u68C0\u67E5\u3002\u53EF\u4F7F\u7528 Overleaf \u7684\u64A4\u9500\u6309\u94AE\u3002</p></div><button class="resize" aria-label="\u62D6\u52A8\u53F3\u4E0B\u89D2\u8C03\u6574\u5927\u5C0F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03" title="\u62D6\u52A8\u53F3\u4E0B\u89D2\u8C03\u6574\u5927\u5C0F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03"></button></section><button class="launch">\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE</button>`;
+:host{font:13px/1.5 system-ui;color:#273342}*{box-sizing:border-box}button,textarea,input{font:inherit}button{border:1px solid #cdd6df;border-radius:6px;background:#fff;color:#273342;padding:7px 11px;cursor:pointer}button:disabled{opacity:.45;cursor:default}button:focus-visible,textarea:focus-visible{outline:3px solid #8aafe3;outline-offset:2px}.primary,.launch{background:#176347;color:#fff;border-color:#176347}.launch{box-shadow:0 4px 18px #18352925}.drawer{position:fixed;display:flex;flex-direction:column;overflow:hidden;background:#fff;border:1px solid #cbd5de;border-radius:10px;box-shadow:0 10px 40px #14253630;margin-bottom:10px}.head{padding:14px 16px;border-bottom:1px solid #e0e6ec;display:flex;align-items:center;justify-content:space-between}.head strong{font-size:15px}.head button{padding:3px 8px}.body{padding:16px 16px 26px;overflow:auto;min-height:0;flex:1}.head{flex-shrink:0;gap:12px}.head strong{flex:1}.language{font:inherit;border:1px solid #cdd6df;border-radius:5px;background:white;padding:3px}.muted{color:#657687;font-size:12px;margin:0 0 12px}.label{display:block;margin-bottom:6px;font-weight:600}textarea{display:block;width:100%;height:130px;padding:10px;border:1px solid #ccd7e0;border-radius:6px;resize:vertical;font:12px/1.45 ui-monospace,monospace}.toolbar{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.message{font-size:12px;padding:10px;background:#f0f5f4;border-radius:5px}.card{border:1px solid #d2dce4;border-radius:7px;padding:12px;margin-top:12px}.card strong{display:block}.path{font:11px/1.5 ui-monospace,monospace;color:#687888}.reason{font-size:12px;margin:8px 0}.source{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 ui-monospace,monospace;margin:6px 0 10px;padding:8px;max-height:180px;overflow:auto;border-radius:4px}.old,.new{background:#f6f8fa;color:#586673}.actions{display:flex;gap:8px}.history{padding:8px 0;border-bottom:1px solid #e3e9ed;font-size:12px}.history b{color:#176347}.unknown{color:#9a452c}.footer{margin-top:14px;font-size:11px;color:#6b7b88}[hidden]{display:none!important}
+${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="head"><strong>\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE</strong><select class="language" aria-label="\u8BED\u8A00"><option value="zh-CN">\u4E2D\u6587</option><option value="en">English</option></select><button class="close" aria-label="\u6536\u8D77">\xD7</button></div><div class="body"><p class="muted">\u5148\u5BFC\u5165\u5EFA\u8BAE\u5305\uFF0C\u518D\u9010\u9879\u786E\u8BA4\u3002\u6BCF\u6B21\u63A5\u53D7\u90FD\u4F1A\u641C\u7D22\u5F53\u524D\u539F\u6587\uFF1B\u8FC7\u65F6\u6216\u4E0D\u552F\u4E00\u7684\u9879\u81EA\u52A8\u8DF3\u8FC7\u3002</p><label class="label" for="pack">\u5EFA\u8BAE\u5305 JSON</label><textarea id="pack" spellcheck="false" placeholder="\u7C98\u8D34 Agent \u751F\u6210\u7684\u5EFA\u8BAE\u5305"></textarea><input type="file" accept=".json,application/json" hidden><div class="toolbar"><button class="connect">\u8FDE\u63A5 Agent</button><button class="disconnect">\u65AD\u5F00</button></div><div class="bridge-status" role="status"></div><input class="bridge-token" type="password" placeholder="\u672C\u5730\u8FDE\u63A5\u914D\u5BF9\u4EE4\u724C" autocomplete="off"><div class="toolbar"><button class="file">\u9009\u62E9 JSON \u6587\u4EF6</button><button class="primary start">\u5F00\u59CB\u5BA1\u9605</button><button class="resume">\u6062\u590D\u4E0A\u6B21\u5BA1\u9605</button><button class="reset">\u6E05\u9664\u8FDB\u5EA6</button><button class="stop" hidden>\u505C\u6B62</button></div><div class="message" role="status" aria-live="polite">\u7B49\u5F85\u5BFC\u5165\u5EFA\u8BAE\u5305</div><div class="pending"></div><div class="history-list"></div><p class="footer">\u5DF2\u5199\u5165\u8868\u793A\u7F16\u8F91\u5668\u5185\u5BB9\u5DF2\u6838\u9A8C\uFF0C\u670D\u52A1\u5668\u4FDD\u5B58\u9700\u5728 Overleaf \u68C0\u67E5\u3002\u53EF\u4F7F\u7528 Overleaf \u7684\u64A4\u9500\u6309\u94AE\u3002</p></div><button class="resize" aria-label="\u62D6\u52A8\u53F3\u4E0B\u89D2\u8C03\u6574\u5927\u5C0F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03" title="\u62D6\u52A8\u53F3\u4E0B\u89D2\u8C03\u6574\u5927\u5C0F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03"></button></section><button class="launch">\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE</button>`;
     document.body.append(host);
     const $ = (selector) => shadow.querySelector(selector);
     const capability = Array.from(crypto.getRandomValues(new Uint8Array(32)), (b) => b.toString(16).padStart(2, "0")).join("");
     const persistent = typeof chrome !== "undefined" && !!chrome.runtime?.id;
-    let language = "zh-CN", languageTouched = false, packLabel = null;
+    let language = "zh-CN", languageTouched = false, packLabel = null, reviewLanguageRefresh = null;
     function setPackLabel(text) {
       packLabel = text;
       $("#pack").value = t(text);
@@ -524,6 +640,7 @@ ${Floating.css}</style><section class="drawer" hidden><div class="head"><strong>
       language = I18n.normalize(value);
       $(".language").value = language;
       refreshUI();
+      reviewLanguageRefresh?.();
       await call("language", { language }).catch(() => {
       });
     }
@@ -541,21 +658,37 @@ ${Floating.css}</style><section class="drawer" hidden><div class="head"><strong>
         let token = prepared.token, settled = false, timer = null, navigating = false;
         const card = document.createElement("section");
         card.className = "card";
-        card.innerHTML = '<strong></strong><div class="path"></div><p class="reason"></p><div>\u539F\u6587</div><pre class="source old"></pre><div>\u5EFA\u8BAE\u4FEE\u6539</div><pre class="source new"></pre><div class="toolbar navigation"><button class="previous">\u4E0A\u4E00\u9879</button><button class="next">\u4E0B\u4E00\u9879</button><button class="cursor-previous">\u5149\u6807\u4E0A\u4E00\u5904</button><button class="cursor-next">\u5149\u6807\u4E0B\u4E00\u5904</button></div><div class="actions"><button class="reject">\u62D2\u7EDD\u8FD9\u4E00\u9879</button><button class="primary accept">\u63A5\u53D7\u8FD9\u4E00\u9879</button></div>';
+        card.innerHTML = '<strong></strong><div class="path"></div><p class="reason"></p><div>\u539F\u6587 \xB7 \u6807\u51FA\u5220\u9664</div><pre class="source old"></pre><div>\u4FEE\u6539\u540E \xB7 \u6807\u51FA\u65B0\u589E</div><pre class="source new"></pre><div class="toolbar navigation"><button class="previous">\u4E0A\u4E00\u9879</button><button class="next">\u4E0B\u4E00\u9879</button><button class="cursor-previous">\u5149\u6807\u4E0A\u4E00\u5904</button><button class="cursor-next">\u5149\u6807\u4E0B\u4E00\u5904</button></div><div class="actions"><button class="reject">\u62D2\u7EDD\u8FD9\u4E00\u9879</button><button class="primary accept">\u63A5\u53D7\u8FD9\u4E00\u9879</button></div>';
         $(".pending").replaceChildren(card);
         rememberUI(card);
         setUI(card.querySelector("strong"), "\u4FEE\u6539 " + (options.index + 1) + " / " + options.total);
         card.querySelector(".path").textContent = item.file + " \xB7 L" + prepared.line;
         card.querySelector(".reason").textContent = item.reason;
-        card.querySelector(".old").textContent = prepared.item?.original || item.original;
-        card.querySelector(".new").textContent = (prepared.item?.replacement ?? item.replacement) || "\uFF08\u5220\u9664\u6B64\u6BB5\uFF09";
-        if (!(prepared.item?.replacement ?? item.replacement)) setUI(card.querySelector(".new"), "\uFF08\u5220\u9664\u6B64\u6BB5\uFF09");
+        let displayed = prepared;
+        function renderDiff() {
+          const labels = { added: t("\u65B0\u589E"), removed: t("\u5220\u9664"), replaced: t("\u66FF\u6362\u539F\u6587"), empty: t("\uFF08\u5220\u9664\u6B64\u6BB5\uFF09") };
+          if (displayed.diff) {
+            Diff.render(card.querySelector(".old"), displayed.diff.before, labels);
+            Diff.render(card.querySelector(".new"), displayed.diff.after, labels);
+          } else {
+            card.querySelector(".old").textContent = displayed.item?.original || item.original;
+            card.querySelector(".new").textContent = displayed.item?.replacement ?? item.replacement;
+          }
+        }
+        renderDiff();
+        const help = document.createElement("p");
+        help.className = "muted keyboard-help";
+        setUI(help, "\u2191 \u4E0A\u4E00\u9879 \xB7 \u2193 \u4E0B\u4E00\u9879 \xB7 Enter \u63A5\u53D7\uFF08\u5BA1\u9605\u5361\u7247\u5185\uFF09");
+        card.append(help);
+        const refresh = () => renderDiff();
+        reviewLanguageRefresh = refresh;
         status(prepared.inline ? "\u539F\u6587\u5DF2\u5728\u6E90\u7801\u4E2D\u9AD8\u4EAE\uFF0C\u7B49\u5F85\u786E\u8BA4" : "\u9AD8\u4EAE\u6682\u4E0D\u53EF\u7528\uFF0C\u8BF7\u5728\u6B64\u6838\u5BF9\u539F\u6587\u4E0E\u5EFA\u8BAE");
         function finish(accepted, skipped, navigate2) {
           if (settled) return;
           settled = true;
           clearTimeout(timer);
           pendingAbort = null;
+          if (reviewLanguageRefresh === refresh) reviewLanguageRefresh = null;
           card.querySelectorAll("button").forEach((button) => {
             button.disabled = true;
           });
@@ -629,7 +762,12 @@ ${Floating.css}</style><section class="drawer" hidden><div class="head"><strong>
         card.querySelector(".cursor-next").addEventListener("click", () => navigate(1, true));
         card.querySelector(".accept").addEventListener("click", () => finish(true));
         card.querySelector(".reject").addEventListener("click", () => finish(false));
-        card.querySelector(".reject").focus();
+        Keyboard.attach(card, (choice) => {
+          if (settled || navigating) return;
+          if (choice === "accept") finish(true);
+          else navigate(choice === "previous" ? -1 : 1, false);
+        });
+        Scroll.panel($(".body"), card);
         pendingAbort = () => {
           if (!settled) {
             settled = true;
@@ -648,13 +786,8 @@ ${Floating.css}</style><section class="drawer" hidden><div class="head"><strong>
               return;
             }
             if (response.refreshed) {
-              if (response.item) {
-                card.querySelector(".old").textContent = response.item.original;
-                if (response.item.replacement) {
-                  uiText.delete(card.querySelector(".new"));
-                  card.querySelector(".new").textContent = response.item.replacement;
-                } else setUI(card.querySelector(".new"), "\uFF08\u5220\u9664\u6B64\u6BB5\uFF09");
-              }
+              displayed = response;
+              renderDiff();
               token = response.token;
               card.querySelector(".path").textContent = item.file + " \xB7 L" + response.line;
               status("\u6B63\u6587\u6709\u53D8\u5316\uFF0C\u5DF2\u91CD\u65B0\u5B9A\u4F4D\u8FD9\u4E00\u9879\uFF0C\u7B49\u5F85\u786E\u8BA4");
@@ -777,6 +910,7 @@ ${Floating.css}</style><section class="drawer" hidden><div class="head"><strong>
         await call("cancel", {}).catch(() => {
         });
         $(".pending").replaceChildren();
+        reviewLanguageRefresh = null;
         running = false;
         $(".start").disabled = false;
         $(".resume").disabled = false;

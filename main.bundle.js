@@ -2221,6 +2221,12 @@
         "\u505C\u6B62": "Stop",
         "\u7B49\u5F85\u5BFC\u5165\u5EFA\u8BAE\u5305": "Import a suggestion pack to begin",
         "\u5DF2\u5199\u5165\u8868\u793A\u7F16\u8F91\u5668\u5185\u5BB9\u5DF2\u6838\u9A8C\uFF0C\u670D\u52A1\u5668\u4FDD\u5B58\u9700\u5728 Overleaf \u68C0\u67E5\u3002\u53EF\u4F7F\u7528 Overleaf \u7684\u64A4\u9500\u6309\u94AE\u3002": "Written means editor content was verified. Check saving in Overleaf; use its Undo button if needed.",
+        "\u65B0\u589E": "Added",
+        "\u5220\u9664": "Deleted",
+        "\u66FF\u6362\u539F\u6587": "Replaces",
+        "\u539F\u6587 \xB7 \u6807\u51FA\u5220\u9664": "Original \xB7 deletions marked",
+        "\u4FEE\u6539\u540E \xB7 \u6807\u51FA\u65B0\u589E": "After \xB7 additions marked",
+        "\u2191 \u4E0A\u4E00\u9879 \xB7 \u2193 \u4E0B\u4E00\u9879 \xB7 Enter \u63A5\u53D7\uFF08\u5BA1\u9605\u5361\u7247\u5185\uFF09": "\u2191 Previous \xB7 \u2193 Next \xB7 Enter Accept (in review card)",
         "\u539F\u6587": "Original",
         "\u5EFA\u8BAE\u4FEE\u6539": "Proposed change",
         "\u4E0A\u4E00\u9879": "Previous item",
@@ -2313,9 +2319,60 @@
       }
       function previewLabels(item, line, language) {
         const t = (text) => translate(text, language);
-        return { title: t("\u4FEE\u6539 " + item.id + " \xB7 L" + line), hint: t("\u539F\u6587\u5DF2\u9AD8\u4EAE\uFF1B\u63A5\u53D7\u65F6\u91CD\u65B0\u641C\u7D22\uFF0C\u8FC7\u65F6\u9879\u8DF3\u8FC7\u3002"), accept: t("\u63A5\u53D7\u8FD9\u4E00\u9879"), reject: t("\u62D2\u7EDD\u8FD9\u4E00\u9879"), empty: t("\uFF08\u5220\u9664\u6B64\u6BB5\uFF09"), previous: t("\u4E0A\u4E00\u9879"), next: t("\u4E0B\u4E00\u9879"), move: t("\u62D6\u52A8\u6807\u9898\u79FB\u52A8\u9762\u677F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03"), resize: t("\u62D6\u52A8\u53F3\u4E0B\u89D2\u8C03\u6574\u5927\u5C0F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03") };
+        return { added: t("\u65B0\u589E"), removed: t("\u5220\u9664"), replaced: t("\u66FF\u6362\u539F\u6587"), title: t("\u4FEE\u6539 " + item.id + " \xB7 L" + line), hint: t("\u2191 \u4E0A\u4E00\u9879 \xB7 \u2193 \u4E0B\u4E00\u9879 \xB7 Enter \u63A5\u53D7\uFF08\u5BA1\u9605\u5361\u7247\u5185\uFF09"), accept: t("\u63A5\u53D7\u8FD9\u4E00\u9879"), reject: t("\u62D2\u7EDD\u8FD9\u4E00\u9879"), empty: t("\uFF08\u5220\u9664\u6B64\u6BB5\uFF09"), previous: t("\u4E0A\u4E00\u9879"), next: t("\u4E0B\u4E00\u9879"), move: t("\u62D6\u52A8\u6807\u9898\u79FB\u52A8\u9762\u677F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03"), resize: t("\u62D6\u52A8\u53F3\u4E0B\u89D2\u8C03\u6574\u5927\u5C0F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03") };
       }
       module.exports = { translate, normalize, previewLabels, english };
+    }
+  });
+
+  // src/reviewDiff.js
+  var require_reviewDiff = __commonJS({
+    "src/reviewDiff.js"(exports, module) {
+      "use strict";
+      function parts(patch, edits) {
+        const before = [], after = [], inline = [];
+        let offset = 0;
+        const push = (list, text, kind = "equal", previous = "") => {
+          if (text) list.push({ text, kind, previous });
+        };
+        for (const edit of edits) {
+          const from = edit.from - patch.from, to = edit.to - patch.from;
+          if (from < offset || to < from || to > patch.expected.length || patch.expected.slice(from, to) !== edit.expected) throw new Error("invalid_display_diff");
+          const equal2 = patch.expected.slice(offset, from);
+          for (const list of [before, after, inline]) push(list, equal2);
+          push(before, edit.expected, "removed");
+          push(after, edit.insert, "added", edit.expected);
+          if (edit.insert) push(inline, edit.insert, "added", edit.expected);
+          else push(inline, edit.expected, "deletion");
+          offset = to;
+        }
+        const equal = patch.expected.slice(offset);
+        for (const list of [before, after, inline]) push(list, equal);
+        return { before, after, inline };
+      }
+      var css = ".diff-equal{color:#586673}.diff-added{background:#bceac9;color:#105331;font-weight:700;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px;border-radius:2px}.diff-removed{background:#ffd5c3;color:#8b321b;font-weight:700;text-decoration:line-through;border-radius:2px}.diff-deletion{user-select:none;display:inline-block;background:#ffe1d6;color:#8b321b;font-weight:700;border:1px solid #f0b39d;border-radius:3px;padding:0 3px;margin:0 2px;font-size:.9em}.diff-empty{color:#687888}";
+      function render(element, parts2, labels = {}) {
+        const document2 = element.ownerDocument, fragment = document2.createDocumentFragment();
+        for (const part of parts2) {
+          const node = document2.createElement(part.kind === "equal" ? "span" : "mark");
+          node.className = "diff-" + part.kind;
+          node.textContent = part.kind === "deletion" ? "\u2212" + part.text : part.text;
+          if (part.kind !== "equal") {
+            const label = part.kind === "added" ? part.previous ? labels.replaced : labels.added : labels.removed;
+            node.title = (label || part.kind) + (part.previous ? ": " + part.previous : "");
+            if (part.kind === "deletion") node.setAttribute("aria-label", (labels.removed || "Deleted") + ": " + part.text);
+          }
+          fragment.append(node);
+        }
+        if (!parts2.length) {
+          const node = document2.createElement("span");
+          node.className = "diff-empty";
+          node.textContent = labels.empty || "(delete this text)";
+          fragment.append(node);
+        }
+        element.replaceChildren(fragment);
+      }
+      module.exports = { parts, render, css };
     }
   });
 
@@ -2326,6 +2383,7 @@
       var Core = require_suggestions();
       var Rebase = require_rebase();
       var I18n = require_i18n();
+      var Diff = require_reviewDiff();
       var { characterEdits } = require_characterEdits();
       function create({ adapter: adapter2, preview: preview2, crypto }) {
         let pending = null, generation = 0, scan = null, language = "zh-CN";
@@ -2437,6 +2495,7 @@
           if (!match.ok) return { ...match, journal: drain() };
           const highlights = characterEdits(match.patch, text);
           if (!highlights) return failure("diff_too_complex");
+          const diff = Diff.parts(match.patch, highlights);
           const token = crypto.randomUUID();
           pending = { item, projectId: owner, token, view, text, doc: view.state.doc, line: match.line };
           const shown = await preview2.show({
@@ -2446,6 +2505,7 @@
             base: text,
             patch: match.patch,
             highlightPatches: highlights,
+            diff,
             labels: I18n.previewLabels(item, match.line, language)
           });
           if (attempt !== generation) {
@@ -2457,7 +2517,7 @@
             return failure("file_not_ready");
           }
           pending.inline = shown.ok;
-          return { ok: true, token, item: { ...item, original: match.patch.expected, replacement: match.patch.insert }, line: match.line, inline: shown.ok, journal: drain() };
+          return { ok: true, token, diff, item: { ...item, original: match.patch.expected, replacement: match.patch.insert }, line: match.line, inline: shown.ok, journal: drain() };
         }
         async function status(params) {
           const item = pending;
@@ -4293,10 +4353,69 @@
     }
   });
 
+  // src/reviewKeyboard.js
+  var require_reviewKeyboard = __commonJS({
+    "src/reviewKeyboard.js"(exports, module) {
+      "use strict";
+      function action(event) {
+        if (event.defaultPrevented || event.isComposing || event.repeat || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return null;
+        const path = event.composedPath?.() || [event.target];
+        if (path.some((node) => node?.matches?.('input,textarea,select,[contenteditable]:not([contenteditable="false"]),.panel-drag,.panel-resize'))) return null;
+        return { ArrowUp: "previous", ArrowDown: "next", Enter: "accept" }[event.key] || null;
+      }
+      function attach(card, handler) {
+        card.tabIndex = 0;
+        card.addEventListener("keydown", (event) => {
+          const choice = action(event);
+          if (!choice) return;
+          event.preventDefault();
+          event.stopPropagation();
+          handler(choice);
+        });
+        card.addEventListener("click", (event) => {
+          if (!event.target.closest?.("button,input,textarea,select,.panel-drag,.panel-resize")) card.focus({ preventScroll: true });
+        });
+      }
+      module.exports = { action, attach };
+    }
+  });
+
+  // src/reviewScroll.js
+  var require_reviewScroll = __commonJS({
+    "src/reviewScroll.js"(exports, module) {
+      "use strict";
+      function reveal(view, change) {
+        const transaction = { selection: { anchor: change.from, head: change.to } };
+        const scroll = view.constructor?.scrollIntoView;
+        if (typeof scroll === "function") transaction.effects = scroll.call(view.constructor, change.from, { y: "center", x: "nearest" });
+        else transaction.scrollIntoView = true;
+        view.dispatch(transaction);
+      }
+      function panel(body, card) {
+        const bounds = body.getBoundingClientRect(), rect = card.getBoundingClientRect();
+        if (rect.top < bounds.top || rect.bottom > bounds.bottom) body.scrollTop += rect.top - bounds.top - 12;
+        card.focus({ preventScroll: true });
+      }
+      function previewRect(bounds, target) {
+        const width = Math.min(370, bounds.right - bounds.left - 16);
+        const belowRoom = bounds.bottom - target.bottom - 16, aboveRoom = target.top - bounds.top - 16;
+        const below = belowRoom >= 230 || belowRoom >= aboveRoom;
+        const height = Math.min(270, Math.max(230, below ? belowRoom : aboveRoom));
+        const left = Math.max(bounds.left + 8, Math.min(target.left, bounds.right - width - 8));
+        const top = below ? target.bottom + 8 : target.top - height - 8;
+        return { left, top: Math.max(bounds.top + 8, Math.min(top, bounds.bottom - height - 8)), width, height };
+      }
+      module.exports = { reveal, panel, previewRect };
+    }
+  });
+
   // vendor/inlineReviewPreview.js
   var require_inlineReviewPreview = __commonJS({
     "vendor/inlineReviewPreview.js"(exports, module) {
       var Floating = require_floatingPanel();
+      var Diff = require_reviewDiff();
+      var Keyboard = require_reviewKeyboard();
+      var Scroll = require_reviewScroll();
       (function(root, factory) {
         const api = factory();
         if (typeof module === "object" && module.exports) module.exports = api;
@@ -4363,13 +4482,13 @@
             if (params.runProjectId !== deps.getProjectId() || params.path !== deps.getActiveFilePath()) return fail("review_context_changed");
             const highlights = params.highlightPatches || [patch];
             if (!highlights.length || highlights.some((p) => !Number.isInteger(p.from) || !Number.isInteger(p.to) || p.from < patch.from || p.to > patch.to || p.from > p.to || text.slice(p.from, p.to) !== p.expected)) return fail("review_preview_invalid");
-            view.dispatch({ selection: { anchor: highlights[0].from, head: highlights[0].to }, scrollIntoView: true });
+            Scroll.reveal(view, highlights[0]);
             const host = document2.createElement("div");
             host.dataset.codexInlineReview = "";
             host.style.cssText = "position:fixed;z-index:2147483000;pointer-events:none;overflow:visible;";
             const shadow = host.attachShadow({ mode: "open" });
             const style = document2.createElement("style");
-            style.textContent = ":host{font:13px/1.45 system-ui;color:#202833}*{box-sizing:border-box}.mark{position:absolute;background:rgba(255,176,104,.30);border-bottom:2px solid #c76827;pointer-events:none}.card{position:fixed;display:flex;flex-direction:column;pointer-events:auto;background:#fff;border:1px solid #d4dce5;border-radius:9px;padding:12px;box-shadow:0 8px 28px #14233325;overflow:hidden;padding-bottom:24px}.title{font-weight:650;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}.hint,.actions{flex-shrink:0}.actions{flex-wrap:wrap}.text{flex:1;min-height:24px}.text{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 ui-monospace,monospace;background:#eef9f0;color:#165d2a;padding:8px;margin:0 0 10px;overflow:auto}.hint{max-height:3em;overflow:auto;font-size:11px;color:#697383;margin:0 0 8px}.actions{display:flex;gap:8px}button{font:inherit;padding:6px 10px;border:1px solid #c8d0da;border-radius:6px;background:#fff;color:#263140;cursor:pointer}button.accept{background:#16764b;border-color:#16764b;color:#fff}button:focus-visible{outline:3px solid #78a9e6}button:disabled{opacity:.5;cursor:default}" + Floating.css;
+            style.textContent = ":host{font:13px/1.45 system-ui;color:#202833}*{box-sizing:border-box}.mark{position:absolute;background:rgba(255,176,104,.30);border-bottom:2px solid #c76827;pointer-events:none}.card{position:fixed;display:flex;flex-direction:column;pointer-events:auto;background:#fff;border:1px solid #d4dce5;border-radius:9px;padding:12px;box-shadow:0 8px 28px #14233325;overflow:hidden;padding-bottom:24px}.title{font-weight:650;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}.hint,.actions{flex-shrink:0}.actions{flex-wrap:wrap}.text{flex:1;min-height:24px}.text{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 ui-monospace,monospace;background:#eef9f0;color:#165d2a;padding:8px;margin:0 0 10px;overflow:auto}.hint{max-height:3em;overflow:auto;font-size:11px;color:#697383;margin:0 0 8px}.actions{display:flex;gap:8px}button{font:inherit;padding:6px 10px;border:1px solid #c8d0da;border-radius:6px;background:#fff;color:#263140;cursor:pointer}button.accept{background:#16764b;border-color:#16764b;color:#fff}button:focus-visible{outline:3px solid #78a9e6}button:disabled{opacity:.5;cursor:default}" + Floating.css + Diff.css;
             const marks = document2.createElement("div");
             const card = document2.createElement("section");
             card.className = "card";
@@ -4382,7 +4501,8 @@
             hint.textContent = params.labels?.hint || "Original highlighted. Source is unchanged until accepted.";
             const proposed = document2.createElement("pre");
             proposed.className = "text";
-            proposed.textContent = patch.insert || params.labels?.empty || "(empty)";
+            const diff = params.diff || Diff.parts(patch, highlights);
+            Diff.render(proposed, diff.inline, params.labels);
             const actions = document2.createElement("div");
             actions.className = "actions";
             for (const [direction, symbol, label] of [[-1, "\u2191", params.labels?.previous || "Previous item"], [1, "\u2193", params.labels?.next || "Next item"]]) {
@@ -4424,6 +4544,19 @@
             active = { token: params.token, projectId: params.runProjectId, path: params.path, view, text, patch, highlights, host, marks, card, navigation: null, decision: null, failure: "", timer: null };
             active.floating = Floating.attach({ panel: card, drag: title, resize, window: window2, state: panelState, minimum: { width: 260, height: 230 }, defaultRect: () => active.defaultRect || { left: 8, top: 8, width: 370, height: 220 } });
             active.elements = { title, hint, resize, actions, proposed };
+            active.diff = diff;
+            Keyboard.attach(card, (choice) => {
+              if (!validate() || active.decision !== null) return;
+              if (choice === "accept") {
+                active.decision = true;
+                actions.querySelectorAll("button").forEach((button) => {
+                  button.disabled = true;
+                });
+              } else active.navigation = choice === "previous" ? -1 : 1;
+            });
+            view.requestMeasure?.({ key: host, read: () => null, write: () => window2.requestAnimationFrame(() => {
+              if (active?.host === host) render();
+            }) });
             render();
             active.timer = window2.setInterval(render, 250);
             return { ok: true, token: params.token, changedDocument: false };
@@ -4463,8 +4596,7 @@
             card.hidden = !visible.length || width < 160 || height < 100;
             if (card.hidden) return;
             const first = visible[0];
-            const panelWidth = Math.min(370, width - 16), panelHeight = Math.min(270, height - 16);
-            item.defaultRect = { left: bounds.left + Math.max(8, Math.min(first.left - bounds.left, width - panelWidth - 8)), top: bounds.top + Math.max(8, Math.min(first.bottom - bounds.top + 8, height - panelHeight - 8)), width: panelWidth, height: panelHeight };
+            item.defaultRect = Scroll.previewRect(bounds, first);
             item.floating.layout();
           }
           function labels(params) {
@@ -4484,7 +4616,7 @@
               button.title = label;
               button.setAttribute("aria-label", label);
             }
-            if (!active.patch.insert) proposed.textContent = value.empty;
+            Diff.render(proposed, active.diff.inline, value);
             return { ok: true };
           }
           function consumeNavigation(params) {

@@ -2,6 +2,7 @@
 const Core = require('./suggestions');
 const Rebase = require('./rebase');
 const I18n = require('./i18n');
+const Diff = require('./reviewDiff');
 
 const { characterEdits } = require('./characterEdits');
 function create({ adapter, preview, crypto }) {
@@ -80,14 +81,15 @@ function create({ adapter, preview, crypto }) {
     if (!match.ok) return {...match,journal:drain()};
     const highlights = characterEdits(match.patch, text);
     if (!highlights) return failure('diff_too_complex');
+    const diff=Diff.parts(match.patch,highlights);
     const token = crypto.randomUUID();
     pending = { item, projectId: owner, token, view, text, doc:view.state.doc, line:match.line };
-    const shown = await preview.show({ token, runProjectId: owner, path: item.file, base: text, patch: match.patch, highlightPatches: highlights,
+    const shown = await preview.show({ token, runProjectId: owner, path: item.file, base: text, patch: match.patch, highlightPatches: highlights, diff,
       labels: I18n.previewLabels(item,match.line,language) });
     if (attempt !== generation) { preview.clear({ token }); return failure('cancelled'); }
     if (!shown.ok && shown.code !== 'review_preview_unsupported') { cancel(); return failure('file_not_ready'); }
     pending.inline = shown.ok;
-    return { ok: true, token, item: {...item,original:match.patch.expected,replacement:match.patch.insert}, line: match.line, inline: shown.ok, journal:drain() };
+    return { ok: true, token, diff, item: {...item,original:match.patch.expected,replacement:match.patch.insert}, line: match.line, inline: shown.ok, journal:drain() };
   }
   async function status(params) {
     const item = pending;

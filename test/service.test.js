@@ -62,3 +62,8 @@ test('switching language updates pending labels without source edits or losing t
  const pending=await h.prepare();h.service.setLanguage({language:'en'});assert.equal(labels[0].accept,'Accept this item');assert.equal(labels[0].previous,'Previous item');
  h.service.setLanguage({language:'zh-CN'});assert.equal(labels[1].accept,'接受这一项');assert.equal(h.writes.length,0);assert.equal(h.service.apply({token:pending.token}).verified,true);
 });
+test('preview character diffs refresh from live source with no implicit editor write',async()=>{
+ const h=fixture();let shown;h.preview.show=async p=>{shown=p;return {ok:true}};
+ const pending=await h.prepare();assert.deepEqual(pending.diff,shown.diff);assert.equal(pending.diff.before.map(p=>p.text).join(''),'old');assert.equal(pending.diff.after.map(p=>p.text).join(''),'new');
+ h.edit('prefix\nlead\nold\ntail');const refreshed=await h.service.status({token:pending.token});assert.equal(refreshed.refreshed,true);assert.deepEqual(refreshed.diff,pending.diff);assert.equal(h.writes.length,0);
+});
