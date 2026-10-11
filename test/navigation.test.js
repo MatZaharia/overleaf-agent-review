@@ -1,11 +1,26 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const Navigation=require('../src/navigation'),Service=require('../src/service');
-test('pack navigation skips decided items and stops at boundaries',()=>{
+test('pack navigation wraps in both directions and skips decided items',()=>{
  const pending=i=>i!==1;
  assert.equal(Navigation.adjacent(0,4,1,pending),2);
  assert.equal(Navigation.adjacent(2,4,-1,pending),0);
- assert.equal(Navigation.adjacent(0,4,-1,pending),null);
- assert.equal(Navigation.adjacent(3,4,1,pending),null);
+ assert.equal(Navigation.adjacent(0,4,-1,pending),3);
+ assert.equal(Navigation.adjacent(3,4,1,pending),0);
+});
+test('both directions reach the other item when only two suggestions remain',()=>{
+ const pending=i=>i!==1;
+ for(const direction of [-1,1]){
+  assert.equal(Navigation.adjacent(2,3,direction,pending),0);
+  assert.equal(Navigation.adjacent(0,3,direction,pending),2);
+ }
+});
+test('a single pending item stays selected and a full scan is bounded',()=>{
+ for(const direction of [-1,1]){
+  assert.equal(Navigation.adjacent(0,1,direction,()=>true),null);
+  let calls=0;
+  assert.equal(Navigation.adjacent(9999,10000,direction,i=>{calls++;return i===9999}),null);
+  assert.equal(calls,9999);
+ }
 });
 test('cursor navigation follows source positions, not pack order, and excludes current highlight',()=>{
  const matches=[{index:0,from:90,to:91},{index:1,from:10,to:11},{index:2,from:40,to:41}];

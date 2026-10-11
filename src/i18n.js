@@ -13,7 +13,7 @@ const english = {
  '原文已高亮；接受时重新搜索，过时项跳过。':'Original highlighted. Accept searches again; stale items are skipped.',
  '原文已在源码中高亮，等待确认':'Original highlighted in source; waiting for your decision','高亮暂不可用，请在此核对原文与建议':'Highlight unavailable; compare the original and proposal here',
  '正文有变化，已重新定位这一项，等待确认':'Source changed; this item was relocated and awaits your decision',
- '正在按当前光标查找建议…':'Finding suggestions near the current cursor…','当前文件的光标这一侧没有可定位的待处理建议':'No locatable pending suggestion on this side of the cursor in this file','这一侧没有待处理建议；当前项仍等待确认':'No pending item in this direction; the current item still awaits your decision',
+ '正在按当前光标查找建议…':'Finding suggestions near the current cursor…','当前文件的光标这一侧没有可定位的待处理建议':'No locatable pending suggestion on this side of the cursor in this file','没有其他待处理建议；当前项仍等待确认':'No other pending suggestion; the current item still awaits your decision',
  '正文、文件或光标有变化，请重新点击导航':'Source, file or cursor changed; click navigation again','导航未完成：':'Navigation failed: ',
  '已停止':'Stopped','页面连接超时':'Page connection timed out','无法连接页面':'Cannot connect to the page','保存定位记录失败：':'Could not save position tracking: ','保存审阅决定失败：':'Could not save the review decision: ',
  '已写入':'Written','已拒绝':'Rejected','写入未确认':'Write unconfirmed','已跳过：':'Skipped: ','当前项已写入编辑器，继续核对下一项':'This item was written to the editor; review the next item',

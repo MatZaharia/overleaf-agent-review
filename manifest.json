@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Overleaf · Agent 建议包逐项审阅",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "导入 Agent 生成的 JSON 建议包，在当前 Overleaf 源码中定位、逐项确认；过时或不唯一的项跳过。",
   "content_scripts": [
     {

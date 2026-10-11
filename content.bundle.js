@@ -239,7 +239,10 @@
     "src/navigation.js"(exports, module) {
       "use strict";
       function adjacent(index, total, direction, isPending) {
-        for (let i = index + direction; i >= 0 && i < total; i += direction) if (isPending(i)) return i;
+        for (let step = 1; step < total; step++) {
+          const i = (index + direction * step + total) % total;
+          if (isPending(i)) return i;
+        }
         return null;
       }
       function nearest(matches, cursor, direction, currentIndex) {
@@ -385,7 +388,7 @@
         "\u6B63\u6587\u6709\u53D8\u5316\uFF0C\u5DF2\u91CD\u65B0\u5B9A\u4F4D\u8FD9\u4E00\u9879\uFF0C\u7B49\u5F85\u786E\u8BA4": "Source changed; this item was relocated and awaits your decision",
         "\u6B63\u5728\u6309\u5F53\u524D\u5149\u6807\u67E5\u627E\u5EFA\u8BAE\u2026": "Finding suggestions near the current cursor\u2026",
         "\u5F53\u524D\u6587\u4EF6\u7684\u5149\u6807\u8FD9\u4E00\u4FA7\u6CA1\u6709\u53EF\u5B9A\u4F4D\u7684\u5F85\u5904\u7406\u5EFA\u8BAE": "No locatable pending suggestion on this side of the cursor in this file",
-        "\u8FD9\u4E00\u4FA7\u6CA1\u6709\u5F85\u5904\u7406\u5EFA\u8BAE\uFF1B\u5F53\u524D\u9879\u4ECD\u7B49\u5F85\u786E\u8BA4": "No pending item in this direction; the current item still awaits your decision",
+        "\u6CA1\u6709\u5176\u4ED6\u5F85\u5904\u7406\u5EFA\u8BAE\uFF1B\u5F53\u524D\u9879\u4ECD\u7B49\u5F85\u786E\u8BA4": "No other pending suggestion; the current item still awaits your decision",
         "\u6B63\u6587\u3001\u6587\u4EF6\u6216\u5149\u6807\u6709\u53D8\u5316\uFF0C\u8BF7\u91CD\u65B0\u70B9\u51FB\u5BFC\u822A": "Source, file or cursor changed; click navigation again",
         "\u5BFC\u822A\u672A\u5B8C\u6210\uFF1A": "Navigation failed: ",
         "\u5DF2\u505C\u6B62": "Stopped",
@@ -762,8 +765,13 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
             assertCurrent();
             let target;
             if (!fromCursor) {
-              target = Navigation.adjacent(options.index, options.total, direction, options.isPending);
-              while (target !== null && options.isDecided(await itemAt(target))) target = Navigation.adjacent(target, options.total, direction, options.isPending);
+              const checked = /* @__PURE__ */ new Set([options.index]);
+              target = options.index;
+              do {
+                target = Navigation.adjacent(target, options.total, direction, (index) => options.isPending(index) && !checked.has(index));
+                if (target === null) break;
+                checked.add(target);
+              } while (options.isDecided(await itemAt(target)));
             } else {
               status("\u6B63\u5728\u6309\u5F53\u524D\u5149\u6807\u67E5\u627E\u5EFA\u8BAE\u2026");
               const scan = await call("navigation", { projectId: owner });
@@ -800,7 +808,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
               finish(void 0, void 0, target);
               return;
             }
-            status(fromCursor ? "\u5F53\u524D\u6587\u4EF6\u7684\u5149\u6807\u8FD9\u4E00\u4FA7\u6CA1\u6709\u53EF\u5B9A\u4F4D\u7684\u5F85\u5904\u7406\u5EFA\u8BAE" : "\u8FD9\u4E00\u4FA7\u6CA1\u6709\u5F85\u5904\u7406\u5EFA\u8BAE\uFF1B\u5F53\u524D\u9879\u4ECD\u7B49\u5F85\u786E\u8BA4");
+            status(fromCursor ? "\u5F53\u524D\u6587\u4EF6\u7684\u5149\u6807\u8FD9\u4E00\u4FA7\u6CA1\u6709\u53EF\u5B9A\u4F4D\u7684\u5F85\u5904\u7406\u5EFA\u8BAE" : "\u6CA1\u6709\u5176\u4ED6\u5F85\u5904\u7406\u5EFA\u8BAE\uFF1B\u5F53\u524D\u9879\u4ECD\u7B49\u5F85\u786E\u8BA4");
           } catch (error) {
             if (!settled) status(error.message === "navigation_changed" ? "\u6B63\u6587\u3001\u6587\u4EF6\u6216\u5149\u6807\u6709\u53D8\u5316\uFF0C\u8BF7\u91CD\u65B0\u70B9\u51FB\u5BFC\u822A" : "\u5BFC\u822A\u672A\u5B8C\u6210\uFF1A" + error.message);
           } finally {

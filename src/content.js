@@ -114,8 +114,12 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
         try{
           assertCurrent();let target;
           if(!fromCursor){
-            target=Navigation.adjacent(options.index,options.total,direction,options.isPending);
-            while(target!==null && options.isDecided(await itemAt(target)))target=Navigation.adjacent(target,options.total,direction,options.isPending);
+            const checked=new Set([options.index]);target=options.index;
+            do{
+              target=Navigation.adjacent(target,options.total,direction,index=>options.isPending(index)&&!checked.has(index));
+              if(target===null)break;
+              checked.add(target);
+            }while(options.isDecided(await itemAt(target)));
           }
           else{
             status('正在按当前光标查找建议…');
@@ -145,7 +149,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
           }
           if(settled)return;
           if(target!==null){finish(undefined,undefined,target);return}
-          status(fromCursor?'当前文件的光标这一侧没有可定位的待处理建议':'这一侧没有待处理建议；当前项仍等待确认');
+          status(fromCursor?'当前文件的光标这一侧没有可定位的待处理建议':'没有其他待处理建议；当前项仍等待确认');
         }catch(error){if(!settled)status(error.message==='navigation_changed'?'正文、文件或光标有变化，请重新点击导航':'导航未完成：'+error.message)}
         finally{navigating=false;if(!settled){card.querySelectorAll('button').forEach(button=>{button.disabled=false});timer=setTimeout(poll,300)}}
       }

@@ -77,3 +77,14 @@ test('descriptor packs count and rank saved decisions without loading all source
  await Runner.run({count:3},{assertCurrent(){},itemAt:async index=>items[index],decisions:{'3':{state:'written'}},initialCounts:{written:1,rejected:0,skipped:0,unknown:0,retained:1},decidedIndexes:[2],async call(_method,p){return{ok:true,token:p?.item?.id}},async review(item,_p,options){seen.push([item.id,options.position,options.remaining]);assert.equal(options.isPending(2),false);return{accepted:false}},record(){}});
  assert.deepEqual(seen,[['1',1,2],['2',1,1]]);
 });
+test('circular navigation preserves counts and never reopens saved or settled suggestions',async()=>{
+ const Navigation=require('../src/navigation'),items=suggestions.map(item=>({...item,reviewKey:item.id}));
+ const seen=[],records=[],writes=[],prepared=[];
+ await Runner.run({suggestions:items},{assertCurrent(){},decisions:{'2':{state:'written'}},async call(method,p){if(method==='prepare')prepared.push(p.item.id);if(method==='apply')writes.push(p.token);return{ok:true,token:p?.item?.id}},async review(item,_p,options){
+  seen.push([item.id,options.position,options.remaining]);
+  if(seen.length<=2)return{navigate:Navigation.adjacent(options.index,options.total,seen.length===1?-1:1,options.isPending)};
+  return{accepted:false};
+ },record:r=>records.push(r.item.id)});
+ assert.deepEqual(seen,[['1',1,2],['3',2,2],['1',1,2],['3',1,1]]);
+ assert.deepEqual(records,['1','3']);assert.deepEqual(writes,[]);assert.equal(prepared.includes('2'),false);
+});

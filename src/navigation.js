@@ -1,6 +1,10 @@
 'use strict';
 function adjacent(index,total,direction,isPending){
- for(let i=index+direction;i>=0&&i<total;i+=direction)if(isPending(i))return i;
+ // Visit each other item at most once, wrapping across either end.
+ for(let step=1;step<total;step++){
+  const i=(index+direction*step+total)%total;
+  if(isPending(i))return i;
+ }
  return null;
 }
 function nearest(matches,cursor,direction,currentIndex){

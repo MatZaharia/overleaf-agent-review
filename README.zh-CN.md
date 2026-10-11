@@ -8,7 +8,7 @@
 
 让在线 LaTeX 审阅，细到每个字符、每次决定。
 
-[![Release](https://img.shields.io/github/v/release/MatZaharia/overleaf-agent-review?include_prereleases&style=flat-square&color=6752c7)](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.5.0)
+[![Release](https://img.shields.io/github/v/release/MatZaharia/overleaf-agent-review?include_prereleases&style=flat-square&color=6752c7)](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.5.1)
 [![CI](https://github.com/MatZaharia/overleaf-agent-review/actions/workflows/ci.yml/badge.svg)](https://github.com/MatZaharia/overleaf-agent-review/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-278262?style=flat-square)](LICENSE)
 [![Chrome](https://img.shields.io/badge/Chrome-Manifest_V3-456cb3?style=flat-square)](#安装)
@@ -16,7 +16,7 @@
 
 **简体中文** · [English](README.md)
 
-[下载扩展](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.5.0) · [连接 Agent](#本地-agent-连接) · [Agent 操作指南](docs/agent-guide.md) · [反馈问题](https://github.com/MatZaharia/overleaf-agent-review/issues)
+[下载扩展](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.5.1) · [连接 Agent](#本地-agent-连接) · [Agent 操作指南](docs/agent-guide.md) · [反馈问题](https://github.com/MatZaharia/overleaf-agent-review/issues)
 
 </div>
 
@@ -58,7 +58,7 @@ Agent 发来建议包，Overleaf 高亮变化的字符。**你可以接受、拒
 
 ## 安装
 
-1. 在 [Releases](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.5.0) 下载插件 ZIP 并解压。请选择插件安装包，不是 GitHub 自动生成的 Source code ZIP。
+1. 在 [Releases](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.5.1) 下载插件 ZIP 并解压。请选择插件安装包，不是 GitHub 自动生成的 Source code ZIP。
 2. 在 Chrome 打开 `chrome://extensions`，开启“开发者模式”。
 3. 点击“加载未打包的扩展程序”，选择解压后包含 `manifest.json` 的 `overleaf-agent-review` 文件夹。
 4. 打开 Overleaf 项目，刷新页面，切换到 **Code** 源码模式。
@@ -158,9 +158,9 @@ CLI 和建议包格式不绑定模型厂商。目前以 Codex 开发和验证流
 
 审阅卡片获得焦点时（点击卡片文字即可），**↑／↓** 切换上一项／下一项，**Enter** 接受当前项。LaTeX 编辑器、输入框及面板移动／缩放控件保留正常按键行为；长按 Enter 不会连续接受多项。
 
-这些界面改进已包含在 v1.5.0 Release ZIP 中。更新扩展后重新加载，并刷新 Overleaf。
+这些界面改进已包含在 v1.5.1 Release ZIP 中。更新扩展后重新加载，并刷新 Overleaf。
 
-**上一项／下一项**按建议包顺序切换未决定项。**光标上一处／光标下一处**在当前文件中，按实时修改字符的位置查找光标前后最近的可定位待处理建议，不按 JSON 顺序或行号寻找。切换只移动预览，不拒绝、不写入；暂不处理的项仍待确认，其他项处理后会回来。已接受／拒绝的项不参与导航。搜索期间正文、文件或光标变化时，请重新点击导航。
+**上一项／下一项**按建议包顺序循环切换未决定项：最后一项的下一项是第一项，第一项的上一项是最后一项。两侧按钮和审阅卡片的 ↑／↓ 都采用这个循环；剩两项时，两个方向都到另一项；只剩一项时保持当前项。**光标上一处／光标下一处**在当前文件中，按实时修改字符的位置查找光标前后最近的可定位待处理建议，不按 JSON 顺序或行号寻找。切换只移动预览，不拒绝、不写入；暂不处理的项仍待确认，其他项处理后会回来。已接受／拒绝的项不参与导航。搜索期间正文、文件或光标变化时，请重新点击导航。
 
 ## 建议包格式
 
