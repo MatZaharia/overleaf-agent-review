@@ -8,7 +8,7 @@
 
 ## 安装
 
-1. 在 [Releases](https://github.com/MatZaharia/overleaf-codex-review/releases/tag/v1.1.0) 下载插件 ZIP 并解压。请选择插件安装包，不是 GitHub 自动生成的 Source code ZIP。
+1. 在 [Releases](https://github.com/MatZaharia/overleaf-codex-review/releases/tag/v1.1.1) 下载插件 ZIP 并解压。请选择插件安装包，不是 GitHub 自动生成的 Source code ZIP。
 2. 在 Chrome 打开 `chrome://extensions`，开启“开发者模式”。
 3. 点击“加载未打包的扩展程序”，选择解压后包含 `manifest.json` 的 `overleaf-codex-review` 文件夹。
 4. 打开 Overleaf 项目，刷新页面，切换到 **Code** 源码模式。
@@ -83,7 +83,7 @@ v1.0.1 审阅流程已在登录态 Chrome 的真实 Overleaf 测试项目验证�
 
 ## 隐私
 
-插件没有 AI 请求、统计服务或 Native 连接，仅在 Overleaf 项目页面运行。后台 service worker 负责大包解析和可选的鉴权本地连接。源码和建议包在本机处理，接受后通过现有编辑器写入，Overleaf 负责正常同步。连接按项目手动配对；连接期间每两秒将当前打开文件的源码传到本机服务，不会自动打开其他文件。断开后停止新增传输；服务状态保存在内存中，CLI 导出由你明确执行。是否向模型服务提供源码取决于你如何使用 Codex。
+插件没有 AI 请求、统计服务或 Native 连接，仅在 Overleaf 项目页面运行。后台 service worker 负责大包解析和可选的鉴权本地连接。源码和建议包在本机处理，接受后通过现有编辑器写入，Overleaf 负责正常同步。连接按项目手动配对；只有 Codex 明确执行 read 命令时，才抓取一次当前文件源码传到本机服务；空闲检查仅查看读取请求和建议版本，不会自动打开其他文件。断开后停止新增传输；服务状态保存在内存中，CLI 导出由你明确执行。是否向模型服务提供源码取决于你如何使用 Codex。
 
 ## 本地 Codex 连接（v1.1）
 

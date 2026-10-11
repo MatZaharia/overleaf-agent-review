@@ -14,9 +14,9 @@ chrome.runtime.onMessage.addListener((message,sender,reply)=>{
   }
   const token=(await chrome.storage.local.get(name))[name];if(!token)return{ok:false,disconnected:true};
   if(message.type==='sync'){
-   const data=await request('sync',projectId,token,{snapshot:message.snapshot,results:message.results});
-   if(data.revision!==message.revision){const next=await request('pack',projectId,token);return{ok:true,...next}}
-   return {ok:true,revision:data.revision};
+   const data=await request('sync',projectId,token,{snapshot:message.snapshot,requestId:message.requestId,results:message.results});
+   if(data.revision!==message.revision){const next=await request('pack',projectId,token);return{...data,ok:true,...next}}
+   return {ok:true,...data};
   }
   throw new Error('Unknown bridge operation');
  })().then(reply,error=>reply({ok:false,error:error.message}));return true;

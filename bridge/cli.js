@@ -17,8 +17,14 @@ const configPath=path.resolve(flag('config','work/bridge.json'));
  if(command==='publish'){const pack=JSON.parse(await fs.readFile(flag('file'),'utf8'));console.log(JSON.stringify(await request('publish',pack)));return}
  if(command==='status'){const data=await request('state');delete data.snapshot?.source;console.log(JSON.stringify(data,null,2));return}
  if(command==='read'){
-  const data=await request('state'),snapshot=data.snapshot;
-  if(!snapshot)throw new Error('No snapshot: connect the extension in the target project first');
+  const {requestId}=await request('read',{});
+  const deadline=Date.now()+10000;let snapshot;
+  while(Date.now()<deadline){
+   const data=await request('state');
+   if(data.snapshot?.requestId===requestId){snapshot=data.snapshot;break}
+   await new Promise(resolve=>setTimeout(resolve,250));
+  }
+  if(!snapshot)throw new Error('Read timed out: connect the extension and activate the target project tab');
   const maxAge=Number(flag('max-age','10'))*1000;
   if(!Number.isFinite(maxAge)||maxAge<0||Date.now()-snapshot.capturedAt>maxAge)throw new Error('Snapshot is stale; keep the connected project tab open');
   if(flag('file')&&snapshot.file!==flag('file'))throw new Error('Different file active: open '+flag('file')+' in Overleaf');

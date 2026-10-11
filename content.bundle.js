@@ -348,7 +348,7 @@
       }
       $(".bridge-token").value = "";
       bridgeEnabled = true;
-      $(".bridge-status").textContent = "\u5DF2\u8FDE\u63A5\uFF1A\u5F53\u524D\u6587\u4EF6\u6E90\u7801\u4F1A\u540C\u6B65\u5230\u672C\u673A Codex\uFF1B\u65B0\u5EFA\u8BAE\u7B49\u5F85\u9010\u9879\u786E\u8BA4";
+      $(".bridge-status").textContent = "\u5DF2\u8FDE\u63A5\uFF1ACodex \u8BF7\u6C42\u65F6\u624D\u8BFB\u53D6\u6E90\u7801\uFF1B\u65B0\u5EFA\u8BAE\u7B49\u5F85\u9010\u9879\u786E\u8BA4";
       pollBridge();
     });
     $(".disconnect").addEventListener("click", async () => {
@@ -360,10 +360,8 @@
       if (!bridgeEnabled || bridgeBusy) return;
       bridgeBusy = true;
       try {
-        const snapshot = await call("snapshot", {});
-        if (!snapshot.ok) throw new Error("\u6E90\u7801\u7F16\u8F91\u5668\u672A\u5C31\u7EEA");
         const batch = bridgeResults.slice(0, 500);
-        const result = await bridgeMessage({ type: "sync", snapshot, revision: bridgeRevision, results: batch });
+        const result = await bridgeMessage({ type: "sync", revision: bridgeRevision, results: batch });
         if (!bridgeEnabled) return;
         if (result.ok) bridgeResults.splice(0, batch.length);
         if (result.disconnected) {
@@ -371,6 +369,13 @@
           return;
         }
         if (!result.ok) throw new Error(result.error);
+        if (result.snapshotRequest) {
+          const snapshot = await call("snapshot", {});
+          if (!snapshot.ok) throw new Error("\u6E90\u7801\u7F16\u8F91\u5668\u672A\u5C31\u7EEA");
+          if (!bridgeEnabled) return;
+          const uploaded = await bridgeMessage({ type: "sync", snapshot, requestId: result.snapshotRequest.id, revision: bridgeRevision, results: [] });
+          if (!uploaded.ok) throw new Error(uploaded.error);
+        }
         if (result.pack && result.revision !== bridgeRevision) {
           ++startEpoch;
           cancelled = true;
@@ -385,7 +390,7 @@
           $(".drawer").hidden = false;
           start();
         }
-        $(".bridge-status").textContent = "\u5DF2\u8FDE\u63A5 \xB7 \u6E90\u7801\u540C\u6B65\u4E2D \xB7 \u5EFA\u8BAE\u7248\u672C " + bridgeRevision;
+        $(".bridge-status").textContent = "\u5DF2\u8FDE\u63A5 \xB7 \u6E90\u7801\u6309\u9700\u8BFB\u53D6 \xB7 \u5EFA\u8BAE\u7248\u672C " + bridgeRevision;
       } catch (error) {
         $(".bridge-status").textContent = "\u672C\u5730\u8FDE\u63A5\u6682\u4E0D\u53EF\u7528\uFF1A" + error.message;
       } finally {

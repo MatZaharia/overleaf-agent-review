@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Overleaf · Codex 建议包逐项审阅",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "导入 Codex 生成的 JSON 建议包，在当前 Overleaf 源码中定位、逐项确认；过时或不唯一的项跳过。",
   "content_scripts": [
     {

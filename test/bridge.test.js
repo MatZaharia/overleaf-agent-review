@@ -10,9 +10,11 @@ test('bridge authenticates, binds projects, publishes versions and exports exact
  assert.equal((await (await request('publish',pack)).json()).revision,1);
  assert.equal((await (await request('publish',pack)).json()).revision,2);
  assert.equal((await request('publish',{...pack,projectId:'f'.repeat(24)})).status,400);
- assert.equal((await request('sync',{snapshot:{projectId:'f'.repeat(24),file:'main.tex',source:'SECRET'}})).status,400);
+ const {requestId}=await(await request('read',{})).json();
+ assert.equal((await request('sync',{requestId,snapshot:{projectId:'f'.repeat(24),file:'main.tex',source:'SECRET'}})).status,400);
  const source='\\title{当前源码}\n😀';
- await request('sync',{snapshot:{projectId:id,file:'main.tex',source},results:[{revision:2,id:'one',state:'rejected'},{revision:1,id:'old',state:'written'}]});
+ await request('sync',{requestId,snapshot:{projectId:id,file:'main.tex',source},results:[{revision:2,id:'one',state:'rejected'},{revision:1,id:'old',state:'written'}]});
  const state=await(await request('state')).json();assert.equal(state.snapshot.source,source);assert.equal(state.snapshot.hash.length,64);assert.equal(state.results.length,1);assert.equal(state.results[0].state,'rejected');
+ assert.equal((await request('sync',{snapshot:{projectId:id,file:'main.tex',source:'unsolicited'}})).status,409);
  assert.equal((await request('apply',{})).status,404);
 });

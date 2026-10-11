@@ -11,9 +11,13 @@ test('extension background pairs, syncs source, receives newer packs and disconn
  assert.equal((await send({type:'connect',token})).ok,true);
  const pack={format:'codex-overleaf-suggestions',version:1,projectId:id,suggestions:[{file:'main.tex',original:'old',replacement:'new'}]};
  await fetch(base+'/publish?projectId='+id,{method:'POST',headers:{Authorization:'Bearer '+token},body:JSON.stringify(pack)});
- const reply=await send({type:'sync',revision:0,snapshot:{projectId:id,file:'main.tex',source:'live old'},results:[]});
+ const reply=await send({type:'sync',revision:0,results:[]});
  assert.equal(reply.revision,1);assert.equal(reply.pack.suggestions[0].replacement,'new');
- const state=await(await fetch(base+'/state?projectId='+id,{headers:{Authorization:'Bearer '+token}})).json();assert.equal(state.snapshot.source,'live old');
+ let state=await(await fetch(base+'/state?projectId='+id,{headers:{Authorization:'Bearer '+token}})).json();assert.equal(state.snapshot,null);
+ const requested=await(await fetch(base+'/read?projectId='+id,{method:'POST',headers:{Authorization:'Bearer '+token},body:'{}'})).json();
+ const pending=await send({type:'sync',revision:1,results:[]});assert.equal(pending.snapshotRequest.id,requested.requestId);
+ await send({type:'sync',revision:1,requestId:requested.requestId,snapshot:{projectId:id,file:'main.tex',source:'live old'},results:[]});
+ state=await(await fetch(base+'/state?projectId='+id,{headers:{Authorization:'Bearer '+token}})).json();assert.equal(state.snapshot.source,'live old');
  assert.equal((await send({type:'sync',revision:1,results:[]})).pack,undefined);
  assert.equal((await send({type:'sync'},'https://example.com')).ok,false);
  assert.equal((await send({type:'disconnect'})).ok,true);assert.equal((await send({type:'sync'})).disconnected,true);

@@ -123,20 +123,25 @@ function mount() {
     if(typeof chrome==='undefined'||!chrome.runtime?.id){status('本地连接需要在 Chrome 扩展中使用');return;}
     const result=await bridgeMessage({type:'connect',token:$('.bridge-token').value}).catch(e=>({error:e.message}));
     if(!result.ok){$('.bridge-status').textContent=result.error;return;}
-    $('.bridge-token').value=''; bridgeEnabled=true; $('.bridge-status').textContent='已连接：当前文件源码会同步到本机 Codex；新建议等待逐项确认'; pollBridge();
+    $('.bridge-token').value=''; bridgeEnabled=true; $('.bridge-status').textContent='已连接：Codex 请求时才读取源码；新建议等待逐项确认'; pollBridge();
   });
   $('.disconnect').addEventListener('click',async()=>{bridgeEnabled=false;if(typeof chrome!=='undefined')await bridgeMessage({type:'disconnect'});$('.bridge-status').textContent='已断开本地连接';});
   async function pollBridge(){
     if(!bridgeEnabled||bridgeBusy)return;bridgeBusy=true;
     try {
-      const snapshot=await call('snapshot',{});
-      if(!snapshot.ok)throw new Error('源码编辑器未就绪');
       const batch=bridgeResults.slice(0,500);
-      const result=await bridgeMessage({type:'sync',snapshot,revision:bridgeRevision,results:batch});
+      const result=await bridgeMessage({type:'sync',revision:bridgeRevision,results:batch});
       if(!bridgeEnabled)return;
       if(result.ok)bridgeResults.splice(0,batch.length);
       if(result.disconnected){bridgeEnabled=false;return;}
       if(!result.ok)throw new Error(result.error);
+      if(result.snapshotRequest){
+        const snapshot=await call('snapshot',{});
+        if(!snapshot.ok)throw new Error('源码编辑器未就绪');
+        if(!bridgeEnabled)return;
+        const uploaded=await bridgeMessage({type:'sync',snapshot,requestId:result.snapshotRequest.id,revision:bridgeRevision,results:[]});
+        if(!uploaded.ok)throw new Error(uploaded.error);
+      }
       if(result.pack && result.revision!==bridgeRevision){
         // Invalidate the old preview before showing an updated pack. Never
         // retain an acceptance button across a producer revision change.
@@ -147,7 +152,7 @@ function mount() {
         $('#pack').value='Codex 建议版本 '+bridgeRevision+'，共 '+result.pack.suggestions.length+' 项';
         $('.drawer').hidden=false; start();
       }
-      $('.bridge-status').textContent='已连接 · 源码同步中 · 建议版本 '+bridgeRevision;
+      $('.bridge-status').textContent='已连接 · 源码按需读取 · 建议版本 '+bridgeRevision;
     }catch(error){$('.bridge-status').textContent='本地连接暂不可用：'+error.message;}
     finally{bridgeBusy=false;if(bridgeEnabled)setTimeout(pollBridge,2000);}
   }

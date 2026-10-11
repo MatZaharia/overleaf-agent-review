@@ -8,7 +8,7 @@ Suggestions can be generated earlier. Every acceptance searches the **current so
 
 ## Install
 
-1. Download the extension ZIP from [Releases](https://github.com/MatZaharia/overleaf-codex-review/releases/tag/v1.1.0) and extract it. Use the extension asset, rather than GitHub's automatically generated source ZIP.
+1. Download the extension ZIP from [Releases](https://github.com/MatZaharia/overleaf-codex-review/releases/tag/v1.1.1) and extract it. Use the extension asset, rather than GitHub's automatically generated source ZIP.
 2. Open `chrome://extensions` in Chrome and enable **Developer mode**.
 3. Click **Load unpacked** and select the extracted `overleaf-codex-review` folder containing `manifest.json`.
 4. Open your Overleaf project and refresh the page. Select **Code** mode.
@@ -85,7 +85,7 @@ The v1.0.1 review flow was tested in a signed-in Chrome Overleaf test project: s
 
 ## Privacy
 
-The extension has no AI requests, analytics, or native host. A background service worker parses large packs off the page thread and handles an optional authenticated localhost connection. It runs only on Overleaf project URLs. It reads source and suggestion text in the page and writes accepted edits through the existing editor; Overleaf handles its usual synchronization. Pairing is opt-in and project-specific: while connected, the current open file source is sent to your local bridge every two seconds. No other files are opened automatically. Disconnect stops new transfers. The bridge stores state in memory; CLI exports are explicit. Sharing source with an AI provider depends on how you use Codex.
+The extension has no AI requests, analytics, or native host. A background service worker parses large packs off the page thread and handles an optional authenticated localhost connection. It runs only on Overleaf project URLs. It reads source and suggestion text in the page and writes accepted edits through the existing editor; Overleaf handles its usual synchronization. Pairing is opt-in and project-specific: source is captured and sent only when Codex explicitly invokes the CLI read command. Idle polling checks requests and pack revisions without reading source. No other files are opened automatically. Disconnect stops new transfers. The bridge stores state in memory; CLI exports are explicit. Sharing source with an AI provider depends on how you use Codex.
 
 ## Local Codex connection (v1.1)
 
