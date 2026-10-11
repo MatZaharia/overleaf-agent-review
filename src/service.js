@@ -16,12 +16,15 @@ function create({ adapter, preview, crypto }) {
     for(const [file,data] of Object.entries(saved.ledgers||{})){
       if(typeof data.base!=='string'||!Array.isArray(data.edits))continue;
       const edits=data.edits.map(p=>({...p})).sort((a,b)=>a.from-b.from||a.to-b.to);
-      let current=data.base;for(const p of [...edits].reverse())current=current.slice(0,p.from)+p.insert+current.slice(p.to);
-      ledgers.set(key(adapter.projectId(),file),{base:data.base,current,edits,version:0});
-    }return {ok:true}; }
+      const current=Rebase.render(data.base,edits);
+      const ledger={base:data.base,current,edits,history:(data.history||[]).map(p=>({...p})),version:0};Rebase.remember(ledger,edits);
+      ledgers.set(key(adapter.projectId(),file),ledger);
+    }
+    const view=adapter.view();if(view&&adapter.path())ledgerFor(adapter.projectId(),adapter.path(),textOf(view));
+    return {ok:true,journal:drain()}; }
   function ledgerFor(owner,file,text){
     const id=key(owner,file);let ledger=ledgers.get(id);
-    if(ledger){const update=Rebase.sync(ledger,text);if(!update.ok)ledger=null;else if(update.edits.length)journals.push({file,edits:update.edits,replace:update.replace})}
+    if(ledger){const update=Rebase.sync(ledger,text);if(!update.ok){ledger.invalid=true;return ledger}ledger.invalid=false;if(update.replace||update.edits.length)journals.push({file,edits:update.edits,replace:update.replace,removed:update.removed,decisions:update.decisions})}
     if(!ledger){ledger={base:text,current:text,edits:[],version:0};ledgers.set(id,ledger);journals.push({file,base:text,edits:[]})}
     return ledger;
   }
@@ -41,6 +44,7 @@ function create({ adapter, preview, crypto }) {
     if(!view || !view.state.selection?.main)return failure('file_not_ready');
     if(!params.scanId){
       const text=textOf(view),ledger=ledgerFor(params.projectId,file,text);
+      if(ledger.invalid)return {...failure('position_mismatch'),journal:drain()};
       let cache=navigationCache.get(view.state.doc);
       if(typeof view.state.doc.length!=='number'||!cache||cache.ledger!==ledger||cache.version!==ledger.version){cache={ledger,version:ledger.version,positions:new Map()};navigationCache.set(view.state.doc,cache)}
       if(!cache.indexed || cache.catalogId!==params.catalogId){cache.catalogId=params.catalogId;cache.complete=false;cache.indexed=new Map()}
@@ -85,13 +89,14 @@ function create({ adapter, preview, crypto }) {
     const view = adapter.view();
     if (!view) return failure('file_not_ready');
     const text = textOf(view);
-    const match = Rebase.resolve(text,item,ledgerFor(owner,item.file,text));
+    const ledger=ledgerFor(owner,item.file,text);
+    const match = ledger.invalid?failure('position_mismatch'):Rebase.resolve(text,item,ledger);
     if (!match.ok) return {...match,journal:drain()};
     const highlights = characterEdits(match.patch, text);
     if (!highlights) return failure('diff_too_complex');
     const diff=Diff.parts(match.patch,highlights);
     const token = crypto.randomUUID();
-    pending = { item, projectId: owner, token, view, text, doc:view.state.doc, line:match.line };
+    pending = { item, reviewKey:params.item.reviewKey, projectId: owner, token, view, text, doc:view.state.doc, line:match.line };
     const shown = await preview.show({ reveal, token, runProjectId: owner, path: item.file, base: text, patch: match.patch, highlightPatches: highlights, diff,
       labels: I18n.previewLabels(item,match.line,language) });
     if (attempt !== generation) { preview.clear({ token }); return failure('cancelled'); }
@@ -107,9 +112,11 @@ function create({ adapter, preview, crypto }) {
     const view = adapter.view();
     if (!view) { cancel(); return failure('file_not_ready'); }
     if (view !== item.view || (typeof view.state.doc.length==='number' ? view.state.doc!==item.doc : textOf(view)!==item.text)) {
-      const result = await prepare({ item: item.item, projectId: item.projectId, reveal:false });
+      const result = await prepare({ item: {...item.item,reviewKey:item.reviewKey}, projectId: item.projectId, reveal:false });
+      if(!result.ok&&['original_missing','already_applied','ambiguous_match','scope_missing','ambiguous_scope','overlapping_change','position_mismatch','no_change','diff_too_complex'].includes(result.code))pending={...item,view,doc:view.state.doc,text:textOf(view),inline:false,stale:result.code};
       return { ...result, refreshed: result.ok };
     }
+    if(item.stale)return {...failure(item.stale),journal:drain()};
     const result=item.inline ? preview.read({ token: item.token }) : { ok: true, token: item.token, decision: null };
     if(result.navigation===-1 || result.navigation===1)preview.consumeNavigation({token:item.token});
     return result;
@@ -125,7 +132,7 @@ function create({ adapter, preview, crypto }) {
     if (!view?.dom?.isConnected) { cancel(); return failure('editor_changed'); }
     // Re-resolve from CURRENT source on acceptance, with no await between the
     // search and dispatch. Original lines/offsets from Codex are never used.
-    const text = textOf(view), match = Rebase.resolve(text, item.item, ledgerFor(item.projectId,item.item.file,text));
+    const text = textOf(view),ledger=ledgerFor(item.projectId,item.item.file,text), match = ledger.invalid?failure('position_mismatch'):Rebase.resolve(text, item.item, ledger);
     if (!match.ok) { cancel(); return {...match,journal:drain()}; }
     const changes = characterEdits(match.patch, text);
     if (!changes) { cancel(); return failure('diff_too_complex'); }
@@ -144,7 +151,7 @@ function create({ adapter, preview, crypto }) {
     } catch (error) { result = { ok: false, code: 'write_unconfirmed', changedDocument: true, error: error.message }; }
     if (result.verified) {
       const ledger=ledgers.get(key(item.projectId,item.item.file));
-      if (ledger?.current===text && match.baselineChanges) { Rebase.add(ledger,match.baselineChanges); ledger.current=expected;journals.push({file:item.item.file,edits:match.baselineChanges}); }
+      if (ledger?.current===text && match.baselineChanges) { const edits=match.baselineChanges.map(p=>({...p,reviewKey:item.reviewKey}));Rebase.add(ledger,edits);Rebase.remember(ledger,edits);ledger.current=expected;journals.push({file:item.item.file,edits}); }
       else ledgers.delete(key(item.projectId,item.item.file));
     }
     result.journal=drain();

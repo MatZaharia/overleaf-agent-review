@@ -13,7 +13,7 @@ chrome.runtime.onMessage.addListener((message,sender,reply)=>{
   if(message.type==='parse')return {ok:true,pack:catalog.parse(projectId,message.input)};
   if(message.type==='parseChunk')return {ok:true,pack:catalog.chunk(projectId,message)};
   if(message.type==='items')return {ok:true,items:catalog.items(projectId,message.ref,message.index)};
-  if(message.type==='session'){if(message.pack){const pack=message.pack.ref?catalog.get(projectId,message.pack.ref):Core.parsePack(message.pack);if(pack.projectId&&pack.projectId!==projectId)throw new Error('Project mismatch');await progress.savePack(projectId,pack)}const state=await progress.load(projectId),restored=Counts.restore(state.pack,state.decisions);return {ok:true,...state,initialCounts:restored.counts,decidedIndexes:restored.indexes,pack:state.pack?catalog.put(projectId,state.pack):null}}
+  if(message.type==='session'){if(message.pack){const pack=message.pack.ref?catalog.get(projectId,message.pack.ref):Core.parsePack(message.pack);if(pack.projectId&&pack.projectId!==projectId)throw new Error('Project mismatch');await progress.savePack(projectId,pack)}const state=await progress.load(projectId),restored=Counts.restore(state.pack,state.decisions);return {ok:true,...state,initialCounts:restored.counts,decidedIndexes:restored.indexes,decisionIndexes:restored.decisionIndexes,pack:state.pack?catalog.put(projectId,state.pack):null}}
   if(message.type==='progress'){await progress.save(projectId,message);return {ok:true}}
   if(message.type==='clearProgress'){await progress.clear(projectId);return {ok:true}}
   if(message.type==='disconnect'){await chrome.storage.local.remove(name);return{ok:true}}

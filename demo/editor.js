@@ -1,6 +1,8 @@
 import './runtime';
 import { EditorState } from '@codemirror/state';
 import { EditorView, lineNumbers } from '@codemirror/view';
+import { history, historyKeymap } from '@codemirror/commands';
+import { keymap } from '@codemirror/view';
 const docs = {
  'main.tex': String.raw`\documentclass{article}
 \title{Your Paper}
@@ -24,7 +26,7 @@ The result is old.
 const persistent=new URL(location.href).searchParams.has('persistent');
 if(persistent){try{Object.assign(docs,JSON.parse(localStorage.getItem('fixture-docs')||'{}'))}catch{}}
 let current='main.tex',view;
-const state = () => EditorState.create({doc:docs[current],extensions:[lineNumbers(),EditorView.lineWrapping,EditorView.theme({'&':{height:'100%'},'.cm-scroller':{fontFamily:'ui-monospace,monospace',fontSize:'14px',overflow:'auto'},'.cm-content':{padding:'20px 0'}}),EditorView.updateListener.of(update=>{document.querySelector('#source-cursor').textContent=update.state.doc.lineAt(update.state.selection.main.head).number;if(update.docChanged){const ranges=[]; update.changes.iterChanges((from,to,_a,_b,insert)=>ranges.push({from,to,insert:insert.toString()})); document.querySelector('#last-changes').textContent=JSON.stringify(ranges.map(p=>({...p,insert:p.insert.length>500?p.insert.slice(0,100)+'… ('+p.insert.length+' characters)':p.insert}))); docs[current]=update.state.doc.toString();if(persistent)localStorage.setItem('fixture-docs',JSON.stringify(docs));document.querySelector('#editor-writes').textContent=Number(document.querySelector('#editor-writes').textContent)+1;}})]});
+const state = () => EditorState.create({doc:docs[current],extensions:[history(),keymap.of(historyKeymap),lineNumbers(),EditorView.lineWrapping,EditorView.theme({'&':{height:'100%'},'.cm-scroller':{fontFamily:'ui-monospace,monospace',fontSize:'14px',overflow:'auto'},'.cm-content':{padding:'20px 0'}}),EditorView.updateListener.of(update=>{document.querySelector('#source-cursor').textContent=update.state.doc.lineAt(update.state.selection.main.head).number;if(update.docChanged){const ranges=[]; update.changes.iterChanges((from,to,_a,_b,insert)=>ranges.push({from,to,insert:insert.toString()})); document.querySelector('#last-changes').textContent=JSON.stringify(ranges.map(p=>({...p,insert:p.insert.length>500?p.insert.slice(0,100)+'… ('+p.insert.length+' characters)':p.insert}))); docs[current]=update.state.doc.toString();if(persistent)localStorage.setItem('fixture-docs',JSON.stringify(docs));document.querySelector('#editor-writes').textContent=Number(document.querySelector('#editor-writes').textContent)+1;}})]});
 function open(file){if(view){docs[current]=view.state.doc.toString();view.destroy();}current=file;view=new EditorView({state:state(),parent:document.querySelector('#editor')});window.overleaf.unstable.editorView=view;document.querySelector('#filename').textContent=current;document.querySelectorAll('[data-path]').forEach(node=>node.setAttribute('aria-selected',String(node.dataset.path===current)));}
 window.overleaf={unstable:{store:{get(path){return {'editor.view':view,'editor.open_doc_name':current,'editor.open_doc_id':current==='main.tex'?'0123456789abcdef01234568':'0123456789abcdef01234569'}[path];}},editorView:null}};
 window._ide={project:{_id:'0123456789abcdef01234567'}};

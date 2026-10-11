@@ -124,16 +124,17 @@
     "src/reviewCounts.js"(exports, module) {
       "use strict";
       function restore(pack, decisions = {}) {
-        const counts = { written: 0, rejected: 0, skipped: 0, unknown: 0, retained: 0 }, indexes = [];
+        const counts = { written: 0, rejected: 0, skipped: 0, unknown: 0, retained: 0 }, indexes = [], decisionIndexes = {};
         for (const [index, item] of (pack?.suggestions || []).entries()) {
           const state = decisions[item.reviewKey]?.state;
           if (state === "written" || state === "rejected") {
             counts[state]++;
             counts.retained++;
             indexes.push(index);
+            decisionIndexes[item.reviewKey] = index;
           }
         }
-        return { counts, indexes };
+        return { counts, indexes, decisionIndexes };
       }
       function completed(counts) {
         return counts.written + counts.rejected + counts.skipped + counts.unknown;
@@ -163,98 +164,128 @@
         const list = () => [...results.entries()].sort((a, b) => a[0] - b[0]).map(([, result]) => result);
         const restored = deps.initialCounts ? { counts: deps.initialCounts, indexes: deps.decidedIndexes || [] } : Counts.restore(pack, deps.decisions);
         const counts = { ...restored.counts }, finished = new Set(restored.indexes);
+        const indexes = new Map(Object.entries(deps.decisionIndexes || restored.decisionIndexes || {}));
+        const initial = new Set(restored.indexes), states = /* @__PURE__ */ new Map();
+        for (const [key, index2] of indexes) states.set(index2, deps.decisions?.[key]?.state);
         const notify = () => deps.progress?.({ ...counts, total, completed: Counts.completed(counts), pending: total - Counts.completed(counts) });
         const save = (index2, result) => {
           results.set(index2, compact(result));
           settled.add(index2);
           finished.add(index2);
           if (result.state !== "retained") counts[result.state]++;
+          states.set(index2, result.state === "retained" ? result.previous : result.state);
           notify();
         };
         const compact = (result) => ({ ...result, item: { id: result.item.id, file: result.item.file, reviewKey: result.item.reviewKey } });
         const total = pack.count ?? pack.suggestions.length;
         let index = 0;
         notify();
-        while (settled.size < total) {
-          if (index >= total) {
-            index = 0;
-            while (settled.has(index)) index++;
+        function reconcile(updates) {
+          for (const update of updates) {
+            if (update.state !== "pending") continue;
+            const position = indexes.get(update.reviewKey), state = states.get(position) || deps.decisions?.[update.reviewKey]?.state;
+            if (state === "rejected" || state === "unknown") continue;
+            if (deps.decisions) delete deps.decisions[update.reviewKey];
+            if (position === void 0 || !finished.has(position)) continue;
+            finished.delete(position);
+            settled.delete(position);
+            results.delete(position);
+            states.delete(position);
+            if (state && counts[state] > 0) counts[state]--;
+            if (initial.delete(position)) counts.retained--;
           }
-          if (settled.has(index)) {
-            index++;
-            continue;
-          }
-          deps.assertCurrent();
-          const item = deps.itemAt ? await deps.itemAt(index) : pack.suggestions[index];
-          const retained = deps.decisions?.[item.reviewKey];
-          if (retained?.state === "unknown") throw Object.assign(new Error("\u5148\u6838\u5BF9\u4E0A\u6B21\u672A\u786E\u8BA4\u7684\u5199\u5165"), { code: "write_unconfirmed", results: list() });
-          if (retained && ["written", "rejected"].includes(retained.state)) {
-            save(index, { item, state: "retained", previous: retained.state });
-            await deps.retained?.({ item, state: retained.state });
-            if (index % 100 === 0) await new Promise((resolve) => setTimeout(resolve, 0));
-            index++;
-            continue;
-          }
-          let prepared;
-          try {
-            prepared = await deps.call("prepare", { item, projectId: deps.projectId });
-          } catch (_) {
-            throw Object.assign(new Error("\u8FDE\u63A5\u4E2D\u65AD\uFF0C\u6CA1\u6709\u81EA\u52A8\u91CD\u8BD5"), { code: "bridge_timeout", results: list() });
-          }
-          deps.assertCurrent();
-          if (!prepared.ok) {
-            const result2 = { item, state: "skipped", code: prepared.code };
-            save(index, result2);
-            await deps.record(result2);
-            if (halt(prepared.code)) throw Object.assign(new Error("\u5BA1\u9605\u5DF2\u505C\u6B62"), { code: prepared.code, results: list() });
-            index++;
-            continue;
-          }
-          const decision = await deps.review(item, prepared, { index, total, remaining: total - finished.size, position: Counts.position(index, finished), isPending: (i) => !finished.has(i), isDecided: (item2) => ["written", "rejected"].includes(deps.decisions?.[item2.reviewKey]?.state) });
-          deps.assertCurrent();
-          if (Number.isInteger(decision.navigate)) {
-            if (decision.navigate < 0 || decision.navigate >= total || finished.has(decision.navigate)) throw new Error("\u65E0\u6548\u7684\u5BA1\u9605\u5BFC\u822A\u76EE\u6807");
+          notify();
+        }
+        deps.observe?.(reconcile);
+        try {
+          while (settled.size < total) {
+            if (index >= total) {
+              index = 0;
+              while (settled.has(index)) index++;
+            }
+            if (settled.has(index)) {
+              index++;
+              continue;
+            }
+            deps.assertCurrent();
+            const item = deps.itemAt ? await deps.itemAt(index) : pack.suggestions[index];
+            if (item.reviewKey) indexes.set(item.reviewKey, index);
+            const retained = deps.decisions?.[item.reviewKey];
+            if (retained?.state === "unknown") throw Object.assign(new Error("\u5148\u6838\u5BF9\u4E0A\u6B21\u672A\u786E\u8BA4\u7684\u5199\u5165"), { code: "write_unconfirmed", results: list() });
+            if (retained && ["written", "rejected"].includes(retained.state)) {
+              save(index, { item, state: "retained", previous: retained.state });
+              await deps.retained?.({ item, state: retained.state });
+              if (index % 100 === 0) await new Promise((resolve) => setTimeout(resolve, 0));
+              index++;
+              continue;
+            }
+            let prepared;
+            try {
+              prepared = await deps.call("prepare", { item, projectId: deps.projectId });
+            } catch (_) {
+              throw Object.assign(new Error("\u8FDE\u63A5\u4E2D\u65AD\uFF0C\u6CA1\u6709\u81EA\u52A8\u91CD\u8BD5"), { code: "bridge_timeout", results: list() });
+            }
+            deps.assertCurrent();
+            if (!prepared.ok) {
+              const result2 = { item, state: "skipped", code: prepared.code };
+              save(index, result2);
+              await deps.record(result2);
+              if (halt(prepared.code)) throw Object.assign(new Error("\u5BA1\u9605\u5DF2\u505C\u6B62"), { code: prepared.code, results: list() });
+              index++;
+              continue;
+            }
+            const decision = await deps.review(item, prepared, { index, total, get remaining() {
+              return total - finished.size;
+            }, get position() {
+              return Counts.position(index, finished);
+            }, isPending: (i) => !finished.has(i), isDecided: (item2) => ["written", "rejected"].includes(deps.decisions?.[item2.reviewKey]?.state) });
+            deps.assertCurrent();
+            if (Number.isInteger(decision.navigate)) {
+              if (decision.navigate < 0 || decision.navigate >= total || finished.has(decision.navigate)) throw new Error("\u65E0\u6548\u7684\u5BA1\u9605\u5BFC\u822A\u76EE\u6807");
+              if (decision.skipped) {
+                const result2 = { item, state: "skipped", code: decision.skipped };
+                save(index, result2);
+                await deps.record(result2);
+              }
+              await deps.call("cancel", {});
+              deps.assertCurrent();
+              index = decision.navigate;
+              continue;
+            }
             if (decision.skipped) {
               const result2 = { item, state: "skipped", code: decision.skipped };
               save(index, result2);
               await deps.record(result2);
+              if (halt(decision.skipped)) throw Object.assign(new Error("\u5BA1\u9605\u5DF2\u505C\u6B62"), { code: decision.skipped, results: list() });
+              index++;
+              continue;
             }
-            await deps.call("cancel", {});
-            deps.assertCurrent();
-            index = decision.navigate;
-            continue;
-          }
-          if (decision.skipped) {
-            const result2 = { item, state: "skipped", code: decision.skipped };
-            save(index, result2);
-            await deps.record(result2);
-            if (halt(decision.skipped)) throw Object.assign(new Error("\u5BA1\u9605\u5DF2\u505C\u6B62"), { code: decision.skipped, results: list() });
+            if (decision.accepted !== true) {
+              await deps.call("cancel", {});
+              const result2 = { item, state: "rejected" };
+              save(index, result2);
+              await deps.record(result2);
+              index++;
+              continue;
+            }
+            let applied;
+            try {
+              applied = await deps.call("apply", { token: decision.token, projectId: deps.projectId });
+            } catch (_) {
+              throw Object.assign(new Error("\u5199\u5165\u72B6\u6001\u672A\u786E\u8BA4\uFF0C\u68C0\u67E5\u5F53\u524D\u6587\u4EF6\uFF1B\u4E0D\u8981\u91CD\u590D\u63A5\u53D7"), { code: "write_unconfirmed", results: list() });
+            }
+            const verified = applied.ok === true && applied.verified === true;
+            const code = applied.code || (verified ? "" : "write_unconfirmed");
+            const result = { item, state: verified ? "written" : applied.changedDocument ? "unknown" : "skipped", code };
+            save(index, result);
+            await deps.record(result);
+            if (!verified && halt(code)) throw Object.assign(new Error("\u5199\u5165\u672A\u786E\u8BA4\uFF0C\u505C\u6B62\u540E\u7EED\u9879"), { code, results: list() });
             index++;
-            continue;
           }
-          if (decision.accepted !== true) {
-            await deps.call("cancel", {});
-            const result2 = { item, state: "rejected" };
-            save(index, result2);
-            await deps.record(result2);
-            index++;
-            continue;
-          }
-          let applied;
-          try {
-            applied = await deps.call("apply", { token: decision.token, projectId: deps.projectId });
-          } catch (_) {
-            throw Object.assign(new Error("\u5199\u5165\u72B6\u6001\u672A\u786E\u8BA4\uFF0C\u68C0\u67E5\u5F53\u524D\u6587\u4EF6\uFF1B\u4E0D\u8981\u91CD\u590D\u63A5\u53D7"), { code: "write_unconfirmed", results: list() });
-          }
-          const verified = applied.ok === true && applied.verified === true;
-          const code = applied.code || (verified ? "" : "write_unconfirmed");
-          const result = { item, state: verified ? "written" : applied.changedDocument ? "unknown" : "skipped", code };
-          save(index, result);
-          await deps.record(result);
-          if (!verified && halt(code)) throw Object.assign(new Error("\u5199\u5165\u672A\u786E\u8BA4\uFF0C\u505C\u6B62\u540E\u7EED\u9879"), { code, results: list() });
-          index++;
+          return list();
+        } finally {
+          deps.observe?.(null);
         }
-        return list();
       }
       module.exports = { run, halt };
     }
@@ -683,7 +714,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
       setUI($(".head strong"), screen === "review" ? "\u9010\u9879\u5BA1\u9605" : "\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE");
       $(".body").scrollTop = 0;
     }
-    let startEpoch = 0, sessionActive = false;
+    let startEpoch = 0, sessionActive = false, reconcileReview = null, decisionUpdates = [];
     let importedPack = null, initialized = null, running = false, starting = false, owner = "", cancelled = false, pendingAbort = null;
     function send(method, params) {
       const id = crypto.randomUUID();
@@ -714,6 +745,11 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
         const saved = await chrome.runtime.sendMessage({ type: "progress", journal: result.journal });
         if (!saved.ok) throw new Error("\u4FDD\u5B58\u5B9A\u4F4D\u8BB0\u5F55\u5931\u8D25\uFF1A" + saved.error);
       }
+      const updates = (result.journal || []).flatMap((entry) => entry.decisions || []);
+      if (updates.length) {
+        if (reconcileReview) reconcileReview(updates);
+        else decisionUpdates.push(...updates);
+      }
       return result;
     }
     const assertCurrent = () => {
@@ -743,13 +779,26 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
     });
     function review(item, prepared, options, itemAt, catalogId) {
       return new Promise((resolve, reject) => {
-        let token = prepared.token, settled = false, timer = null, navigating = false, staleCode = null;
+        let token = prepared.token, settled = false, timer = null, navigating = false, staleCode = null, statusRequest = null;
+        async function check() {
+          if (statusRequest) return statusRequest;
+          statusRequest = call("status", { token, projectId: owner });
+          try {
+            return await statusRequest;
+          } finally {
+            statusRequest = null;
+          }
+        }
         const card = document.createElement("section");
         card.className = "card";
         card.innerHTML = '<strong></strong><div class="path"></div><p class="reason"></p><div>\u539F\u6587 \xB7 \u6807\u51FA\u5220\u9664</div><pre class="source old"></pre><div>\u4FEE\u6539\u540E \xB7 \u6807\u51FA\u65B0\u589E</div><pre class="source new"></pre><div class="toolbar navigation"><button class="previous">\u4E0A\u4E00\u9879</button><button class="next">\u4E0B\u4E00\u9879</button><button class="cursor-previous">\u5149\u6807\u4E0A\u4E00\u5904</button><button class="cursor-next">\u5149\u6807\u4E0B\u4E00\u5904</button></div><div class="actions"><button class="reject">\u62D2\u7EDD\u8FD9\u4E00\u9879</button><button class="primary accept">\u63A5\u53D7\u8FD9\u4E00\u9879</button></div>';
         $(".pending").replaceChildren(card);
         rememberUI(card);
-        setUI(card.querySelector("strong"), "\u5EFA\u8BAE " + options.position + " / " + options.remaining);
+        const renderCount = () => {
+          const node = card.querySelector("strong"), text = "\u5EFA\u8BAE " + options.position + " / " + options.remaining;
+          if (node.textContent !== t(text)) setUI(node, text);
+        };
+        renderCount();
         card.querySelector(".path").textContent = item.file + " \xB7 L" + prepared.line + " \xB7 #" + (options.index + 1);
         card.querySelector(".reason").textContent = item.reason;
         let displayed = prepared;
@@ -791,6 +840,13 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
           });
           try {
             assertCurrent();
+            const current = await check();
+            if (settled) return;
+            if (!current.ok && !["original_missing", "already_applied", "ambiguous_match", "scope_missing", "ambiguous_scope", "overlapping_change", "position_mismatch", "no_change", "diff_too_complex"].includes(current.code)) {
+              finish(false, current.code);
+              return;
+            }
+            update(current);
             let target;
             if (!fromCursor) {
               const checked = /* @__PURE__ */ new Set([options.index]);
@@ -834,8 +890,8 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
                   best = candidates.find((match) => match.index === nearest) || null;
                 }
               }
-              const check = await call("navigation", { projectId: owner, scanId: scan.scanId, items: [], complete: !scan.cached });
-              if (!check.ok) throw new Error(check.code);
+              const check2 = await call("navigation", { projectId: owner, scanId: scan.scanId, items: [], complete: !scan.cached });
+              if (!check2.ok) throw new Error(check2.code);
               target = scan.cached ? scan.target : best?.index ?? null;
             }
             if (settled) return;
@@ -852,7 +908,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
               card.querySelectorAll("button").forEach((button) => {
                 button.disabled = Boolean(staleCode && button.classList.contains("accept"));
               });
-              if (!staleCode) timer = setTimeout(poll, 300);
+              timer = setTimeout(poll, 300);
             }
           }
         }
@@ -876,29 +932,37 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
             reject(Object.assign(new Error("\u5DF2\u505C\u6B62"), { code: "cancelled" }));
           }
         };
+        function update(response) {
+          renderCount();
+          if (response.refreshed) {
+            displayed = response;
+            renderDiff();
+            token = response.token;
+            staleCode = null;
+            card.querySelector(".accept").disabled = false;
+            card.querySelector(".path").textContent = item.file + " \xB7 L" + response.line + " \xB7 #" + (options.index + 1);
+            status("\u6B63\u6587\u6709\u53D8\u5316\uFF0C\u5DF2\u91CD\u65B0\u5B9A\u4F4D\u8FD9\u4E00\u9879\uFF0C\u7B49\u5F85\u786E\u8BA4");
+          } else if (!response.ok) staleCode = response.code;
+        }
         async function poll() {
           if (settled) return;
           try {
             assertCurrent();
-            const response = await call("status", { token, projectId: owner });
+            const response = await check();
             if (settled || navigating) return;
+            update(response);
             if (!response.ok) {
               if (["original_missing", "already_applied", "ambiguous_match", "scope_missing", "ambiguous_scope", "overlapping_change", "position_mismatch", "no_change", "diff_too_complex"].includes(response.code)) {
                 staleCode = response.code;
                 card.querySelector(".accept").disabled = true;
                 status("\u5F53\u524D\u539F\u6587\u5DF2\u53D8\u5316\uFF0C\u6B64\u9879\u5DF2\u5931\u6548\uFF1B\u53EF\u7EE7\u7EED\u7F16\u8F91\uFF0C\u70B9\u51FB\u5BFC\u822A\u540E\u8DF3\u8FC7");
+                timer = setTimeout(poll, 300);
                 return;
               }
               finish(false, response.code);
               return;
             }
-            if (response.refreshed) {
-              displayed = response;
-              renderDiff();
-              token = response.token;
-              card.querySelector(".path").textContent = item.file + " \xB7 L" + response.line + " \xB7 #" + (options.index + 1);
-              status("\u6B63\u6587\u6709\u53D8\u5316\uFF0C\u5DF2\u91CD\u65B0\u5B9A\u4F4D\u8FD9\u4E00\u9879\uFF0C\u7B49\u5F85\u786E\u8BA4");
-            } else if (response.navigation === -1 || response.navigation === 1) {
+            if (response.navigation === -1 || response.navigation === 1) {
               await navigate(response.navigation, false);
               return;
             } else if (typeof response.decision === "boolean") {
@@ -995,6 +1059,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
       $(".history-details").open = false;
       showScreen("review");
       try {
+        decisionUpdates = [];
         await call("begin", { ledgers: session.ledgers });
         const catalogId = crypto.randomUUID();
         let itemBuffer = [], bufferStart = -1;
@@ -1007,7 +1072,14 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
           }
           return itemBuffer[index - bufferStart];
         } : async (index) => pack.suggestions[index];
-        const results = await Runner.run(pack, { projectId: owner, assertCurrent, call, review: (item, prepared, options) => review(item, prepared, options, itemAt, catalogId), record, initialCounts: session.initialCounts, decidedIndexes: session.decidedIndexes, decisions: session.decisions, itemAt, retained: (result) => {
+        const results = await Runner.run(pack, { projectId: owner, assertCurrent, call, observe: (fn) => {
+          reconcileReview = fn;
+          if (fn && decisionUpdates.length) {
+            const updates = decisionUpdates;
+            decisionUpdates = [];
+            fn(updates);
+          }
+        }, review: (item, prepared, options) => review(item, prepared, options, itemAt, catalogId), record, initialCounts: session.initialCounts, decidedIndexes: session.decidedIndexes, decisionIndexes: session.decisionIndexes, decisions: session.decisions, itemAt, retained: (result) => {
           if (bridgeRevision) bridgeResults.push({ revision: bridgeRevision, id: result.item.id, state: result.state, code: "retained_decision" });
         } });
         const count = (state) => results.filter((result) => result.state === state).length;

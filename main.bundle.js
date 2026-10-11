@@ -2136,6 +2136,32 @@
         ledger.edits.sort((a, b) => a.from - b.from || a.to - b.to);
         ledger.version = (ledger.version || 0) + 1;
       }
+      var editKey = (p) => JSON.stringify([p.from, p.to, p.insert]);
+      function historyIndex(ledger) {
+        if (!ledger.historyIndex) {
+          ledger.historyIndex = /* @__PURE__ */ new Map();
+          for (const p of ledger.history || []) ledger.historyIndex.set(editKey(p), p);
+        }
+        return ledger.historyIndex;
+      }
+      function render(base, edits) {
+        const pieces = [];
+        let pos = 0;
+        for (const p of [...edits].sort((a, b) => a.from - b.from || a.to - b.to)) {
+          pieces.push(base.slice(pos, p.from), p.insert);
+          pos = p.to;
+        }
+        pieces.push(base.slice(pos));
+        return pieces.join("");
+      }
+      function remember(ledger, edits) {
+        ledger.history ||= [];
+        const known = historyIndex(ledger);
+        for (const p of edits) if (!p.external && !known.has(editKey(p))) {
+          ledger.history.push({ ...p });
+          known.set(editKey(p), p);
+        }
+      }
       function sync(ledger, text, recompute = true) {
         if (ledger.current === text) return { ok: true, edits: [] };
         const old = ledger.current;
@@ -2168,19 +2194,30 @@
         flush();
         const overlaps = changes.flatMap((p) => touching(ledger, p, true));
         if (overlaps.length) {
-          if (!recompute || overlaps.some((p) => !p.external)) return { ok: false };
-          const own = ledger.edits.filter((p) => !p.external);
-          let current = ledger.base;
-          for (const p of [...own].reverse()) current = current.slice(0, p.from) + p.insert + current.slice(p.to);
-          const replacement = { base: ledger.base, current, edits: own, version: 0 };
-          const result = sync(replacement, text, false);
-          if (!result.ok) return result;
+          if (!recompute) return { ok: false, overlaps };
+          const affected = new Set(overlaps), removed = ledger.edits.filter((p) => !p.external && affected.has(p));
+          let own = ledger.edits.filter((p) => !p.external && !affected.has(p)), replacement, result;
+          for (let attempt = 0; attempt < 32; attempt++) {
+            replacement = { base: ledger.base, current: render(ledger.base, own), edits: own, version: 0 };
+            result = sync(replacement, text, false);
+            if (result.ok) break;
+            const extra = own.filter((p) => result.overlaps?.includes(p));
+            if (!extra.length) return { ok: false };
+            removed.push(...extra);
+            own = own.filter((p) => !extra.includes(p));
+          }
+          if (!result.ok) return { ok: false };
+          remember(ledger, removed);
           ledger.current = text;
           ledger.edits = replacement.edits;
           ledger.version = (ledger.version || 0) + 1;
-          return { ok: true, replace: true, edits: ledger.edits };
+          return { ok: true, replace: true, edits: ledger.edits, removed, decisions: [...new Set(removed.map((p) => p.reviewKey).filter(Boolean))].map((reviewKey) => ({ reviewKey, state: "pending" })) };
         }
-        const edits = changes.map((p) => ({ from: map(ledger, p.from, true), to: map(ledger, p.to, true), insert: p.insert, external: true }));
+        const edits = changes.map((p) => {
+          const edit = { from: map(ledger, p.from, true), to: map(ledger, p.to, true), insert: p.insert, external: true };
+          const known = historyIndex(ledger).get(editKey(edit));
+          return known ? { ...known } : edit;
+        });
         add(ledger, edits);
         ledger.current = text;
         return { ok: true, edits };
@@ -2216,7 +2253,7 @@
         for (const p of [...changes].reverse()) insert = insert.slice(0, p.from - from) + p.insert + insert.slice(p.to - from);
         return { ok: true, line: Core.lineAtSource(text, from), patch: { from, to, expected: text.slice(from, to), insert }, baselineChanges: remaining, characterChanges: changes };
       }
-      module.exports = { resolve, sync, add, map };
+      module.exports = { resolve, sync, add, map, remember, render };
     }
   });
 
@@ -2463,19 +2500,26 @@
           for (const [file, data] of Object.entries(saved.ledgers || {})) {
             if (typeof data.base !== "string" || !Array.isArray(data.edits)) continue;
             const edits = data.edits.map((p) => ({ ...p })).sort((a, b) => a.from - b.from || a.to - b.to);
-            let current2 = data.base;
-            for (const p of [...edits].reverse()) current2 = current2.slice(0, p.from) + p.insert + current2.slice(p.to);
-            ledgers.set(key(adapter2.projectId(), file), { base: data.base, current: current2, edits, version: 0 });
+            const current2 = Rebase.render(data.base, edits);
+            const ledger = { base: data.base, current: current2, edits, history: (data.history || []).map((p) => ({ ...p })), version: 0 };
+            Rebase.remember(ledger, edits);
+            ledgers.set(key(adapter2.projectId(), file), ledger);
           }
-          return { ok: true };
+          const view = adapter2.view();
+          if (view && adapter2.path()) ledgerFor(adapter2.projectId(), adapter2.path(), textOf(view));
+          return { ok: true, journal: drain() };
         }
         function ledgerFor(owner, file, text) {
           const id = key(owner, file);
           let ledger = ledgers.get(id);
           if (ledger) {
             const update = Rebase.sync(ledger, text);
-            if (!update.ok) ledger = null;
-            else if (update.edits.length) journals.push({ file, edits: update.edits, replace: update.replace });
+            if (!update.ok) {
+              ledger.invalid = true;
+              return ledger;
+            }
+            ledger.invalid = false;
+            if (update.replace || update.edits.length) journals.push({ file, edits: update.edits, replace: update.replace, removed: update.removed, decisions: update.decisions });
           }
           if (!ledger) {
             ledger = { base: text, current: text, edits: [], version: 0 };
@@ -2504,6 +2548,7 @@
           if (!view || !view.state.selection?.main) return failure("file_not_ready");
           if (!params.scanId) {
             const text = textOf(view), ledger = ledgerFor(params.projectId, file, text);
+            if (ledger.invalid) return { ...failure("position_mismatch"), journal: drain() };
             let cache = navigationCache.get(view.state.doc);
             if (typeof view.state.doc.length !== "number" || !cache || cache.ledger !== ledger || cache.version !== ledger.version) {
               cache = { ledger, version: ledger.version, positions: /* @__PURE__ */ new Map() };
@@ -2561,13 +2606,14 @@
           const view = adapter2.view();
           if (!view) return failure("file_not_ready");
           const text = textOf(view);
-          const match = Rebase.resolve(text, item, ledgerFor(owner, item.file, text));
+          const ledger = ledgerFor(owner, item.file, text);
+          const match = ledger.invalid ? failure("position_mismatch") : Rebase.resolve(text, item, ledger);
           if (!match.ok) return { ...match, journal: drain() };
           const highlights = characterEdits(match.patch, text);
           if (!highlights) return failure("diff_too_complex");
           const diff = Diff.parts(match.patch, highlights);
           const token = crypto.randomUUID();
-          pending = { item, projectId: owner, token, view, text, doc: view.state.doc, line: match.line };
+          pending = { item, reviewKey: params.item.reviewKey, projectId: owner, token, view, text, doc: view.state.doc, line: match.line };
           const shown = await preview2.show({
             reveal,
             token,
@@ -2607,9 +2653,11 @@
             return failure("file_not_ready");
           }
           if (view !== item.view || (typeof view.state.doc.length === "number" ? view.state.doc !== item.doc : textOf(view) !== item.text)) {
-            const result2 = await prepare({ item: item.item, projectId: item.projectId, reveal: false });
+            const result2 = await prepare({ item: { ...item.item, reviewKey: item.reviewKey }, projectId: item.projectId, reveal: false });
+            if (!result2.ok && ["original_missing", "already_applied", "ambiguous_match", "scope_missing", "ambiguous_scope", "overlapping_change", "position_mismatch", "no_change", "diff_too_complex"].includes(result2.code)) pending = { ...item, view, doc: view.state.doc, text: textOf(view), inline: false, stale: result2.code };
             return { ...result2, refreshed: result2.ok };
           }
+          if (item.stale) return { ...failure(item.stale), journal: drain() };
           const result = item.inline ? preview2.read({ token: item.token }) : { ok: true, token: item.token, decision: null };
           if (result.navigation === -1 || result.navigation === 1) preview2.consumeNavigation({ token: item.token });
           return result;
@@ -2631,7 +2679,7 @@
             cancel();
             return failure("editor_changed");
           }
-          const text = textOf(view), match = Rebase.resolve(text, item.item, ledgerFor(item.projectId, item.item.file, text));
+          const text = textOf(view), ledger = ledgerFor(item.projectId, item.item.file, text), match = ledger.invalid ? failure("position_mismatch") : Rebase.resolve(text, item.item, ledger);
           if (!match.ok) {
             cancel();
             return { ...match, journal: drain() };
@@ -2660,11 +2708,13 @@
             result = { ok: false, code: "write_unconfirmed", changedDocument: true, error: error.message };
           }
           if (result.verified) {
-            const ledger = ledgers.get(key(item.projectId, item.item.file));
-            if (ledger?.current === text && match.baselineChanges) {
-              Rebase.add(ledger, match.baselineChanges);
-              ledger.current = expected;
-              journals.push({ file: item.item.file, edits: match.baselineChanges });
+            const ledger2 = ledgers.get(key(item.projectId, item.item.file));
+            if (ledger2?.current === text && match.baselineChanges) {
+              const edits = match.baselineChanges.map((p) => ({ ...p, reviewKey: item.reviewKey }));
+              Rebase.add(ledger2, edits);
+              Rebase.remember(ledger2, edits);
+              ledger2.current = expected;
+              journals.push({ file: item.item.file, edits });
             } else ledgers.delete(key(item.projectId, item.item.file));
           }
           result.journal = drain();

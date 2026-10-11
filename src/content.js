@@ -50,7 +50,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
     $('.session-toolbar').hidden=screen==='setup'&&!running;$('.back').hidden=screen!=='review';$('.continue').hidden=screen!=='setup'||!running;
     setUI($('.head strong'),screen==='review'?'逐项审阅':'导入修改建议');$('.body').scrollTop=0;
   }
-  let startEpoch = 0, sessionActive=false;
+  let startEpoch = 0, sessionActive=false, reconcileReview=null, decisionUpdates=[];
   let importedPack = null, initialized = null, running = false, starting = false, owner = '', cancelled = false, pendingAbort = null;
   function send(method, params) {
     const id = crypto.randomUUID();
@@ -72,6 +72,8 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
     if (!handshake.ok) throw new Error('无法连接页面');
     const result=await send(method, params);
     if(persistent && sessionActive && result.journal?.length){const saved=await chrome.runtime.sendMessage({type:'progress',journal:result.journal});if(!saved.ok)throw new Error('保存定位记录失败：'+saved.error)}
+    const updates=(result.journal||[]).flatMap(entry=>entry.decisions||[]);
+    if(updates.length){if(reconcileReview)reconcileReview(updates);else decisionUpdates.push(...updates)}
     return result;
   }
   const assertCurrent = () => {
@@ -84,12 +86,17 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
   if(persistent && chrome.storage?.local)chrome.storage.local.get('reviewLanguage').then(saved=>{if(!languageTouched)changeLanguage(saved.reviewLanguage || 'zh-CN')}).catch(()=>{});
   function review(item, prepared, options, itemAt, catalogId) {
     return new Promise((resolve, reject) => {
-      let token = prepared.token, settled = false, timer = null, navigating=false,staleCode=null;
+      let token = prepared.token, settled = false, timer = null, navigating=false,staleCode=null,statusRequest=null;
+      async function check(){
+        if(statusRequest)return statusRequest;
+        statusRequest=call('status',{token,projectId:owner});
+        try{return await statusRequest}finally{statusRequest=null}
+      }
       const card = document.createElement('section'); card.className = 'card';
       card.innerHTML = '<strong></strong><div class="path"></div><p class="reason"></p><div>原文 · 标出删除</div><pre class="source old"></pre><div>修改后 · 标出新增</div><pre class="source new"></pre><div class="toolbar navigation"><button class="previous">上一项</button><button class="next">下一项</button><button class="cursor-previous">光标上一处</button><button class="cursor-next">光标下一处</button></div><div class="actions"><button class="reject">拒绝这一项</button><button class="primary accept">接受这一项</button></div>';
       $('.pending').replaceChildren(card);
       rememberUI(card);
-      setUI(card.querySelector('strong'),'建议 '+options.position+' / '+options.remaining);
+      const renderCount=()=>{const node=card.querySelector('strong'),text='建议 '+options.position+' / '+options.remaining;if(node.textContent!==t(text))setUI(node,text)};renderCount();
       card.querySelector('.path').textContent = item.file + ' · L' + prepared.line+' · #'+(options.index+1);
       card.querySelector('.reason').textContent = item.reason;
       let displayed=prepared;
@@ -112,7 +119,13 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
         if(settled||navigating)return;
         navigating=true;clearTimeout(timer);card.querySelectorAll('button').forEach(button=>{button.disabled=true});
         try{
-          assertCurrent();let target;
+          assertCurrent();
+          // Sync undo before selecting a target, including clicks that occur
+          // before the next status poll. This does not reveal or focus source.
+          const current=await check();
+          if(settled)return;
+          if(!current.ok&&!['original_missing','already_applied','ambiguous_match','scope_missing','ambiguous_scope','overlapping_change','position_mismatch','no_change','diff_too_complex'].includes(current.code)){finish(false,current.code);return}
+          update(current);let target;
           if(!fromCursor){
             const checked=new Set([options.index]);target=options.index;
             do{
@@ -152,7 +165,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
           if(target!==null){finish(undefined,staleCode,target);return}
           status(fromCursor?'当前文件的光标这一侧没有可定位的待处理建议':'没有其他待处理建议；当前项仍等待确认');
         }catch(error){if(!settled)status(error.message==='navigation_changed'?'正文、文件或光标有变化，请重新点击导航':'导航未完成：'+error.message)}
-        finally{navigating=false;if(!settled){card.querySelectorAll('button').forEach(button=>{button.disabled=Boolean(staleCode && button.classList.contains('accept'))});if(!staleCode)timer=setTimeout(poll,300)}}
+        finally{navigating=false;if(!settled){card.querySelectorAll('button').forEach(button=>{button.disabled=Boolean(staleCode && button.classList.contains('accept'))});timer=setTimeout(poll,300)}}
       }
       card.querySelector('.previous').addEventListener('click',()=>navigate(-1,false));
       card.querySelector('.next').addEventListener('click',()=>navigate(1,false));
@@ -163,20 +176,25 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
       Keyboard.attach(card,choice=>{if(settled || navigating)return;if(choice==='accept'){if(!staleCode)finish(true)}else navigate(choice==='previous'?-1:1,false)});
       Scroll.panel($('.body'),card);
       pendingAbort = () => { if (!settled) { settled = true; clearTimeout(timer); reject(Object.assign(new Error('已停止'), { code: 'cancelled' })); } };
+      function update(response){
+        renderCount();
+        if(response.refreshed){displayed=response;renderDiff();token=response.token;staleCode=null;card.querySelector('.accept').disabled=false;card.querySelector('.path').textContent=item.file+' · L'+response.line+' · #'+(options.index+1);status('正文有变化，已重新定位这一项，等待确认')}
+        else if(!response.ok)staleCode=response.code;
+      }
       async function poll() {
         if (settled) return;
         try {
           assertCurrent();
-          const response = await call('status', { token, projectId: owner });
+          const response = await check();
           if (settled || navigating) return;
+          update(response);
           if (!response.ok) {
             if(['original_missing','already_applied','ambiguous_match','scope_missing','ambiguous_scope','overlapping_change','position_mismatch','no_change','diff_too_complex'].includes(response.code)){
-              staleCode=response.code;card.querySelector('.accept').disabled=true;status('当前原文已变化，此项已失效；可继续编辑，点击导航后跳过');return;
+              staleCode=response.code;card.querySelector('.accept').disabled=true;status('当前原文已变化，此项已失效；可继续编辑，点击导航后跳过');timer=setTimeout(poll,300);return;
             }
             finish(false,response.code);return;
           }
-          if (response.refreshed) { displayed=response;renderDiff(); token = response.token; card.querySelector('.path').textContent = item.file + ' · L' + response.line+' · #'+(options.index+1); status('正文有变化，已重新定位这一项，等待确认'); }
-          else if (response.navigation===-1 || response.navigation===1){await navigate(response.navigation,false);return;}
+          if (response.navigation===-1 || response.navigation===1){await navigate(response.navigation,false);return;}
           else if (typeof response.decision === 'boolean') { finish(response.decision); return; }
           timer = setTimeout(poll, 300);
         } catch (error) { finish(false, error.code || 'bridge_failed'); }
@@ -222,11 +240,11 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
     $('.start').disabled = true; $('.resume').disabled=true;$('.reset').disabled=true; $('.file').disabled = true; $('#pack').disabled = true; $('.stop').hidden = false;
     historyMessages=[];$('.history-list').replaceChildren();$('.history-details').open=false;showScreen('review');
     try {
-      await call('begin', {ledgers:session.ledgers});
+      decisionUpdates=[];await call('begin', {ledgers:session.ledgers});
       const catalogId=crypto.randomUUID();
       let itemBuffer=[],bufferStart=-1;
       const itemAt=persistent?async index=>{if(index<bufferStart||index>=bufferStart+itemBuffer.length){const fetched=await chrome.runtime.sendMessage({type:'items',ref:pack.ref,index});if(!fetched.ok)throw new Error(fetched.error);bufferStart=index;itemBuffer=fetched.items}return itemBuffer[index-bufferStart]}:async index=>pack.suggestions[index];
-      const results = await Runner.run(pack, { projectId: owner, assertCurrent, call, review:(item,prepared,options)=>review(item,prepared,options,itemAt,catalogId), record, initialCounts:session.initialCounts, decidedIndexes:session.decidedIndexes, decisions:session.decisions, itemAt, retained:result=>{if(bridgeRevision)bridgeResults.push({revision:bridgeRevision,id:result.item.id,state:result.state,code:'retained_decision'})} });
+      const results = await Runner.run(pack, { projectId: owner, assertCurrent, call, observe:fn=>{reconcileReview=fn;if(fn&&decisionUpdates.length){const updates=decisionUpdates;decisionUpdates=[];fn(updates)}}, review:(item,prepared,options)=>review(item,prepared,options,itemAt,catalogId), record, initialCounts:session.initialCounts, decidedIndexes:session.decidedIndexes, decisionIndexes:session.decisionIndexes, decisions:session.decisions, itemAt, retained:result=>{if(bridgeRevision)bridgeResults.push({revision:bridgeRevision,id:result.item.id,state:result.state,code:'retained_decision'})} });
       const count = state => results.filter(result => result.state === state).length;
       status('审阅结束：写入 ' + count('written') + ' 项，拒绝 ' + count('rejected') + ' 项，跳过 ' + count('skipped') + ' 项，保留先前决定 ' + count('retained') + ' 项。');
     } catch (error) {

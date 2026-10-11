@@ -8,7 +8,7 @@
 
 Review one change at a time, directly inside Overleaf.
 
-[![Release](https://img.shields.io/github/v/release/MatZaharia/overleaf-agent-review?include_prereleases&style=flat-square&color=6752c7)](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.5.2)
+[![Release](https://img.shields.io/github/v/release/MatZaharia/overleaf-agent-review?include_prereleases&style=flat-square&color=6752c7)](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.5.3)
 [![CI](https://github.com/MatZaharia/overleaf-agent-review/actions/workflows/ci.yml/badge.svg)](https://github.com/MatZaharia/overleaf-agent-review/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-278262?style=flat-square)](LICENSE)
 [![Chrome](https://img.shields.io/badge/Chrome-Manifest_V3-456cb3?style=flat-square)](#install)
@@ -16,7 +16,7 @@ Review one change at a time, directly inside Overleaf.
 
 **English** · [简体中文](README.zh-CN.md)
 
-[Download extension](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.5.2) · [Connect your Agent](#local-agent-connection) · [Agent guide](docs/agent-guide.md) · [Report an issue](https://github.com/MatZaharia/overleaf-agent-review/issues)
+[Download extension](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.5.3) · [Connect your Agent](#local-agent-connection) · [Agent guide](docs/agent-guide.md) · [Report an issue](https://github.com/MatZaharia/overleaf-agent-review/issues)
 
 </div>
 
@@ -58,7 +58,7 @@ Your Agent sends a suggestion pack. Overleaf highlights the changed characters. 
 
 ## Install
 
-1. Download the extension ZIP from [Releases](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.5.2) and extract it. Use the extension asset, rather than GitHub's automatically generated source ZIP.
+1. Download the extension ZIP from [Releases](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.5.3) and extract it. Use the extension asset, rather than GitHub's automatically generated source ZIP.
 2. Open `chrome://extensions` in Chrome and enable **Developer mode**.
 3. Click **Load unpacked** and select the extracted `overleaf-agent-review` folder containing `manifest.json`.
 4. Open your Overleaf project and refresh the page. Select **Code** mode.
@@ -162,9 +162,11 @@ The left preview shows the resulting text with additions emphasized; small red `
 
 With a review card focused (click its text), **↑ / ↓** select the previous/next pending item and **Enter** accepts the current item. These keys keep their usual behavior in the LaTeX editor, text inputs and panel move/resize controls. Holding Enter never accepts a sequence of items.
 
-You can click elsewhere in the editor and type normally while a suggestion stays pending. Source changes refresh highlights without selecting or scrolling back. If the current original becomes stale, acceptance is disabled until you navigate away or dismiss the item. Cursor search caches positions for the current source and pack; subsequent cursor moves reuse the index, while source/pack changes invalidate it. Restored edits are ordered by baseline position and mapped characters are verified before preview or acceptance. See [v1.5.2 validation](docs/validation-v1.5.2.md).
+You can click elsewhere in the editor and type normally while a suggestion stays pending. Source changes refresh highlights without selecting or scrolling back. If the current original becomes stale, acceptance is disabled; undoing that manual edit refreshes the preview and enables acceptance again. Cursor search caches positions for the current source and pack; subsequent cursor moves reuse the index, while source/pack changes invalidate it. Restored edits are ordered by baseline position and mapped characters are verified before preview or acceptance. See [v1.5.2 validation](docs/validation-v1.5.2.md).
 
-These interface improvements are included in the v1.5.2 Release ZIP. Reload the updated extension and refresh Overleaf.
+Undoing an accepted change returns its suggestion to the pending queue and updates its counter and navigation. Unrelated accepted changes keep their baseline positions. If review has already ended or you undid a change while review was stopped, click **Resume last review** to reconcile the open file with saved progress. Rejections remain decided. Redo never causes an automatic editor write. See [v1.5.3 validation](docs/validation-v1.5.3.md).
+
+These interface improvements are included in the v1.5.3 Release ZIP. Reload the updated extension and refresh Overleaf.
 
 **上一项 / 下一项** cycle through undecided suggestions in pack order, wrapping from the last pending item to the first and from the first to the last. Buttons on both panels and the review card’s ↑ / ↓ keys use the same loop. With two pending items, either direction reaches the other; with only one, the current item stays selected. **光标上一处 / 光标下一处** find the nearest locatable undecided suggestion before/after the editor cursor in the current file, using live character-change positions rather than JSON order or line numbers. Navigation moves the preview only; it does not reject or write an item. Deferred items remain pending and return after later items are settled. Accepted/rejected items are excluded. If source, file or cursor changes during a search, retry the navigation.
 
@@ -198,7 +200,7 @@ Even when `original` contains a whole sentence for reliable matching, the write 
 - Extremely expensive character diffs are skipped rather than replaced as a whole block.
 - Project changes, connection failures, cancellation, or unverified writes stop the queue. Uncertain writes are never automatically replayed.
 - **已写入** (Written) means the editor readback was verified. Check Overleaf's connection/save state and recompile separately. Offline Overleaf edits may await synchronization.
-- After refresh, use **恢复上次审阅** (Resume) to restore the queue. Overleaf still governs document saving and Undo; clear progress before re-reviewing an accepted edit that you subsequently undid.
+- After refresh, use **恢复上次审阅** (Resume) to restore the queue. Overleaf still governs document saving and Undo; an undone accepted edit reopens when the corresponding file is checked. No progress reset is needed.
 - Overleaf's editor/file-tree interfaces are not a stable public API. If the extension cannot confirm the editor or file identity, it skips or stops.
 
 The v1.0.1 review flow was tested in a signed-in Chrome Overleaf test project: source highlighting, character replacement, rejection, stale skipping, already-applied skipping, refresh persistence, and restoration of the source/PDF. v1.1 own-edit rebasing and a 10,000-item queue were verified in a real CodeMirror browser fixture. The localhost bridge passed server, extension-background integration and CLI tests; pairing the upgraded extension with live Overleaf is still pending. Nested-file switching and relocation after unrelated edits were tested with a real CodeMirror fixture; multi-user collaboration and every Overleaf layout have not been verified.

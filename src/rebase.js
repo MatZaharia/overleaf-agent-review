@@ -22,6 +22,10 @@ function touching(ledger,p,live=false){
  return found;
 }
 function add(ledger,edits){ledger.edits.push(...edits);ledger.edits.sort((a,b)=>a.from-b.from||a.to-b.to);ledger.version=(ledger.version||0)+1;}
+const editKey=p=>JSON.stringify([p.from,p.to,p.insert]);
+function historyIndex(ledger){if(!ledger.historyIndex){ledger.historyIndex=new Map();for(const p of ledger.history||[])ledger.historyIndex.set(editKey(p),p)}return ledger.historyIndex;}
+function render(base,edits){const pieces=[];let pos=0;for(const p of [...edits].sort((a,b)=>a.from-b.from||a.to-b.to)){pieces.push(base.slice(pos,p.from),p.insert);pos=p.to}pieces.push(base.slice(pos));return pieces.join('');}
+function remember(ledger,edits){ledger.history ||= [];const known=historyIndex(ledger);for(const p of edits)if(!p.external&&!known.has(editKey(p))){ledger.history.push({...p});known.set(editKey(p),p)}}
 // Trim unchanged edges before a bounded diff. External changes are tracked
 // separately and can never masquerade as accepted suggestions.
 function sync(ledger,text,recompute=true){
@@ -38,15 +42,32 @@ function sync(ledger,text,recompute=true){
  flush();
  const overlaps=changes.flatMap(p=>touching(ledger,p,true));
  if(overlaps.length){
-  if(!recompute||overlaps.some(p=>!p.external))return {ok:false};
-  const own=ledger.edits.filter(p=>!p.external);let current=ledger.base;
-  for(const p of [...own].reverse())current=current.slice(0,p.from)+p.insert+current.slice(p.to);
-  const replacement={base:ledger.base,current,edits:own,version:0};
-  const result=sync(replacement,text,false);if(!result.ok)return result;
+  if(!recompute)return {ok:false,overlaps};
+  // Undo may touch several character edits in one transaction. Keep the
+  // original baseline and unrelated accepted edits, then account for any
+  // remaining manual text as external changes. Never reset every anchor.
+  const affected=new Set(overlaps),removed=ledger.edits.filter(p=>!p.external&&affected.has(p));
+  let own=ledger.edits.filter(p=>!p.external&&!affected.has(p)),replacement,result;
+  // A repeated character can make the minimal diff pick either identical
+  // occurrence (e.g. undoing the extra x in "xx"). Expand only when the
+  // rebuilt document proves that another owned edit is also affected.
+  for(let attempt=0;attempt<32;attempt++){
+   replacement={base:ledger.base,current:render(ledger.base,own),edits:own,version:0};result=sync(replacement,text,false);
+   if(result.ok)break;
+   const extra=own.filter(p=>result.overlaps?.includes(p));if(!extra.length)return {ok:false};
+   removed.push(...extra);own=own.filter(p=>!extra.includes(p));
+  }
+  if(!result.ok)return {ok:false};
+  remember(ledger,removed);
   ledger.current=text;ledger.edits=replacement.edits;ledger.version=(ledger.version||0)+1;
-  return {ok:true,replace:true,edits:ledger.edits};
+  return {ok:true,replace:true,edits:ledger.edits,removed,decisions:[...new Set(removed.map(p=>p.reviewKey).filter(Boolean))].map(reviewKey=>({reviewKey,state:'pending'}))};
  }
- const edits=changes.map(p=>({from:map(ledger,p.from,true),to:map(ledger,p.to,true),insert:p.insert,external:true}));
+ const edits=changes.map(p=>{
+  const edit={from:map(ledger,p.from,true),to:map(ledger,p.to,true),insert:p.insert,external:true};
+  // Only exact edits previously accepted by the human can be recognized as
+  // redo. A new manual replacement remains external even if it looks similar.
+  const known=historyIndex(ledger).get(editKey(edit));return known?{...known}:edit;
+ });
  add(ledger,edits);ledger.current=text;return {ok:true,edits};
 }
 function resolve(text,item,ledger){
@@ -77,4 +98,4 @@ function resolve(text,item,ledger){
  for(const p of [...changes].reverse())insert=insert.slice(0,p.from-from)+p.insert+insert.slice(p.to-from);
  return {ok:true,line:Core.lineAtSource(text,from),patch:{from,to,expected:text.slice(from,to),insert},baselineChanges:remaining,characterChanges:changes};
 }
-module.exports={resolve,sync,add,map};
+module.exports={resolve,sync,add,map,remember,render};

@@ -1,4 +1,5 @@
 'use strict';
+const Core=require('./suggestions'),{characterEdits}=require('./characterEdits');
 const request=r=>new Promise((resolve,reject)=>{r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
 function create(indexedDB,crypto){
  let opening;
@@ -18,7 +19,12 @@ function create(indexedDB,crypto){
   const database=await db(),tx=database.transaction(['packs','decisions','bases','edits'],'readonly'),done=complete(tx);
   const reads=['packs','decisions','bases','edits'].map(name=>request(tx.objectStore(name).index('project').getAll(project)));
   const [packs,records,bases,chunks]=await Promise.all(reads);await done;
-  const ledgers={};for(const base of bases)ledgers[base.file]={base:base.base,edits:chunks.filter(c=>c.file===base.file&&c.generation===base.generation).sort((a,b)=>a.sequence-b.sequence).flatMap(c=>c.edits)};
+  const ledgers={};for(const base of bases)ledgers[base.file]={base:base.base,history:base.history||[],edits:chunks.filter(c=>c.file===base.file&&c.generation===base.generation).sort((a,b)=>a.sequence-b.sequence).flatMap(c=>c.edits)};
+  // Older versions saved accepted edits without their review key. Recover
+  // ownership only from an exact baseline match and a saved written decision.
+  const legacy=new Map();for(const [file,ledger] of Object.entries(ledgers)){const edits=ledger.edits.filter(p=>!p.external&&!p.reviewKey);if(edits.length)legacy.set(file,new Map(edits.map(p=>[JSON.stringify([p.from,p.to,p.insert]),p])))}
+  const written=new Set(records.filter(r=>r.state==='written').map(r=>r.key[1]));
+  for(const item of packs[0]?.pack?.suggestions||[]){const edits=legacy.get(item.file);if(!edits||!written.has(item.reviewKey))continue;const match=Core.locate(ledgers[item.file].base,item);if(!match.ok)continue;for(const p of characterEdits(match.patch,ledgers[item.file].base)||[]){const saved=edits.get(JSON.stringify([p.from,p.to,p.insert]));if(saved){saved.reviewKey=item.reviewKey;edits.delete(JSON.stringify([p.from,p.to,p.insert]))}}if(!edits.size)legacy.delete(item.file)}
   return {pack:packs[0]?.pack||null,decisions:Object.fromEntries(records.map(r=>[r.key[1],{state:r.state,code:r.code}])),ledgers};
  }
  async function savePack(project,pack){
@@ -31,6 +37,10 @@ function create(indexedDB,crypto){
   for(const entry of journal){
    const chunksStore=tx.objectStore('edits');
    if(entry.id && await request(chunksStore.get([project,'receipt',entry.id])))continue;
+   for(const update of entry.decisions||[])if(update.state==='pending'){
+    const decisions=tx.objectStore('decisions'),key=[project,update.reviewKey],saved=await request(decisions.get(key));
+    if(saved?.state==='written')decisions.delete(key);
+   }
    const store=tx.objectStore('bases'),key=[project,entry.file];
    const existing=await request(store.get(key));
    let base=existing;
@@ -41,6 +51,7 @@ function create(indexedDB,crypto){
     for(const chunk of chunks)if(chunk.file===entry.file)tx.objectStore('edits').delete(chunk.key);
    }
    if(entry.replace){const chunks=await request(chunksStore.index('project').getAll(project));for(const chunk of chunks)if(chunk.file===entry.file)chunksStore.delete(chunk.key)}
+   if(base&&entry.removed?.length){base.history ||= [];for(const p of entry.removed)if(!base.history.some(q=>q.from===p.from&&q.to===p.to&&q.insert===p.insert&&q.reviewKey===p.reviewKey))base.history.push(p);store.put(base)}
    if(entry.id)chunksStore.put({key:[project,'receipt',entry.id],project,file:'',edits:[]});
    if(base&&entry.edits?.length){base.sequence++;store.put(base);tx.objectStore('edits').put({key:crypto.randomUUID(),project,file:entry.file,generation:base.generation,sequence:base.sequence,edits:entry.edits})}
   }await done;
