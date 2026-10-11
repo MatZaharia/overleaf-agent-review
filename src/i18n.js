@@ -2,7 +2,7 @@
 // UI text only. Manuscript source, replacements and Agent reasons are never passed here.
 const english = {
  '配对令牌格式不正确':'Invalid pairing token format','建议会话已更新，请重新载入':'Suggestion session changed; reload the pack','建议包分块顺序无效':'Invalid suggestion pack chunk order','建议索引无效':'Invalid suggestion index',
- '导入修改建议':'Review suggestions', '收起':'Close',
+ '导入修改建议':'Review suggestions', '收起':'Close', '逐项审阅':'Review items','← 返回导入':'← Back to import','继续审阅':'Continue review','最近处理记录':'Recent decisions',
  '先导入建议包，再逐项确认。每次接受都会搜索当前原文；过时或不唯一的项自动跳过。':'Import a pack and review each item. Accept searches the current source; stale or ambiguous items are skipped.',
  '建议包 JSON':'Suggestion pack JSON','粘贴 Agent 生成的建议包':'Paste an Agent suggestion pack',
  '连接 Agent':'Connect Agent','断开':'Disconnect','本地连接配对令牌':'Local pairing token','选择 JSON 文件':'Choose JSON file','开始审阅':'Start review','恢复上次审阅':'Resume review','清除进度':'Clear progress','停止':'Stop','等待导入建议包':'Import a suggestion pack to begin',
@@ -24,7 +24,8 @@ const english = {
  '文件路径必须是项目内的相对路径':'File paths must be relative to the project','只支持项目内的文本文件':'Only project text files are supported','每项必须包含非空 original 和字符串 replacement':'Each item needs a nonempty original and a string replacement','单项修改过长':'Suggestion text is too long','上下文必须是文本且不超过 10000 字符':'Context must be text with at most 10,000 characters','scope 必须包含 start，可选 end，均为原文标记':'scope requires start and an optional end, both exact source markers','需要 codex-overleaf-suggestions v1 建议包，含 1–10000 项':'Use a codex-overleaf-suggestions v1 pack with 1–10,000 items','projectId 必须是 Overleaf 项目 ID':'projectId must be an Overleaf project ID','每项 id 必须唯一':'Each item id must be unique'
 };
 const templates=[
- [/^修改 (.*)$/,(_,id)=>'Change '+id],
+ [/^建议 (\d+) \/ (\d+)$/,(_,position,remaining)=>`Suggestion ${position} / ${remaining}`],
+ [/^修改 (.*)$/, (_,id)=>'Change '+id],
  [/^Agent 建议版本 (\d+)，共 (\d+) 项$/,(_,revision,count)=>`Agent pack revision ${revision}, ${count} items`],
  [/^已载入文件：(.*)（正文不在输入框展开）$/,(_,name)=>`Loaded file: ${name} (pack not expanded here)`],
  [/^已恢复 (\d+) 项建议$/,(_,count)=>`Restored ${count} suggestions`],

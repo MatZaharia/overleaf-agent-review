@@ -1,13 +1,20 @@
 'use strict';
-const Core = require('./suggestions');
+const Counts = require('./reviewCounts');
 function halt(code) { return ['project_changed', 'cancelled', 'write_unconfirmed', 'bridge_failed', 'bridge_timeout'].includes(code); }
 async function run(pack, deps) {
   const results = new Map(), settled = new Set();
   const list = () => [...results.entries()].sort((a,b)=>a[0]-b[0]).map(([,result])=>result);
-  const save = (index,result) => {results.set(index,compact(result));settled.add(index)};
+  const restored=deps.initialCounts?{counts:deps.initialCounts,indexes:deps.decidedIndexes || []}:Counts.restore(pack,deps.decisions);
+  const counts={...restored.counts},finished=new Set(restored.indexes);
+  const notify=()=>deps.progress?.({...counts,total,completed:Counts.completed(counts),pending:total-Counts.completed(counts)});
+  const save = (index,result) => {
+    results.set(index,compact(result));settled.add(index);finished.add(index);
+    if(result.state!=='retained')counts[result.state]++;
+    notify();
+  };
   const compact=result=>({...result,item:{id:result.item.id,file:result.item.file,reviewKey:result.item.reviewKey}});
   const total=pack.count ?? pack.suggestions.length;
-  let index=0;
+  let index=0;notify();
   while(settled.size<total){
     if(index>=total){index=0;while(settled.has(index))index++}
     if(settled.has(index)){index++;continue}
@@ -26,10 +33,10 @@ async function run(pack, deps) {
       if (halt(prepared.code)) throw Object.assign(new Error('审阅已停止'), { code: prepared.code, results:list() });
       index++;continue;
     }
-    const decision = await deps.review(item, prepared, { index, total, isPending:i=>!settled.has(i), isDecided:item=>['written','rejected'].includes(deps.decisions?.[item.reviewKey]?.state) });
+    const decision = await deps.review(item, prepared, { index, total, remaining:total-finished.size, position:Counts.position(index,finished), isPending:i=>!finished.has(i), isDecided:item=>['written','rejected'].includes(deps.decisions?.[item.reviewKey]?.state) });
     deps.assertCurrent();
     if(Number.isInteger(decision.navigate)){
-      if(decision.navigate<0||decision.navigate>=total||settled.has(decision.navigate))throw new Error('无效的审阅导航目标');
+      if(decision.navigate<0||decision.navigate>=total||finished.has(decision.navigate))throw new Error('无效的审阅导航目标');
       await deps.call('cancel',{});deps.assertCurrent();index=decision.navigate;continue;
     }
     if (decision.skipped) {

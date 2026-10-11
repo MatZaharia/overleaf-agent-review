@@ -98,6 +98,37 @@
     }
   });
 
+  // src/reviewCounts.js
+  var require_reviewCounts = __commonJS({
+    "src/reviewCounts.js"(exports, module) {
+      "use strict";
+      function restore(pack, decisions = {}) {
+        const counts = { written: 0, rejected: 0, skipped: 0, unknown: 0, retained: 0 }, indexes = [];
+        for (const [index, item] of (pack?.suggestions || []).entries()) {
+          const state = decisions[item.reviewKey]?.state;
+          if (state === "written" || state === "rejected") {
+            counts[state]++;
+            counts.retained++;
+            indexes.push(index);
+          }
+        }
+        return { counts, indexes };
+      }
+      function completed(counts) {
+        return counts.written + counts.rejected + counts.skipped + counts.unknown;
+      }
+      function retained(pack, decisions) {
+        return restore(pack, decisions).counts;
+      }
+      function position(index, finished) {
+        let ordinal = 0;
+        for (let i = 0; i <= index; i++) if (!finished.has(i)) ordinal++;
+        return ordinal;
+      }
+      module.exports = { restore, retained, completed, position };
+    }
+  });
+
   // src/progress.js
   var require_progress = __commonJS({
     "src/progress.js"(exports, module) {
@@ -257,6 +288,7 @@
 
   // src/background.js
   var Core = require_suggestions();
+  var Counts = require_reviewCounts();
   var Progress = require_progress();
   var progress = Progress.create(indexedDB, crypto);
   var catalog = require_catalog().create(crypto);
@@ -275,8 +307,8 @@
           if (pack.projectId && pack.projectId !== projectId) throw new Error("Project mismatch");
           await progress.savePack(projectId, pack);
         }
-        const state = await progress.load(projectId);
-        return { ok: true, ...state, pack: state.pack ? catalog.put(projectId, state.pack) : null };
+        const state = await progress.load(projectId), restored = Counts.restore(state.pack, state.decisions);
+        return { ok: true, ...state, initialCounts: restored.counts, decidedIndexes: restored.indexes, pack: state.pack ? catalog.put(projectId, state.pack) : null };
       }
       if (message.type === "progress") {
         await progress.save(projectId, message);

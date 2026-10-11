@@ -8,7 +8,7 @@
 
 让在线 LaTeX 审阅，细到每个字符、每次决定。
 
-[![Release](https://img.shields.io/github/v/release/MatZaharia/overleaf-agent-review?include_prereleases&style=flat-square&color=6752c7)](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.4.0)
+[![Release](https://img.shields.io/github/v/release/MatZaharia/overleaf-agent-review?include_prereleases&style=flat-square&color=6752c7)](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.5.0)
 [![CI](https://github.com/MatZaharia/overleaf-agent-review/actions/workflows/ci.yml/badge.svg)](https://github.com/MatZaharia/overleaf-agent-review/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-278262?style=flat-square)](LICENSE)
 [![Chrome](https://img.shields.io/badge/Chrome-Manifest_V3-456cb3?style=flat-square)](#安装)
@@ -16,7 +16,7 @@
 
 **简体中文** · [English](README.md)
 
-[下载扩展](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.4.0) · [连接 Agent](#本地-agent-连接) · [Agent 操作指南](docs/agent-guide.md) · [反馈问题](https://github.com/MatZaharia/overleaf-agent-review/issues)
+[下载扩展](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.5.0) · [连接 Agent](#本地-agent-连接) · [Agent 操作指南](docs/agent-guide.md) · [反馈问题](https://github.com/MatZaharia/overleaf-agent-review/issues)
 
 </div>
 
@@ -58,7 +58,7 @@ Agent 发来建议包，Overleaf 高亮变化的字符。**你可以接受、拒
 
 ## 安装
 
-1. 在 [Releases](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.4.0) 下载插件 ZIP 并解压。请选择插件安装包，不是 GitHub 自动生成的 Source code ZIP。
+1. 在 [Releases](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.5.0) 下载插件 ZIP 并解压。请选择插件安装包，不是 GitHub 自动生成的 Source code ZIP。
 2. 在 Chrome 打开 `chrome://extensions`，开启“开发者模式”。
 3. 点击“加载未打包的扩展程序”，选择解压后包含 `manifest.json` 的 `overleaf-agent-review` 文件夹。
 4. 打开 Overleaf 项目，刷新页面，切换到 **Code** 源码模式。
@@ -148,13 +148,17 @@ CLI 和建议包格式不绑定模型厂商。目前以 Codex 开发和验证流
 
 ## 审阅导航
 
+开始审阅后进入单独的审阅界面，隐藏导入表单和连接设置。点 **返回导入** 查看设置，当前项保持待确认；点 **继续审阅** 回到同一项。最近处理记录默认折叠。
+
+卡片计数表示 **当前在待处理队列中的位置／待处理总数**，不再使用建议包的固定序号。例如处理掉 `2 / 3` 后，下一项显示 `2 / 2`。接受、拒绝或跳过才减少总数，仅切换不减少；恢复审阅时会排除当前建议包中已经决定的项。建议包原始序号以 `#N` 放在文件路径旁，界面不再显示额外进度条。
+
 两块面板都可拖动标题移动，拖动右下角斜线手柄调整大小；切换建议时保留布局，位置不会越出浏览器窗口。标题或缩放手柄获得焦点后，也可用方向键微调，Shift 加快调整。左侧 **↑／↓** 切换建议包中的上一项／下一项；光标导航只在右侧。中英文切换即时更新两侧控件，保留当前待确认项，原文、替换文本和 Agent 的修改理由不会被翻译。
 
 左侧显示修改后的文本，只强调新增或替换的字符；纯删除用小的红色 `−文本` 标记显示位置。右侧对照将删除字符划掉、新增字符加深，未变化部分保持普通显示。差异直接来自实际字符写入范围。接受或导航后，下一项的源码位置自动居中，自动放置的预览框避开高亮行。
 
 审阅卡片获得焦点时（点击卡片文字即可），**↑／↓** 切换上一项／下一项，**Enter** 接受当前项。LaTeX 编辑器、输入框及面板移动／缩放控件保留正常按键行为；长按 Enter 不会连续接受多项。
 
-这些界面改进目前在 `main` 源码中；现有 v1.4.0 Release ZIP 尚不包含。先构建再加载仓库根目录，或更新已从源码加载的扩展并刷新 Overleaf。
+这些界面改进已包含在 v1.5.0 Release ZIP 中。更新扩展后重新加载，并刷新 Overleaf。
 
 **上一项／下一项**按建议包顺序切换未决定项。**光标上一处／光标下一处**在当前文件中，按实时修改字符的位置查找光标前后最近的可定位待处理建议，不按 JSON 顺序或行号寻找。切换只移动预览，不拒绝、不写入；暂不处理的项仍待确认，其他项处理后会回来。已接受／拒绝的项不参与导航。搜索期间正文、文件或光标变化时，请重新点击导航。
 

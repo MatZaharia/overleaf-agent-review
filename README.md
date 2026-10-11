@@ -8,7 +8,7 @@
 
 Review one change at a time, directly inside Overleaf.
 
-[![Release](https://img.shields.io/github/v/release/MatZaharia/overleaf-agent-review?include_prereleases&style=flat-square&color=6752c7)](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.4.0)
+[![Release](https://img.shields.io/github/v/release/MatZaharia/overleaf-agent-review?include_prereleases&style=flat-square&color=6752c7)](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.5.0)
 [![CI](https://github.com/MatZaharia/overleaf-agent-review/actions/workflows/ci.yml/badge.svg)](https://github.com/MatZaharia/overleaf-agent-review/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-278262?style=flat-square)](LICENSE)
 [![Chrome](https://img.shields.io/badge/Chrome-Manifest_V3-456cb3?style=flat-square)](#install)
@@ -16,7 +16,7 @@ Review one change at a time, directly inside Overleaf.
 
 **English** · [简体中文](README.zh-CN.md)
 
-[Download extension](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.4.0) · [Connect your Agent](#local-agent-connection) · [Agent guide](docs/agent-guide.md) · [Report an issue](https://github.com/MatZaharia/overleaf-agent-review/issues)
+[Download extension](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.5.0) · [Connect your Agent](#local-agent-connection) · [Agent guide](docs/agent-guide.md) · [Report an issue](https://github.com/MatZaharia/overleaf-agent-review/issues)
 
 </div>
 
@@ -58,13 +58,13 @@ Your Agent sends a suggestion pack. Overleaf highlights the changed characters. 
 
 ## Install
 
-1. Download the extension ZIP from [Releases](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.4.0) and extract it. Use the extension asset, rather than GitHub's automatically generated source ZIP.
+1. Download the extension ZIP from [Releases](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.5.0) and extract it. Use the extension asset, rather than GitHub's automatically generated source ZIP.
 2. Open `chrome://extensions` in Chrome and enable **Developer mode**.
 3. Click **Load unpacked** and select the extracted `overleaf-agent-review` folder containing `manifest.json`.
 4. Open your Overleaf project and refresh the page. Select **Code** mode.
 5. Click **导入修改建议** (Import suggestions) at the bottom right.
 
-The `main` interface supports **中文 / English**, selectable in the right panel header and saved locally. The existing v1.4.0 Release interface is Chinese: **开始审阅** = Start review; **接受这一项** = Accept this item; **拒绝这一项** = Reject this item; **停止** = Stop.
+The interface supports **中文 / English**, selectable in the right panel header and saved locally.
 
 To update, replace the files in the installed folder, click Reload on the extension card, and refresh Overleaf. Installation in the Codex in-app browser has not been verified; the supported installation path is Chrome.
 
@@ -152,13 +152,17 @@ The displayed line number is informational. It is never used as the replacement 
 
 ## Review navigation
 
+Starting a review opens a separate review screen: the import form and connection settings are hidden. **Back to import** returns to setup while preserving the current pending item; **Continue review** returns to that item. Recent decisions are collapsed by default.
+
+The card counter is **position / total in the pending queue**, not the original pack index. For example, settling `2 / 3` moves the next item to `2 / 2`. Accepting, rejecting or skipping reduces the total; navigation only changes the position. Saved decisions for the current pack are excluded on resume. The original pack index remains as `#N` beside the file path. There is no separate progress bar.
+
 Drag either panel by its title and resize with the bottom-right grip. Layout survives item navigation and stays within the browser viewport. Focus a title/grip and use arrow keys for fine adjustment (Shift for larger steps). The left **↑ / ↓** buttons move through the pack; cursor navigation stays on the right. Switch **中文 / English** in the right header; the choice is saved locally and updates both panels without settling the pending item. Source, replacement text and Agent reasons are kept verbatim.
 
 The left preview shows the resulting text with additions emphasized; small red `−text` badges show pure deletions at their position. The right comparison strikes through removed characters and emphasizes inserted characters. The display uses the same character edits as the editor transaction. Accepting/navigating centers the next source target, and automatic preview placement avoids covering its highlighted line.
 
 With a review card focused (click its text), **↑ / ↓** select the previous/next pending item and **Enter** accepts the current item. These keys keep their usual behavior in the LaTeX editor, text inputs and panel move/resize controls. Holding Enter never accepts a sequence of items.
 
-These interface improvements are currently available in `main`; the existing v1.4.0 Release ZIP does not include them. Build and load the repository root, or reload an extension already loaded from source, then refresh Overleaf.
+These interface improvements are included in the v1.5.0 Release ZIP. Reload the updated extension and refresh Overleaf.
 
 **上一项 / 下一项** move between undecided suggestions in pack order. **光标上一处 / 光标下一处** find the nearest locatable undecided suggestion before/after the editor cursor in the current file, using live character-change positions rather than JSON order or line numbers. Navigation moves the preview only; it does not reject or write an item. Deferred items remain pending and return after later items are settled. Accepted/rejected items are excluded. If source, file or cursor changes during a search, retry the navigation.
 

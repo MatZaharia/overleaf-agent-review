@@ -19,3 +19,7 @@ test('dynamic labels preserve identifiers and filenames, with no rewriting of un
  assert.equal(I18n.translate('User supplied 私人内容','en'),'User supplied 私人内容');
  const labels=I18n.previewLabels({id:'one'},3,'en');assert.equal(labels.previous,'Previous item');assert.equal(labels.next,'Next item');assert.equal(labels.accept,'Accept this item');
 });
+test('review screen and pending position translate without changing numbers',()=>{
+ assert.equal(I18n.translate('建议 2 / 2','en'),'Suggestion 2 / 2');
+ for(const label of ['逐项审阅','← 返回导入','继续审阅','最近处理记录'])assert.doesNotMatch(I18n.translate(label,'en'),/[\u3400-\u9fff]/);
+});

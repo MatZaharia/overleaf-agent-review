@@ -13,8 +13,8 @@ function mount() {
   host.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:2147483100;';
   const shadow = host.attachShadow({ mode: 'open' });
   shadow.innerHTML = `<style>
-:host{font:13px/1.5 system-ui;color:#273342}*{box-sizing:border-box}button,textarea,input{font:inherit}button{border:1px solid #cdd6df;border-radius:6px;background:#fff;color:#273342;padding:7px 11px;cursor:pointer}button:disabled{opacity:.45;cursor:default}button:focus-visible,textarea:focus-visible{outline:3px solid #8aafe3;outline-offset:2px}.primary,.launch{background:#176347;color:#fff;border-color:#176347}.launch{box-shadow:0 4px 18px #18352925}.drawer{position:fixed;display:flex;flex-direction:column;overflow:hidden;background:#fff;border:1px solid #cbd5de;border-radius:10px;box-shadow:0 10px 40px #14253630;margin-bottom:10px}.head{padding:14px 16px;border-bottom:1px solid #e0e6ec;display:flex;align-items:center;justify-content:space-between}.head strong{font-size:15px}.head button{padding:3px 8px}.body{padding:16px 16px 26px;overflow:auto;min-height:0;flex:1}.head{flex-shrink:0;gap:12px}.head strong{flex:1}.language{font:inherit;border:1px solid #cdd6df;border-radius:5px;background:white;padding:3px}.muted{color:#657687;font-size:12px;margin:0 0 12px}.label{display:block;margin-bottom:6px;font-weight:600}textarea{display:block;width:100%;height:130px;padding:10px;border:1px solid #ccd7e0;border-radius:6px;resize:vertical;font:12px/1.45 ui-monospace,monospace}.toolbar{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.message{font-size:12px;padding:10px;background:#f0f5f4;border-radius:5px}.card{border:1px solid #d2dce4;border-radius:7px;padding:12px;margin-top:12px}.card strong{display:block}.path{font:11px/1.5 ui-monospace,monospace;color:#687888}.reason{font-size:12px;margin:8px 0}.source{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 ui-monospace,monospace;margin:6px 0 10px;padding:8px;max-height:180px;overflow:auto;border-radius:4px}.old,.new{background:#f6f8fa;color:#586673}.actions{display:flex;gap:8px}.history{padding:8px 0;border-bottom:1px solid #e3e9ed;font-size:12px}.history b{color:#176347}.unknown{color:#9a452c}.footer{margin-top:14px;font-size:11px;color:#6b7b88}[hidden]{display:none!important}
-${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="head"><strong>导入修改建议</strong><select class="language" aria-label="语言"><option value="zh-CN">中文</option><option value="en">English</option></select><button class="close" aria-label="收起">×</button></div><div class="body"><p class="muted">先导入建议包，再逐项确认。每次接受都会搜索当前原文；过时或不唯一的项自动跳过。</p><label class="label" for="pack">建议包 JSON</label><textarea id="pack" spellcheck="false" placeholder="粘贴 Agent 生成的建议包"></textarea><input type="file" accept=".json,application/json" hidden><div class="toolbar"><button class="connect">连接 Agent</button><button class="disconnect">断开</button></div><div class="bridge-status" role="status"></div><input class="bridge-token" type="password" placeholder="本地连接配对令牌" autocomplete="off"><div class="toolbar"><button class="file">选择 JSON 文件</button><button class="primary start">开始审阅</button><button class="resume">恢复上次审阅</button><button class="reset">清除进度</button><button class="stop" hidden>停止</button></div><div class="message" role="status" aria-live="polite">等待导入建议包</div><div class="pending"></div><div class="history-list"></div><p class="footer">已写入表示编辑器内容已核验，服务器保存需在 Overleaf 检查。可使用 Overleaf 的撤销按钮。</p></div><button class="resize" aria-label="拖动右下角调整大小；方向键微调" title="拖动右下角调整大小；方向键微调"></button></section><button class="launch">导入修改建议</button>`;
+:host{font:13px/1.5 system-ui;color:#273342}*{box-sizing:border-box}button,textarea,input{font:inherit}button{border:1px solid #cdd6df;border-radius:6px;background:#fff;color:#273342;padding:7px 11px;cursor:pointer}button:disabled{opacity:.45;cursor:default}button:focus-visible,textarea:focus-visible{outline:3px solid #8aafe3;outline-offset:2px}.primary,.launch{background:#176347;color:#fff;border-color:#176347}.launch{box-shadow:0 4px 18px #18352925}.drawer{position:fixed;display:flex;flex-direction:column;overflow:hidden;background:#fff;border:1px solid #cbd5de;border-radius:10px;box-shadow:0 10px 40px #14253630;margin-bottom:10px}.head{padding:14px 16px;border-bottom:1px solid #e0e6ec;display:flex;align-items:center;justify-content:space-between}.head strong{font-size:15px}.head button{padding:3px 8px}.body{padding:16px 16px 26px;overflow:auto;min-height:0;flex:1}.head{flex-shrink:0;gap:12px}.head strong{flex:1}.language{font:inherit;border:1px solid #cdd6df;border-radius:5px;background:white;padding:3px}.muted{color:#657687;font-size:12px;margin:0 0 12px}.label{display:block;margin-bottom:6px;font-weight:600}textarea{display:block;width:100%;height:130px;padding:10px;border:1px solid #ccd7e0;border-radius:6px;resize:vertical;font:12px/1.45 ui-monospace,monospace}.toolbar{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.message{font-size:12px;padding:10px;background:#f0f5f4;border-radius:5px}.card{border:1px solid #d2dce4;border-radius:7px;padding:12px;margin-top:12px}.card strong{display:block}.path{font:11px/1.5 ui-monospace,monospace;color:#687888}.reason{font-size:12px;margin:8px 0}.source{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 ui-monospace,monospace;margin:6px 0 10px;padding:8px;max-height:180px;overflow:auto;border-radius:4px}.old,.new{background:#f6f8fa;color:#586673}.actions{display:flex;gap:8px}.history{padding:8px 0;border-bottom:1px solid #e3e9ed;font-size:12px}.history b{color:#176347}.unknown{color:#9a452c}.session-toolbar{display:flex;justify-content:space-between;gap:8px;margin-bottom:12px}.history-details{margin-top:14px;font-size:12px;color:#657687}.footer{margin-top:14px;font-size:11px;color:#6b7b88}[hidden]{display:none!important}
+${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="head"><strong>导入修改建议</strong><select class="language" aria-label="语言"><option value="zh-CN">中文</option><option value="en">English</option></select><button class="close" aria-label="收起">×</button></div><div class="body"><div class="session-toolbar" hidden><button class="back">← 返回导入</button><button class="continue" hidden>继续审阅</button><button class="stop" hidden>停止</button></div><div class="setup-view"><p class="muted">先导入建议包，再逐项确认。每次接受都会搜索当前原文；过时或不唯一的项自动跳过。</p><label class="label" for="pack">建议包 JSON</label><textarea id="pack" spellcheck="false" placeholder="粘贴 Agent 生成的建议包"></textarea><input type="file" accept=".json,application/json" hidden><div class="toolbar"><button class="connect">连接 Agent</button><button class="disconnect">断开</button></div><div class="bridge-status" role="status"></div><input class="bridge-token" type="password" placeholder="本地连接配对令牌" autocomplete="off"><div class="toolbar"><button class="file">选择 JSON 文件</button><button class="primary start">开始审阅</button><button class="resume">恢复上次审阅</button><button class="reset">清除进度</button></div><div class="setup-message message" role="status" aria-live="polite">等待导入建议包</div></div><div class="review-view" hidden><div class="message review-message" role="status" aria-live="polite">等待导入建议包</div><div class="pending"></div><details class="history-details"><summary>最近处理记录</summary><div class="history-list"></div></details><p class="footer">已写入表示编辑器内容已核验，服务器保存需在 Overleaf 检查。可使用 Overleaf 的撤销按钮。</p></div></div><button class="resize" aria-label="拖动右下角调整大小；方向键微调" title="拖动右下角调整大小；方向键微调"></button></section><button class="launch">导入修改建议</button>`;
   document.body.append(host);
   const $ = selector => shadow.querySelector(selector);
   const capability = Array.from(crypto.getRandomValues(new Uint8Array(32)), b => b.toString(16).padStart(2, '0')).join('');
@@ -44,6 +44,12 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
   uiAttributes.set($('.head'),{'aria-label':$('.head').getAttribute('aria-label'),title:$('.head').title});
   const floating=Floating.attach({panel:$('.drawer'),drag:$('.head'),resize:$('.resize'),window,minimum:{width:300,height:220},defaultRect:()=>({left:window.innerWidth-406,top:window.innerHeight-Math.min(850,window.innerHeight*.85)-60,width:390,height:Math.min(850,window.innerHeight*.85)})});
   floating.layout();
+  let screen='setup';
+  function showScreen(next){
+    screen=next;$('.setup-view').hidden=screen!=='setup';$('.review-view').hidden=screen!=='review';
+    $('.session-toolbar').hidden=screen==='setup'&&!running;$('.back').hidden=screen!=='review';$('.continue').hidden=screen!=='setup'||!running;
+    setUI($('.head strong'),screen==='review'?'逐项审阅':'导入修改建议');$('.body').scrollTop=0;
+  }
   let startEpoch = 0, sessionActive=false;
   let importedPack = null, initialized = null, running = false, starting = false, owner = '', cancelled = false, pendingAbort = null;
   function send(method, params) {
@@ -72,7 +78,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
     const current = location.pathname.match(/^\/project\/([a-f\d]{24})(?:\/|$)/i)?.[1];
     if (cancelled || current !== owner) throw Object.assign(new Error('已停止'), { code: cancelled ? 'cancelled' : 'project_changed' });
   };
-  const status = text => setUI($('.message'),text);
+  const status = text => {setUI($('.setup-message'),text);setUI($('.review-message'),text)};
   async function changeLanguage(value){language=I18n.normalize(value);$('.language').value=language;refreshUI();reviewLanguageRefresh?.();await call('language',{language}).catch(()=>{});}
   $('.language').addEventListener('change',()=>{languageTouched=true;changeLanguage($('.language').value);if(persistent && chrome.storage?.local)chrome.storage.local.set({reviewLanguage:language});});
   if(persistent && chrome.storage?.local)chrome.storage.local.get('reviewLanguage').then(saved=>{if(!languageTouched)changeLanguage(saved.reviewLanguage || 'zh-CN')}).catch(()=>{});
@@ -83,8 +89,8 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
       card.innerHTML = '<strong></strong><div class="path"></div><p class="reason"></p><div>原文 · 标出删除</div><pre class="source old"></pre><div>修改后 · 标出新增</div><pre class="source new"></pre><div class="toolbar navigation"><button class="previous">上一项</button><button class="next">下一项</button><button class="cursor-previous">光标上一处</button><button class="cursor-next">光标下一处</button></div><div class="actions"><button class="reject">拒绝这一项</button><button class="primary accept">接受这一项</button></div>';
       $('.pending').replaceChildren(card);
       rememberUI(card);
-      setUI(card.querySelector('strong'),'修改 ' + (options.index + 1) + ' / ' + options.total);
-      card.querySelector('.path').textContent = item.file + ' · L' + prepared.line;
+      setUI(card.querySelector('strong'),'建议 '+options.position+' / '+options.remaining);
+      card.querySelector('.path').textContent = item.file + ' · L' + prepared.line+' · #'+(options.index+1);
       card.querySelector('.reason').textContent = item.reason;
       let displayed=prepared;
       function renderDiff(){
@@ -159,7 +165,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
           const response = await call('status', { token, projectId: owner });
           if (settled || navigating) return;
           if (!response.ok) { finish(false, response.code); return; }
-          if (response.refreshed) { displayed=response;renderDiff(); token = response.token; card.querySelector('.path').textContent = item.file + ' · L' + response.line; status('正文有变化，已重新定位这一项，等待确认'); }
+          if (response.refreshed) { displayed=response;renderDiff(); token = response.token; card.querySelector('.path').textContent = item.file + ' · L' + response.line+' · #'+(options.index+1); status('正文有变化，已重新定位这一项，等待确认'); }
           else if (response.navigation===-1 || response.navigation===1){await navigate(response.navigation,false);return;}
           else if (typeof response.decision === 'boolean') { finish(response.decision); return; }
           timer = setTimeout(poll, 300);
@@ -204,12 +210,12 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
     } catch (error) { status(error.message); starting = false; $('.start').disabled = false; return; }
     running = true; starting = false; cancelled = false;
     $('.start').disabled = true; $('.resume').disabled=true;$('.reset').disabled=true; $('.file').disabled = true; $('#pack').disabled = true; $('.stop').hidden = false;
-    historyMessages=[];$('.history-list').replaceChildren();
+    historyMessages=[];$('.history-list').replaceChildren();$('.history-details').open=false;showScreen('review');
     try {
       await call('begin', {ledgers:session.ledgers});
       let itemBuffer=[],bufferStart=-1;
       const itemAt=persistent?async index=>{if(index<bufferStart||index>=bufferStart+itemBuffer.length){const fetched=await chrome.runtime.sendMessage({type:'items',ref:pack.ref,index});if(!fetched.ok)throw new Error(fetched.error);bufferStart=index;itemBuffer=fetched.items}return itemBuffer[index-bufferStart]}:async index=>pack.suggestions[index];
-      const results = await Runner.run(pack, { projectId: owner, assertCurrent, call, review:(item,prepared,options)=>review(item,prepared,options,itemAt), record, decisions:session.decisions, itemAt, retained:result=>{if(bridgeRevision)bridgeResults.push({revision:bridgeRevision,id:result.item.id,state:result.state,code:'retained_decision'})} });
+      const results = await Runner.run(pack, { projectId: owner, assertCurrent, call, review:(item,prepared,options)=>review(item,prepared,options,itemAt), record, initialCounts:session.initialCounts, decidedIndexes:session.decidedIndexes, decisions:session.decisions, itemAt, retained:result=>{if(bridgeRevision)bridgeResults.push({revision:bridgeRevision,id:result.item.id,state:result.state,code:'retained_decision'})} });
       const count = state => results.filter(result => result.state === state).length;
       status('审阅结束：写入 ' + count('written') + ' 项，拒绝 ' + count('rejected') + ' 项，跳过 ' + count('skipped') + ' 项，保留先前决定 ' + count('retained') + ' 项。');
     } catch (error) {
@@ -218,7 +224,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
       pendingAbort?.(); pendingAbort = null;
       await call('cancel', {}).catch(() => {});
       $('.pending').replaceChildren();reviewLanguageRefresh=null; running = false;
-      $('.start').disabled = false;$('.resume').disabled=false;$('.reset').disabled=false; $('.file').disabled = false; $('#pack').disabled = false; $('.stop').hidden = true;
+      $('.start').disabled = false;$('.resume').disabled=false;$('.reset').disabled=false; $('.file').disabled = false; $('#pack').disabled = false; $('.stop').hidden = true;showScreen(screen);
     }
   }
 
@@ -262,6 +268,8 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
     finally{bridgeBusy=false;if(bridgeEnabled)setTimeout(pollBridge,2000);}
   }
 
+  $('.back').addEventListener('click',()=>showScreen('setup'));
+  $('.continue').addEventListener('click',()=>{showScreen('review');const card=$('.pending .card');if(card)Scroll.panel($('.body'),card)});
   $('.launch').addEventListener('click', () => { $('.drawer').hidden = !$('.drawer').hidden;floating.layout(); });
   $('.close').addEventListener('click', () => { $('.drawer').hidden = true; });
   $('.file').addEventListener('click', () => $('input[type=file]').click());
@@ -279,7 +287,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
   $('.reset').addEventListener('click',async()=>{
     if(running||starting)return;
     if(persistent){const saved=await chrome.runtime.sendMessage({type:'clearProgress'});if(!saved.ok){status(saved.error);return}}
-    sessionActive=false;status('已清除当前项目的审阅进度；正文不变，可重新导入审阅');
+    sessionActive=false;$('.history-list').replaceChildren();status('已清除当前项目的审阅进度；正文不变，可重新导入审阅');
   });
   $('.start').addEventListener('click', start);
   $('.stop').addEventListener('click', () => { ++startEpoch; cancelled = true; pendingAbort?.(); call('cancel', {}).catch(() => {}); status('正在停止；已派发的项需核验实际结果。'); });

@@ -98,24 +98,62 @@
     }
   });
 
+  // src/reviewCounts.js
+  var require_reviewCounts = __commonJS({
+    "src/reviewCounts.js"(exports, module) {
+      "use strict";
+      function restore(pack, decisions = {}) {
+        const counts = { written: 0, rejected: 0, skipped: 0, unknown: 0, retained: 0 }, indexes = [];
+        for (const [index, item] of (pack?.suggestions || []).entries()) {
+          const state = decisions[item.reviewKey]?.state;
+          if (state === "written" || state === "rejected") {
+            counts[state]++;
+            counts.retained++;
+            indexes.push(index);
+          }
+        }
+        return { counts, indexes };
+      }
+      function completed(counts) {
+        return counts.written + counts.rejected + counts.skipped + counts.unknown;
+      }
+      function retained(pack, decisions) {
+        return restore(pack, decisions).counts;
+      }
+      function position(index, finished) {
+        let ordinal = 0;
+        for (let i = 0; i <= index; i++) if (!finished.has(i)) ordinal++;
+        return ordinal;
+      }
+      module.exports = { restore, retained, completed, position };
+    }
+  });
+
   // src/runner.js
   var require_runner = __commonJS({
     "src/runner.js"(exports, module) {
       "use strict";
-      var Core2 = require_suggestions();
+      var Counts = require_reviewCounts();
       function halt(code) {
         return ["project_changed", "cancelled", "write_unconfirmed", "bridge_failed", "bridge_timeout"].includes(code);
       }
       async function run(pack, deps) {
         const results = /* @__PURE__ */ new Map(), settled = /* @__PURE__ */ new Set();
         const list = () => [...results.entries()].sort((a, b) => a[0] - b[0]).map(([, result]) => result);
+        const restored = deps.initialCounts ? { counts: deps.initialCounts, indexes: deps.decidedIndexes || [] } : Counts.restore(pack, deps.decisions);
+        const counts = { ...restored.counts }, finished = new Set(restored.indexes);
+        const notify = () => deps.progress?.({ ...counts, total, completed: Counts.completed(counts), pending: total - Counts.completed(counts) });
         const save = (index2, result) => {
           results.set(index2, compact(result));
           settled.add(index2);
+          finished.add(index2);
+          if (result.state !== "retained") counts[result.state]++;
+          notify();
         };
         const compact = (result) => ({ ...result, item: { id: result.item.id, file: result.item.file, reviewKey: result.item.reviewKey } });
         const total = pack.count ?? pack.suggestions.length;
         let index = 0;
+        notify();
         while (settled.size < total) {
           if (index >= total) {
             index = 0;
@@ -151,10 +189,10 @@
             index++;
             continue;
           }
-          const decision = await deps.review(item, prepared, { index, total, isPending: (i) => !settled.has(i), isDecided: (item2) => ["written", "rejected"].includes(deps.decisions?.[item2.reviewKey]?.state) });
+          const decision = await deps.review(item, prepared, { index, total, remaining: total - finished.size, position: Counts.position(index, finished), isPending: (i) => !finished.has(i), isDecided: (item2) => ["written", "rejected"].includes(deps.decisions?.[item2.reviewKey]?.state) });
           deps.assertCurrent();
           if (Number.isInteger(decision.navigate)) {
-            if (decision.navigate < 0 || decision.navigate >= total || settled.has(decision.navigate)) throw new Error("\u65E0\u6548\u7684\u5BA1\u9605\u5BFC\u822A\u76EE\u6807");
+            if (decision.navigate < 0 || decision.navigate >= total || finished.has(decision.navigate)) throw new Error("\u65E0\u6548\u7684\u5BA1\u9605\u5BFC\u822A\u76EE\u6807");
             await deps.call("cancel", {});
             deps.assertCurrent();
             index = decision.navigate;
@@ -306,6 +344,10 @@
         "\u5EFA\u8BAE\u7D22\u5F15\u65E0\u6548": "Invalid suggestion index",
         "\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE": "Review suggestions",
         "\u6536\u8D77": "Close",
+        "\u9010\u9879\u5BA1\u9605": "Review items",
+        "\u2190 \u8FD4\u56DE\u5BFC\u5165": "\u2190 Back to import",
+        "\u7EE7\u7EED\u5BA1\u9605": "Continue review",
+        "\u6700\u8FD1\u5904\u7406\u8BB0\u5F55": "Recent decisions",
         "\u5148\u5BFC\u5165\u5EFA\u8BAE\u5305\uFF0C\u518D\u9010\u9879\u786E\u8BA4\u3002\u6BCF\u6B21\u63A5\u53D7\u90FD\u4F1A\u641C\u7D22\u5F53\u524D\u539F\u6587\uFF1B\u8FC7\u65F6\u6216\u4E0D\u552F\u4E00\u7684\u9879\u81EA\u52A8\u8DF3\u8FC7\u3002": "Import a pack and review each item. Accept searches the current source; stale or ambiguous items are skipped.",
         "\u5EFA\u8BAE\u5305 JSON": "Suggestion pack JSON",
         "\u7C98\u8D34 Agent \u751F\u6210\u7684\u5EFA\u8BAE\u5305": "Paste an Agent suggestion pack",
@@ -396,6 +438,7 @@
         "\u6BCF\u9879 id \u5FC5\u987B\u552F\u4E00": "Each item id must be unique"
       };
       var templates = [
+        [/^建议 (\d+) \/ (\d+)$/, (_, position, remaining) => `Suggestion ${position} / ${remaining}`],
         [/^修改 (.*)$/, (_, id) => "Change " + id],
         [/^Agent 建议版本 (\d+)，共 (\d+) 项$/, (_, revision, count) => `Agent pack revision ${revision}, ${count} items`],
         [/^已载入文件：(.*)（正文不在输入框展开）$/, (_, name) => `Loaded file: ${name} (pack not expanded here)`],
@@ -546,8 +589,8 @@
     host.style.cssText = "position:fixed;right:16px;bottom:16px;z-index:2147483100;";
     const shadow = host.attachShadow({ mode: "open" });
     shadow.innerHTML = `<style>
-:host{font:13px/1.5 system-ui;color:#273342}*{box-sizing:border-box}button,textarea,input{font:inherit}button{border:1px solid #cdd6df;border-radius:6px;background:#fff;color:#273342;padding:7px 11px;cursor:pointer}button:disabled{opacity:.45;cursor:default}button:focus-visible,textarea:focus-visible{outline:3px solid #8aafe3;outline-offset:2px}.primary,.launch{background:#176347;color:#fff;border-color:#176347}.launch{box-shadow:0 4px 18px #18352925}.drawer{position:fixed;display:flex;flex-direction:column;overflow:hidden;background:#fff;border:1px solid #cbd5de;border-radius:10px;box-shadow:0 10px 40px #14253630;margin-bottom:10px}.head{padding:14px 16px;border-bottom:1px solid #e0e6ec;display:flex;align-items:center;justify-content:space-between}.head strong{font-size:15px}.head button{padding:3px 8px}.body{padding:16px 16px 26px;overflow:auto;min-height:0;flex:1}.head{flex-shrink:0;gap:12px}.head strong{flex:1}.language{font:inherit;border:1px solid #cdd6df;border-radius:5px;background:white;padding:3px}.muted{color:#657687;font-size:12px;margin:0 0 12px}.label{display:block;margin-bottom:6px;font-weight:600}textarea{display:block;width:100%;height:130px;padding:10px;border:1px solid #ccd7e0;border-radius:6px;resize:vertical;font:12px/1.45 ui-monospace,monospace}.toolbar{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.message{font-size:12px;padding:10px;background:#f0f5f4;border-radius:5px}.card{border:1px solid #d2dce4;border-radius:7px;padding:12px;margin-top:12px}.card strong{display:block}.path{font:11px/1.5 ui-monospace,monospace;color:#687888}.reason{font-size:12px;margin:8px 0}.source{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 ui-monospace,monospace;margin:6px 0 10px;padding:8px;max-height:180px;overflow:auto;border-radius:4px}.old,.new{background:#f6f8fa;color:#586673}.actions{display:flex;gap:8px}.history{padding:8px 0;border-bottom:1px solid #e3e9ed;font-size:12px}.history b{color:#176347}.unknown{color:#9a452c}.footer{margin-top:14px;font-size:11px;color:#6b7b88}[hidden]{display:none!important}
-${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="head"><strong>\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE</strong><select class="language" aria-label="\u8BED\u8A00"><option value="zh-CN">\u4E2D\u6587</option><option value="en">English</option></select><button class="close" aria-label="\u6536\u8D77">\xD7</button></div><div class="body"><p class="muted">\u5148\u5BFC\u5165\u5EFA\u8BAE\u5305\uFF0C\u518D\u9010\u9879\u786E\u8BA4\u3002\u6BCF\u6B21\u63A5\u53D7\u90FD\u4F1A\u641C\u7D22\u5F53\u524D\u539F\u6587\uFF1B\u8FC7\u65F6\u6216\u4E0D\u552F\u4E00\u7684\u9879\u81EA\u52A8\u8DF3\u8FC7\u3002</p><label class="label" for="pack">\u5EFA\u8BAE\u5305 JSON</label><textarea id="pack" spellcheck="false" placeholder="\u7C98\u8D34 Agent \u751F\u6210\u7684\u5EFA\u8BAE\u5305"></textarea><input type="file" accept=".json,application/json" hidden><div class="toolbar"><button class="connect">\u8FDE\u63A5 Agent</button><button class="disconnect">\u65AD\u5F00</button></div><div class="bridge-status" role="status"></div><input class="bridge-token" type="password" placeholder="\u672C\u5730\u8FDE\u63A5\u914D\u5BF9\u4EE4\u724C" autocomplete="off"><div class="toolbar"><button class="file">\u9009\u62E9 JSON \u6587\u4EF6</button><button class="primary start">\u5F00\u59CB\u5BA1\u9605</button><button class="resume">\u6062\u590D\u4E0A\u6B21\u5BA1\u9605</button><button class="reset">\u6E05\u9664\u8FDB\u5EA6</button><button class="stop" hidden>\u505C\u6B62</button></div><div class="message" role="status" aria-live="polite">\u7B49\u5F85\u5BFC\u5165\u5EFA\u8BAE\u5305</div><div class="pending"></div><div class="history-list"></div><p class="footer">\u5DF2\u5199\u5165\u8868\u793A\u7F16\u8F91\u5668\u5185\u5BB9\u5DF2\u6838\u9A8C\uFF0C\u670D\u52A1\u5668\u4FDD\u5B58\u9700\u5728 Overleaf \u68C0\u67E5\u3002\u53EF\u4F7F\u7528 Overleaf \u7684\u64A4\u9500\u6309\u94AE\u3002</p></div><button class="resize" aria-label="\u62D6\u52A8\u53F3\u4E0B\u89D2\u8C03\u6574\u5927\u5C0F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03" title="\u62D6\u52A8\u53F3\u4E0B\u89D2\u8C03\u6574\u5927\u5C0F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03"></button></section><button class="launch">\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE</button>`;
+:host{font:13px/1.5 system-ui;color:#273342}*{box-sizing:border-box}button,textarea,input{font:inherit}button{border:1px solid #cdd6df;border-radius:6px;background:#fff;color:#273342;padding:7px 11px;cursor:pointer}button:disabled{opacity:.45;cursor:default}button:focus-visible,textarea:focus-visible{outline:3px solid #8aafe3;outline-offset:2px}.primary,.launch{background:#176347;color:#fff;border-color:#176347}.launch{box-shadow:0 4px 18px #18352925}.drawer{position:fixed;display:flex;flex-direction:column;overflow:hidden;background:#fff;border:1px solid #cbd5de;border-radius:10px;box-shadow:0 10px 40px #14253630;margin-bottom:10px}.head{padding:14px 16px;border-bottom:1px solid #e0e6ec;display:flex;align-items:center;justify-content:space-between}.head strong{font-size:15px}.head button{padding:3px 8px}.body{padding:16px 16px 26px;overflow:auto;min-height:0;flex:1}.head{flex-shrink:0;gap:12px}.head strong{flex:1}.language{font:inherit;border:1px solid #cdd6df;border-radius:5px;background:white;padding:3px}.muted{color:#657687;font-size:12px;margin:0 0 12px}.label{display:block;margin-bottom:6px;font-weight:600}textarea{display:block;width:100%;height:130px;padding:10px;border:1px solid #ccd7e0;border-radius:6px;resize:vertical;font:12px/1.45 ui-monospace,monospace}.toolbar{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.message{font-size:12px;padding:10px;background:#f0f5f4;border-radius:5px}.card{border:1px solid #d2dce4;border-radius:7px;padding:12px;margin-top:12px}.card strong{display:block}.path{font:11px/1.5 ui-monospace,monospace;color:#687888}.reason{font-size:12px;margin:8px 0}.source{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 ui-monospace,monospace;margin:6px 0 10px;padding:8px;max-height:180px;overflow:auto;border-radius:4px}.old,.new{background:#f6f8fa;color:#586673}.actions{display:flex;gap:8px}.history{padding:8px 0;border-bottom:1px solid #e3e9ed;font-size:12px}.history b{color:#176347}.unknown{color:#9a452c}.session-toolbar{display:flex;justify-content:space-between;gap:8px;margin-bottom:12px}.history-details{margin-top:14px;font-size:12px;color:#657687}.footer{margin-top:14px;font-size:11px;color:#6b7b88}[hidden]{display:none!important}
+${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="head"><strong>\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE</strong><select class="language" aria-label="\u8BED\u8A00"><option value="zh-CN">\u4E2D\u6587</option><option value="en">English</option></select><button class="close" aria-label="\u6536\u8D77">\xD7</button></div><div class="body"><div class="session-toolbar" hidden><button class="back">\u2190 \u8FD4\u56DE\u5BFC\u5165</button><button class="continue" hidden>\u7EE7\u7EED\u5BA1\u9605</button><button class="stop" hidden>\u505C\u6B62</button></div><div class="setup-view"><p class="muted">\u5148\u5BFC\u5165\u5EFA\u8BAE\u5305\uFF0C\u518D\u9010\u9879\u786E\u8BA4\u3002\u6BCF\u6B21\u63A5\u53D7\u90FD\u4F1A\u641C\u7D22\u5F53\u524D\u539F\u6587\uFF1B\u8FC7\u65F6\u6216\u4E0D\u552F\u4E00\u7684\u9879\u81EA\u52A8\u8DF3\u8FC7\u3002</p><label class="label" for="pack">\u5EFA\u8BAE\u5305 JSON</label><textarea id="pack" spellcheck="false" placeholder="\u7C98\u8D34 Agent \u751F\u6210\u7684\u5EFA\u8BAE\u5305"></textarea><input type="file" accept=".json,application/json" hidden><div class="toolbar"><button class="connect">\u8FDE\u63A5 Agent</button><button class="disconnect">\u65AD\u5F00</button></div><div class="bridge-status" role="status"></div><input class="bridge-token" type="password" placeholder="\u672C\u5730\u8FDE\u63A5\u914D\u5BF9\u4EE4\u724C" autocomplete="off"><div class="toolbar"><button class="file">\u9009\u62E9 JSON \u6587\u4EF6</button><button class="primary start">\u5F00\u59CB\u5BA1\u9605</button><button class="resume">\u6062\u590D\u4E0A\u6B21\u5BA1\u9605</button><button class="reset">\u6E05\u9664\u8FDB\u5EA6</button></div><div class="setup-message message" role="status" aria-live="polite">\u7B49\u5F85\u5BFC\u5165\u5EFA\u8BAE\u5305</div></div><div class="review-view" hidden><div class="message review-message" role="status" aria-live="polite">\u7B49\u5F85\u5BFC\u5165\u5EFA\u8BAE\u5305</div><div class="pending"></div><details class="history-details"><summary>\u6700\u8FD1\u5904\u7406\u8BB0\u5F55</summary><div class="history-list"></div></details><p class="footer">\u5DF2\u5199\u5165\u8868\u793A\u7F16\u8F91\u5668\u5185\u5BB9\u5DF2\u6838\u9A8C\uFF0C\u670D\u52A1\u5668\u4FDD\u5B58\u9700\u5728 Overleaf \u68C0\u67E5\u3002\u53EF\u4F7F\u7528 Overleaf \u7684\u64A4\u9500\u6309\u94AE\u3002</p></div></div><button class="resize" aria-label="\u62D6\u52A8\u53F3\u4E0B\u89D2\u8C03\u6574\u5927\u5C0F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03" title="\u62D6\u52A8\u53F3\u4E0B\u89D2\u8C03\u6574\u5927\u5C0F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03"></button></section><button class="launch">\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE</button>`;
     document.body.append(host);
     const $ = (selector) => shadow.querySelector(selector);
     const capability = Array.from(crypto.getRandomValues(new Uint8Array(32)), (b) => b.toString(16).padStart(2, "0")).join("");
@@ -598,6 +641,17 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
     uiAttributes.set($(".head"), { "aria-label": $(".head").getAttribute("aria-label"), title: $(".head").title });
     const floating = Floating.attach({ panel: $(".drawer"), drag: $(".head"), resize: $(".resize"), window, minimum: { width: 300, height: 220 }, defaultRect: () => ({ left: window.innerWidth - 406, top: window.innerHeight - Math.min(850, window.innerHeight * 0.85) - 60, width: 390, height: Math.min(850, window.innerHeight * 0.85) }) });
     floating.layout();
+    let screen = "setup";
+    function showScreen(next) {
+      screen = next;
+      $(".setup-view").hidden = screen !== "setup";
+      $(".review-view").hidden = screen !== "review";
+      $(".session-toolbar").hidden = screen === "setup" && !running;
+      $(".back").hidden = screen !== "review";
+      $(".continue").hidden = screen !== "setup" || !running;
+      setUI($(".head strong"), screen === "review" ? "\u9010\u9879\u5BA1\u9605" : "\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE");
+      $(".body").scrollTop = 0;
+    }
     let startEpoch = 0, sessionActive = false;
     let importedPack = null, initialized = null, running = false, starting = false, owner = "", cancelled = false, pendingAbort = null;
     function send(method, params) {
@@ -635,7 +689,10 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
       const current = location.pathname.match(/^\/project\/([a-f\d]{24})(?:\/|$)/i)?.[1];
       if (cancelled || current !== owner) throw Object.assign(new Error("\u5DF2\u505C\u6B62"), { code: cancelled ? "cancelled" : "project_changed" });
     };
-    const status = (text) => setUI($(".message"), text);
+    const status = (text) => {
+      setUI($(".setup-message"), text);
+      setUI($(".review-message"), text);
+    };
     async function changeLanguage(value) {
       language = I18n.normalize(value);
       $(".language").value = language;
@@ -661,8 +718,8 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
         card.innerHTML = '<strong></strong><div class="path"></div><p class="reason"></p><div>\u539F\u6587 \xB7 \u6807\u51FA\u5220\u9664</div><pre class="source old"></pre><div>\u4FEE\u6539\u540E \xB7 \u6807\u51FA\u65B0\u589E</div><pre class="source new"></pre><div class="toolbar navigation"><button class="previous">\u4E0A\u4E00\u9879</button><button class="next">\u4E0B\u4E00\u9879</button><button class="cursor-previous">\u5149\u6807\u4E0A\u4E00\u5904</button><button class="cursor-next">\u5149\u6807\u4E0B\u4E00\u5904</button></div><div class="actions"><button class="reject">\u62D2\u7EDD\u8FD9\u4E00\u9879</button><button class="primary accept">\u63A5\u53D7\u8FD9\u4E00\u9879</button></div>';
         $(".pending").replaceChildren(card);
         rememberUI(card);
-        setUI(card.querySelector("strong"), "\u4FEE\u6539 " + (options.index + 1) + " / " + options.total);
-        card.querySelector(".path").textContent = item.file + " \xB7 L" + prepared.line;
+        setUI(card.querySelector("strong"), "\u5EFA\u8BAE " + options.position + " / " + options.remaining);
+        card.querySelector(".path").textContent = item.file + " \xB7 L" + prepared.line + " \xB7 #" + (options.index + 1);
         card.querySelector(".reason").textContent = item.reason;
         let displayed = prepared;
         function renderDiff() {
@@ -789,7 +846,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
               displayed = response;
               renderDiff();
               token = response.token;
-              card.querySelector(".path").textContent = item.file + " \xB7 L" + response.line;
+              card.querySelector(".path").textContent = item.file + " \xB7 L" + response.line + " \xB7 #" + (options.index + 1);
               status("\u6B63\u6587\u6709\u53D8\u5316\uFF0C\u5DF2\u91CD\u65B0\u5B9A\u4F4D\u8FD9\u4E00\u9879\uFF0C\u7B49\u5F85\u786E\u8BA4");
             } else if (response.navigation === -1 || response.navigation === 1) {
               await navigate(response.navigation, false);
@@ -885,6 +942,8 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
       $(".stop").hidden = false;
       historyMessages = [];
       $(".history-list").replaceChildren();
+      $(".history-details").open = false;
+      showScreen("review");
       try {
         await call("begin", { ledgers: session.ledgers });
         let itemBuffer = [], bufferStart = -1;
@@ -897,7 +956,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
           }
           return itemBuffer[index - bufferStart];
         } : async (index) => pack.suggestions[index];
-        const results = await Runner.run(pack, { projectId: owner, assertCurrent, call, review: (item, prepared, options) => review(item, prepared, options, itemAt), record, decisions: session.decisions, itemAt, retained: (result) => {
+        const results = await Runner.run(pack, { projectId: owner, assertCurrent, call, review: (item, prepared, options) => review(item, prepared, options, itemAt), record, initialCounts: session.initialCounts, decidedIndexes: session.decidedIndexes, decisions: session.decisions, itemAt, retained: (result) => {
           if (bridgeRevision) bridgeResults.push({ revision: bridgeRevision, id: result.item.id, state: result.state, code: "retained_decision" });
         } });
         const count = (state) => results.filter((result) => result.state === state).length;
@@ -918,6 +977,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
         $(".file").disabled = false;
         $("#pack").disabled = false;
         $(".stop").hidden = true;
+        showScreen(screen);
       }
     }
     let bridgeRevision = 0, bridgeEnabled = false, bridgeBusy = false, bridgeResults = [];
@@ -985,6 +1045,12 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
         if (bridgeEnabled) setTimeout(pollBridge, 2e3);
       }
     }
+    $(".back").addEventListener("click", () => showScreen("setup"));
+    $(".continue").addEventListener("click", () => {
+      showScreen("review");
+      const card = $(".pending .card");
+      if (card) Scroll.panel($(".body"), card);
+    });
     $(".launch").addEventListener("click", () => {
       $(".drawer").hidden = !$(".drawer").hidden;
       floating.layout();
@@ -1039,6 +1105,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
         }
       }
       sessionActive = false;
+      $(".history-list").replaceChildren();
       status("\u5DF2\u6E05\u9664\u5F53\u524D\u9879\u76EE\u7684\u5BA1\u9605\u8FDB\u5EA6\uFF1B\u6B63\u6587\u4E0D\u53D8\uFF0C\u53EF\u91CD\u65B0\u5BFC\u5165\u5BA1\u9605");
     });
     $(".start").addEventListener("click", start);

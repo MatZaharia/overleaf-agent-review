@@ -2208,6 +2208,10 @@
         "\u5EFA\u8BAE\u7D22\u5F15\u65E0\u6548": "Invalid suggestion index",
         "\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE": "Review suggestions",
         "\u6536\u8D77": "Close",
+        "\u9010\u9879\u5BA1\u9605": "Review items",
+        "\u2190 \u8FD4\u56DE\u5BFC\u5165": "\u2190 Back to import",
+        "\u7EE7\u7EED\u5BA1\u9605": "Continue review",
+        "\u6700\u8FD1\u5904\u7406\u8BB0\u5F55": "Recent decisions",
         "\u5148\u5BFC\u5165\u5EFA\u8BAE\u5305\uFF0C\u518D\u9010\u9879\u786E\u8BA4\u3002\u6BCF\u6B21\u63A5\u53D7\u90FD\u4F1A\u641C\u7D22\u5F53\u524D\u539F\u6587\uFF1B\u8FC7\u65F6\u6216\u4E0D\u552F\u4E00\u7684\u9879\u81EA\u52A8\u8DF3\u8FC7\u3002": "Import a pack and review each item. Accept searches the current source; stale or ambiguous items are skipped.",
         "\u5EFA\u8BAE\u5305 JSON": "Suggestion pack JSON",
         "\u7C98\u8D34 Agent \u751F\u6210\u7684\u5EFA\u8BAE\u5305": "Paste an Agent suggestion pack",
@@ -2298,6 +2302,7 @@
         "\u6BCF\u9879 id \u5FC5\u987B\u552F\u4E00": "Each item id must be unique"
       };
       var templates = [
+        [/^建议 (\d+) \/ (\d+)$/, (_, position, remaining) => `Suggestion ${position} / ${remaining}`],
         [/^修改 (.*)$/, (_, id) => "Change " + id],
         [/^Agent 建议版本 (\d+)，共 (\d+) 项$/, (_, revision, count) => `Agent pack revision ${revision}, ${count} items`],
         [/^已载入文件：(.*)（正文不在输入框展开）$/, (_, name) => `Loaded file: ${name} (pack not expanded here)`],

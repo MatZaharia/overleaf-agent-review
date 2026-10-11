@@ -26,6 +26,6 @@ test('extension background pairs, syncs source, receives newer packs and disconn
  const session=await send({type:'session',pack:imported.pack});assert.equal(session.ok,true);
  const storedItem=(await send({type:'items',ref:session.pack.ref,index:0})).items[0];
  assert.equal((await send({type:'progress',decision:{reviewKey:storedItem.reviewKey,state:'rejected'},journal:[{id:'base',file:'main.tex',base:'old',edits:[]}]})).ok,true);
- const restored=await send({type:'session'});assert.equal(restored.decisions[storedItem.reviewKey].state,'rejected');assert.equal(restored.ledgers['main.tex'].base,'old');
+ const restored=await send({type:'session'});assert.deepEqual(restored.decidedIndexes,[0]);assert.equal(restored.initialCounts.rejected,1);assert.equal(restored.decisions[storedItem.reviewKey].state,'rejected');assert.equal(restored.ledgers['main.tex'].base,'old');
  assert.equal((await send({type:'disconnect'})).ok,true);assert.equal((await send({type:'sync'})).disconnected,true);
 });
