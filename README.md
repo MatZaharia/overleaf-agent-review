@@ -46,7 +46,7 @@ The displayed line number is informational. It is never used as the replacement 
 
 **Agent entry point: [AGENTS.md](AGENTS.md) → [Agent guide (English / 中文)](docs/agent-guide.md).** The main workflow is to generate, validate and publish a review pack, then let the user accept or reject each item in Overleaf. Source reading is an optional capability. Already-written packs can be validated and published directly; notes containing exact originals, replacements and file paths can be converted without reading the online manuscript.
 
-After the one-time [local bridge setup](docs/local-bridge.md), ask your Agent to write `work/suggestions.json` from exact source it already has, then run:
+After the [first connection workflow](#local-agent-connection), ask your Agent to write `work/suggestions.json` from exact source it already has, then run:
 
 ```sh
 node bridge/cli.js validate --file work/suggestions.json --project PROJECT_ID
@@ -107,7 +107,45 @@ The extension has no AI requests, analytics, or native host. A background servic
 
 ## Local Agent connection
 
-See [local bridge instructions](docs/local-bridge.md): run the local service, pair once in Overleaf, then use the CLI to publish packs, read the current source, or retrieve review results. Receiving a new pack opens review automatically, but never accepts a change. A received new revision cancels the old preview. The drawer retains only the latest 100 history rows to keep 10,000-item packs manageable. File imports avoid expanding large JSON in the textarea. Suggestion packs, decisions and anchor journals are saved in the extension’s local IndexedDB. Click **恢复上次审阅** to resume after a refresh. Unchanged accepted/rejected suggestions retain their decisions across pack updates; changed suggestion fields require another review. **清除进度** resets the current project’s saved session without changing Overleaf source. Skipped suggestions are checked again on resume.
+For the first connection, follow this order. **The Agent uses the local CLI to submit suggestions; you control the browser, installation, pairing and every accept/reject decision.**
+
+1. **Install or update the extension yourself** using the steps above. Load v1.4.0 or later, refresh the real Overleaf project and select Code mode. The local demo cannot pair your real project.
+2. **Ask the Agent to start the bridge** from the absolute path of your local repository or extracted extension directory. Node.js 22+ is required; runtime CLI commands need no npm installation:
+
+   ```sh
+   node bridge/cli.js start
+   ```
+
+   Keep the process running. First startup creates a random token in that directory's `work/bridge.json` with mode 600. Reusing the same config reuses the token. If a service is already running, use its config instead of starting a duplicate.
+3. **Obtain the token and pair manually**: read the config's `token` field, or explicitly ask the Agent to provide it in your private session. In the real Overleaf project, open **导入修改建议**, enter **本地连接配对令牌**, and click **连接 Agent**. Pair each project separately. Keep the token out of packs, logs, public chats and GitHub.
+4. **Tell the Agent you have paired, then provide your review notes**. Existing packs can be validated and published directly; notes with exact originals, replacements and paths can be converted without first reading online source. From the tool directory, run:
+
+   ```sh
+   node bridge/cli.js validate --file work/suggestions.json --project PROJECT_ID
+   node bridge/cli.js publish --project PROJECT_ID --file work/suggestions.json
+   ```
+
+   Replace `PROJECT_ID` with the 24-character ID after `/project/` in the Overleaf URL. For publish / status / read from another working directory, add `--config /absolute/path/to/tool/work/bridge.json`.
+5. **Make each decision yourself in Overleaf**. Receiving a pack opens its preview but accepts nothing. Accept, reject or navigate to defer an item; only acceptance writes source. The Agent can query `node bridge/cli.js status --project PROJECT_ID` when feedback is needed. Report successful publishing as “submitted for review,” not “manuscript changed.”
+
+A setup prompt you can give your Agent:
+
+```text
+Local tool directory: [absolute path]
+Target Overleaf project: [project URL]
+Read AGENTS.md and docs/agent-guide.md first.
+Start the local bridge and tell me the token file location. Provide the
+pairing token only in this private session if I explicitly request it.
+Do not control the browser, install the extension, fill pairing fields,
+or accept/reject suggestions. Wait until I say pairing is complete,
+then generate, validate and publish a pack from my review notes.
+Do not read source first when exact originals are already available.
+I decide whether to accept every manuscript change.
+```
+
+**Later sessions**: while the same service runs and the page stays connected, publish new packs directly; pairing is not required for every pack. After refreshing Overleaf, enter the token and connect again. The token remains the same when using the same config. Restarting the service clears its in-memory packs, so publish again. Stop review does not disconnect; click **断开** to stop local transfers. If not connected, the Agent should save the validated pack and report that delivery has not succeeded; manual file import remains available. See [local bridge details](docs/local-bridge.md).
+
+Receiving a new pack opens review automatically, but never accepts a change. A received new revision cancels the old preview. The drawer retains only the latest 100 history rows to keep 10,000-item packs manageable. File imports avoid expanding large JSON in the textarea. Suggestion packs, decisions and anchor journals are saved in the extension’s local IndexedDB. Click **恢复上次审阅** to resume after a refresh. Unchanged accepted/rejected suggestions retain their decisions across pack updates; changed suggestion fields require another review. **清除进度** resets the current project’s saved session without changing Overleaf source. Skipped suggestions are checked again on resume.
 
 ## Develop
 

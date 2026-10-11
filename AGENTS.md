@@ -2,6 +2,10 @@
 
 These instructions apply when asked to prepare or deliver **Overleaf review suggestions**. For repository development, follow `CONTRIBUTING.md` and run the relevant checks.
 
+## Browser ownership and setup
+
+Use the local CLI only for this workflow. The user controls the browser, installs/updates the extension, pairs each project and accepts/rejects suggestions. Do not automate these browser actions. If asked to set up the connection, start the bridge from the tool directory (or use the already running service), report its config path, and wait for the user to confirm pairing before publishing. The token is private: provide it only to the user in the current private session when explicitly requested; never put it in logs, public messages, Git or suggestion packs. See the full setup steps in the README.
+
 ## Deliver a review
 
 1. If the user already supplied a valid suggestion pack, preserve it and go straight to validation/publishing; do not fetch source or regenerate its suggestions. If supplied review notes include exact originals, replacements and file paths, convert them to the pack without reading the online document. Read [docs/agent-guide.md](docs/agent-guide.md). Prioritize **generate → validate → publish → user review**. Reading source is optional, not a prerequisite if exact source is already available.
@@ -9,7 +13,7 @@ These instructions apply when asked to prepare or deliver **Overleaf review sugg
 3. Use original text you have actually seen. Make each suggestion an independent decision. Prefer small character/word/punctuation changes with enough exact context for unique matching. Never invent source or use line numbers as replacement addresses.
 4. Save a UTF-8 JSON pack to `work/suggestions.json` using `format: "codex-overleaf-suggestions"`, `version: 1`, and the target `projectId`. This legacy format marker works for all Agents. Keep stable IDs when updating unchanged suggestions.
 5. From the repository/extracted extension directory, run `node bridge/cli.js validate --file work/suggestions.json --project PROJECT_ID`. Fix validation errors before publishing.
-6. With an already running and paired local bridge, run `node bridge/cli.js publish --project PROJECT_ID --file work/suggestions.json`. Add `--config /absolute/path/work/bridge.json` if the service was started elsewhere. Do not print, commit, or include the pairing token in the pack.
+6. With an already running and paired local bridge, run `node bridge/cli.js publish --project PROJECT_ID --file work/suggestions.json`. Add `--config /absolute/path/work/bridge.json` if the service was started elsewhere. Do not log, commit, or include the pairing token in the pack; private disclosure requires the explicit user request described above.
 7. Report the returned revision and count as **submitted for review**, not applied. The user accepts or rejects each item in Overleaf. Do not bypass this flow with direct editor writes or automated acceptance.
 8. Query `node bridge/cli.js status --project PROJECT_ID` when feedback is needed; do not keep polling or sending messages. Publish replaces the whole pack, so prepare the complete intended next revision, not an append-only fragment.
 
