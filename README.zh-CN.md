@@ -8,7 +8,7 @@
 
 ## 安装
 
-1. 在 [Releases](https://github.com/MatZaharia/overleaf-codex-review/releases/latest) 下载插件 ZIP 并解压。请选择插件安装包，不是 GitHub 自动生成的 Source code ZIP。
+1. 在 [Releases](https://github.com/MatZaharia/overleaf-codex-review/releases/tag/v1.1.0) 下载插件 ZIP 并解压。请选择插件安装包，不是 GitHub 自动生成的 Source code ZIP。
 2. 在 Chrome 打开 `chrome://extensions`，开启“开发者模式”。
 3. 点击“加载未打包的扩展程序”，选择解压后包含 `manifest.json` 的 `overleaf-codex-review` 文件夹。
 4. 打开 Overleaf 项目，刷新页面，切换到 **Code** 源码模式。
