@@ -15,12 +15,12 @@ function mount() {
   const shadow = host.attachShadow({ mode: 'open' });
   shadow.innerHTML = `<style>
 :host{font:13px/1.5 system-ui;color:#273342}*{box-sizing:border-box}button,textarea,input{font:inherit}button{border:1px solid #cdd6df;border-radius:6px;background:#fff;color:#273342;padding:7px 11px;cursor:pointer}button:disabled{opacity:.45;cursor:default}button:focus-visible,textarea:focus-visible{outline:3px solid #8aafe3;outline-offset:2px}.primary,.launch{background:#176347;color:#fff;border-color:#176347}.launch{box-shadow:0 4px 18px #18352925}.drawer{position:fixed;display:flex;flex-direction:column;overflow:hidden;background:#fff;border:1px solid #cbd5de;border-radius:10px;box-shadow:0 10px 40px #14253630;margin-bottom:10px}.head{padding:14px 16px;border-bottom:1px solid #e0e6ec;display:flex;align-items:center;justify-content:space-between}.head strong{font-size:15px}.head button{padding:3px 8px}.body{padding:16px 16px 26px;overflow:auto;min-height:0;flex:1}.head{flex-shrink:0;gap:12px}.head strong{flex:1}.language{font:inherit;border:1px solid #cdd6df;border-radius:5px;background:white;padding:3px}.muted{color:#657687;font-size:12px;margin:0 0 12px}.label{display:block;margin-bottom:6px;font-weight:600}textarea{display:block;width:100%;height:130px;padding:10px;border:1px solid #ccd7e0;border-radius:6px;resize:vertical;font:12px/1.45 ui-monospace,monospace}.toolbar{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.message{font-size:12px;padding:10px;background:#f0f5f4;border-radius:5px}.card{border:1px solid #d2dce4;border-radius:7px;padding:12px;margin-top:12px}.card strong{display:block}.path{font:11px/1.5 ui-monospace,monospace;color:#687888}.reason{font-size:12px;margin:8px 0}.source{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 ui-monospace,monospace;margin:6px 0 10px;padding:8px;max-height:180px;overflow:auto;border-radius:4px}.old,.new{background:#f6f8fa;color:#586673}.actions{display:flex;gap:8px}.history{padding:8px 0;border-bottom:1px solid #e3e9ed;font-size:12px}.history b{color:#176347}.unknown{color:#9a452c}.session-toolbar{display:flex;justify-content:space-between;gap:8px;margin-bottom:12px}.history-details{margin-top:14px;font-size:12px;color:#657687}.footer{margin-top:14px;font-size:11px;color:#6b7b88}[hidden]{display:none!important}
-${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="head"><strong>导入修改建议</strong><select class="language" aria-label="语言"><option value="zh-CN">中文</option><option value="en">English</option></select><button class="close" aria-label="收起">×</button></div><div class="body"><div class="session-toolbar" hidden><button class="back">← 返回导入</button><button class="continue" hidden>继续审阅</button><button class="stop" hidden>停止</button></div><div class="setup-view"><p class="muted">先导入建议包，再逐项确认。每次接受都会搜索当前原文；过时或不唯一的项自动跳过。</p><label class="label" for="pack">建议包 JSON</label><textarea id="pack" spellcheck="false" placeholder="粘贴 Agent 生成的建议包"></textarea><input type="file" accept=".json,application/json" hidden><div class="toolbar"><button class="connect">连接 Agent</button><button class="disconnect">断开</button></div><div class="bridge-status" role="status"></div><input class="bridge-token" type="password" placeholder="本地连接配对令牌" autocomplete="off"><div class="toolbar"><button class="file">选择 JSON 文件</button><button class="primary start">开始审阅</button><button class="resume">恢复上次审阅</button><button class="reset">清除进度</button></div><div class="setup-message message" role="status" aria-live="polite">等待导入建议包</div></div><div class="review-view" hidden><div class="message review-message" role="status" aria-live="polite">等待导入建议包</div><div class="pending"></div><details class="history-details"><summary>最近处理记录</summary><div class="history-list"></div></details><p class="footer">已写入表示编辑器内容已核验，服务器保存需在 Overleaf 检查。可使用 Overleaf 的撤销按钮。</p></div></div><button class="resize" aria-label="拖动右下角调整大小；方向键微调" title="拖动右下角调整大小；方向键微调"></button></section><button class="launch">导入修改建议</button>`;
+${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="head"><strong>导入修改建议</strong><select class="language" aria-label="语言"><option value="zh-CN">中文</option><option value="en">English</option></select><button class="close" aria-label="收起">×</button></div><div class="body"><div class="session-toolbar" hidden><button class="back">← 返回导入</button><button class="continue" hidden>继续审阅</button><button class="stop" hidden>停止</button></div><div class="setup-view"><p class="muted">先导入建议包，再逐项确认。每次接受都会搜索当前原文；过时或不唯一的项自动跳过。</p><label class="label" for="pack">建议包 JSON</label><textarea id="pack" spellcheck="false" placeholder="粘贴 Agent 生成的建议包"></textarea><input type="file" accept=".json,application/json" hidden><div class="toolbar"><button class="connect">连接 Agent</button><button class="disconnect">断开</button></div><div class="bridge-status" role="status"></div><input class="bridge-token" type="password" placeholder="本地连接配对令牌" autocomplete="off"><div class="toolbar"><button class="file">选择 JSON 文件</button><button class="primary start">开始审阅</button><button class="resume">恢复上次审阅</button><button class="reset">清除进度</button></div><div class="setup-message message" role="status" aria-live="polite">等待导入建议包</div></div><div class="review-view" hidden><div class="message review-message" role="status" aria-live="polite">等待导入建议包</div><button class="repair" hidden>重新建立定位（保留决定）</button><div class="pending"></div><details class="history-details"><summary>最近处理记录</summary><div class="history-list"></div></details><p class="footer">已写入表示编辑器内容已核验，服务器保存需在 Overleaf 检查。可使用 Overleaf 的撤销按钮。</p></div></div><button class="resize" aria-label="拖动右下角调整大小；方向键微调" title="拖动右下角调整大小；方向键微调"></button></section><button class="launch">导入修改建议</button>`;
   document.body.append(host);
   const $ = selector => shadow.querySelector(selector);
   const capability = Array.from(crypto.getRandomValues(new Uint8Array(32)), b => b.toString(16).padStart(2, '0')).join('');
   const persistent=typeof chrome!=='undefined' && !!chrome.runtime?.id;
-  let contextLost=false;
+  let contextLost=false, trackingFile=null, stopReason=null;
   const runtime=ExtensionRuntime.create(()=>typeof chrome==='undefined'?null:chrome,onContextInvalidated);
   let language='zh-CN', languageTouched=false, packLabel=null, reviewLanguageRefresh=null;
   function setPackLabel(text){packLabel=text;$('#pack').value=t(text);}
@@ -89,7 +89,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
   const status = text => {const value=contextLost?ExtensionRuntime.message:text;setUI($('.setup-message'),value);setUI($('.review-message'),value)};
   function lockInvalidContext(){
     $('.drawer').hidden=false;floating.layout();
-    shadow.querySelectorAll('.setup-view button,.pending button,.stop,.continue,.language').forEach(node=>{node.disabled=true});
+    shadow.querySelectorAll('.setup-view button,.pending button,.stop,.continue,.language,.repair').forEach(node=>{node.disabled=true});
     $('#pack').disabled=true;status(ExtensionRuntime.message);setUI($('.bridge-status'),ExtensionRuntime.message);
   }
   function onContextInvalidated(){
@@ -241,7 +241,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
   async function start() {
     if (contextLost || running || starting) return;
     const epoch = ++startEpoch;
-    starting = true; $('.start').disabled = true;
+    starting = true; $('.start').disabled = true;trackingFile=null;$('.repair').hidden=true;status('正在准备审阅…');
     let pack, session={decisions:{},ledgers:{}};
     try {
       pack = await parseInput(importedPack || $('#pack').value);
@@ -253,7 +253,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
       if(epoch!==startEpoch)throw new Error('建议已更新或审阅已停止');
       owner = current.projectId;sessionActive=true;
     } catch (error) { status(error.message); starting = false; $('.start').disabled = contextLost; return; }
-    running = true; starting = false; cancelled = false;
+    running = true; starting = false; cancelled = false;stopReason=null;
     $('.start').disabled = true; $('.resume').disabled=true;$('.reset').disabled=true; $('.file').disabled = true; $('#pack').disabled = true; $('.stop').hidden = false;
     historyMessages=[];$('.history-list').replaceChildren();$('.history-details').open=false;showScreen('review');
     try {
@@ -265,7 +265,9 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
       const count = state => results.filter(result => result.state === state).length;
       status('审阅结束：写入 ' + count('written') + ' 项，拒绝 ' + count('rejected') + ' 项，跳过 ' + count('skipped') + ' 项，保留先前决定 ' + count('retained') + ' 项。');
     } catch (error) {
-      status(error.code === 'write_unconfirmed' ? '写入结果未确认，已停止。请检查当前正文，不要重复接受。' : '审阅已停止：' + (error.code || error.message));
+      if(error.code==='tracking_out_of_sync'){trackingFile=error.file;$('.repair').hidden=false;status('定位记录与当前正文不一致，审阅已暂停。可重新建立定位，保留接受／拒绝决定。')}
+      else if(error.code==='cancelled')status(stopReason==='update'?'正在载入新版本建议…':'审阅已停止，可返回导入后继续');
+      else status(error.code === 'write_unconfirmed' ? '写入结果未确认，已停止。请检查当前正文，不要重复接受。' : '审阅已停止：' + (error.code || error.message));
     } finally {
       pendingAbort?.(); pendingAbort = null;
       await call('cancel', {}).catch(() => {});
@@ -301,7 +303,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
       if(result.pack && result.revision!==bridgeRevision){
         // Invalidate the old preview before showing an updated pack. Never
         // retain an acceptance button across a producer revision change.
-        ++startEpoch; cancelled=true; pendingAbort?.(); await call('cancel',{});
+        ++startEpoch; stopReason='update';cancelled=true; pendingAbort?.(); await call('cancel',{});
         while(running||starting)await new Promise(r=>setTimeout(r,30));
         if(!bridgeEnabled)return;
         bridgeRevision=result.revision; bridgeResults=[]; importedPack=result.pack;
@@ -329,11 +331,19 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
     if(!persistent){status('恢复进度需要 Chrome 扩展');return}
     try{const session=await runtime.message({type:'session'});if(!session.ok)throw new Error(session.error);if(!session.pack)throw new Error('当前项目没有保存的建议包');importedPack=session.pack;setPackLabel('已恢复 '+(session.pack.count ?? session.pack.suggestions.length)+' 项建议');start()}catch(error){status(error.message)}
   });
+  $('.repair').addEventListener('click',async()=>{
+    if(contextLost||running||starting||!trackingFile)return;
+    const file=trackingFile;$('.repair').disabled=true;
+    try{
+      if(persistent){const saved=await runtime.message({type:'clearTracking',file,projectId:owner});if(!saved.ok)throw new Error(saved.error)}
+      await start();
+    }catch(error){status(error.message)}finally{$('.repair').disabled=contextLost}
+  });
   $('.reset').addEventListener('click',async()=>{
     if(running||starting)return;
     try{if(persistent){const saved=await runtime.message({type:'clearProgress'});if(!saved.ok){status(saved.error);return}}}catch(error){status(error.message);return}
     sessionActive=false;$('.history-list').replaceChildren();status('已清除当前项目的审阅进度；正文不变，可重新导入审阅');
   });
   $('.start').addEventListener('click', start);
-  $('.stop').addEventListener('click', () => { ++startEpoch; cancelled = true; pendingAbort?.(); call('cancel', {}).catch(() => {}); status('正在停止；已派发的项需核验实际结果。'); });
+  $('.stop').addEventListener('click', () => { ++startEpoch; stopReason='user';cancelled = true; pendingAbort?.(); call('cancel', {}).catch(() => {}); status('正在停止；已派发的项需核验实际结果。'); });
 }

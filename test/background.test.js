@@ -29,5 +29,9 @@ test('extension background pairs, syncs source, receives newer packs and disconn
  const storedItem=(await send({type:'items',ref:session.pack.ref,index:0})).items[0];
  assert.equal((await send({type:'progress',decision:{reviewKey:storedItem.reviewKey,state:'rejected'},journal:[{id:'base',file:'main.tex',base:'old',edits:[]}]})).ok,true);
  const restored=await send({type:'session'});assert.deepEqual(restored.decidedIndexes,[0]);assert.equal(restored.initialCounts.rejected,1);assert.equal(restored.decisions[storedItem.reviewKey].state,'rejected');assert.equal(restored.ledgers['main.tex'].base,'old');
+ assert.equal((await send({type:'clearTracking',file:'main.tex',projectId:'different'})).ok,false);
+ assert.equal((await send({type:'session'})).ledgers['main.tex'].base,'old');
+ assert.equal((await send({type:'clearTracking',file:'main.tex',projectId:id})).ok,true);
+ const repaired=await send({type:'session'});assert.equal(repaired.ledgers['main.tex'],undefined);assert.equal(repaired.decisions[storedItem.reviewKey].state,'rejected');
  assert.equal((await send({type:'disconnect'})).ok,true);assert.equal((await send({type:'sync'})).disconnected,true);
 });

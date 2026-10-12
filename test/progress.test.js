@@ -24,3 +24,14 @@ test('unknown previous write blocks resume rather than replaying it',async()=>{
 });
 
 test('normalized packs without an optional project ID can be validated again',()=>{const Core=require('../src/suggestions');assert.equal(Core.parsePack(Core.parsePack(pack)).suggestions.length,1)});
+
+test('rebuilding one file tracking preserves pack, all decisions, other files and projects',async()=>{
+ const p=Progress.create(new IDBFactory(),webcrypto);
+ await p.savePack(project,pack);
+ for(const state of ['written','rejected','unknown'])await p.save(project,{decision:{reviewKey:state,state}});
+ for(const owner of [project,'other'])await p.save(owner,{journal:['main.tex','other.tex'].map(file=>({file,base:'old',edits:[{from:0,to:3,insert:'new'}]}))});
+ await p.clearTracking(project,'main.tex');
+ const saved=await p.load(project);
+ assert.equal(saved.pack.suggestions.length,1);assert.deepEqual(Object.values(saved.decisions).map(d=>d.state).sort(),['rejected','unknown','written']);
+ assert.equal(saved.ledgers['main.tex'],undefined);assert.equal(saved.ledgers['other.tex'].edits.length,1);assert.equal((await p.load('other')).ledgers['main.tex'].edits.length,1);
+});

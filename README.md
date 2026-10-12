@@ -152,6 +152,8 @@ The displayed line number is informational. It is never used as the replacement 
 
 If Chrome reports **Extension context invalidated**, the extension was reloaded while this page was still open. Check that Overleaf has saved your work, refresh the Overleaf tab, then choose **Resume review**. If using the Agent bridge, reconnect on the refreshed page. You do not need to clear progress. v1.5.4 stops the old review, removes its preview and shows this recovery instruction; accepting first checks that the extension connection is still valid. See [validation](docs/validation-v1.5.4.md).
 
+If saved tracking no longer matches the source, review pauses instead of skipping the whole pack. Click **Rebuild tracking (keep decisions)** to reset only the affected file’s baseline while retaining the pack and accepted/rejected decisions. This does not edit source. Matching then uses the current exact source; undo associations and nearby-edit context mappings from the old baseline are lost. Suggestions that no longer match are still skipped and may need an updated pack from your Agent. Avoid **Clear progress** for this repair: that action removes all saved decisions. Pack updates and manual stops now display distinct status messages.
+
 ## Review navigation
 
 Starting a review opens a separate review screen: the import form and connection settings are hidden. **Back to import** returns to setup while preserving the current pending item; **Continue review** returns to that item. Recent decisions are collapsed by default.

@@ -44,7 +44,7 @@ function create({ adapter, preview, crypto }) {
     if(!view || !view.state.selection?.main)return failure('file_not_ready');
     if(!params.scanId){
       const text=textOf(view),ledger=ledgerFor(params.projectId,file,text);
-      if(ledger.invalid)return {...failure('position_mismatch'),journal:drain()};
+      if(ledger.invalid)return {...failure('tracking_out_of_sync'),journal:drain()};
       let cache=navigationCache.get(view.state.doc);
       if(typeof view.state.doc.length!=='number'||!cache||cache.ledger!==ledger||cache.version!==ledger.version){cache={ledger,version:ledger.version,positions:new Map()};navigationCache.set(view.state.doc,cache)}
       if(!cache.indexed || cache.catalogId!==params.catalogId){cache.catalogId=params.catalogId;cache.complete=false;cache.indexed=new Map()}
@@ -90,7 +90,7 @@ function create({ adapter, preview, crypto }) {
     if (!view) return failure('file_not_ready');
     const text = textOf(view);
     const ledger=ledgerFor(owner,item.file,text);
-    const match = ledger.invalid?failure('position_mismatch'):Rebase.resolve(text,item,ledger);
+    const match = ledger.invalid?failure('tracking_out_of_sync'):Rebase.resolve(text,item,ledger);
     if (!match.ok) return {...match,journal:drain()};
     const highlights = characterEdits(match.patch, text);
     if (!highlights) return failure('diff_too_complex');
@@ -132,7 +132,7 @@ function create({ adapter, preview, crypto }) {
     if (!view?.dom?.isConnected) { cancel(); return failure('editor_changed'); }
     // Re-resolve from CURRENT source on acceptance, with no await between the
     // search and dispatch. Original lines/offsets from Codex are never used.
-    const text = textOf(view),ledger=ledgerFor(item.projectId,item.item.file,text), match = ledger.invalid?failure('position_mismatch'):Rebase.resolve(text, item.item, ledger);
+    const text = textOf(view),ledger=ledgerFor(item.projectId,item.item.file,text), match = ledger.invalid?failure('tracking_out_of_sync'):Rebase.resolve(text, item.item, ledger);
     if (!match.ok) { cancel(); return {...match,journal:drain()}; }
     const changes = characterEdits(match.patch, text);
     if (!changes) { cancel(); return failure('diff_too_complex'); }

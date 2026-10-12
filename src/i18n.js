@@ -1,6 +1,11 @@
 'use strict';
 // UI text only. Manuscript source, replacements and Agent reasons are never passed here.
 const english = {
+ '重新建立定位（保留决定）':'Rebuild tracking (keep decisions)',
+ '定位记录与当前正文不一致，审阅已暂停。可重新建立定位，保留接受／拒绝决定。':'Saved tracking no longer matches the source. Review paused. Rebuild tracking to keep accepted/rejected decisions.',
+ '正在准备审阅…':'Preparing review…',
+ '正在载入新版本建议…':'Loading the updated suggestion pack…',
+ '审阅已停止，可返回导入后继续':'Review stopped. Return to import to resume.',
  '扩展已更新或重新加载，审阅已停止。请刷新 Overleaf 页面后继续；刚接受的修改请先核对正文。':'The extension was updated or reloaded. Review has stopped. Refresh Overleaf to continue; check the source if you just accepted a change.',
  '无法连接扩展':'Cannot connect to the extension',
  '当前原文已变化，此项已失效；可继续编辑，点击导航后跳过':'The original changed; this item is stale. Continue editing; navigation will skip it.',

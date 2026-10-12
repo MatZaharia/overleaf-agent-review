@@ -95,3 +95,14 @@ test('explicit navigation settles a stale manually edited item once, without app
  const results=await Runner.run({suggestions},{projectId:'owner',assertCurrent(){},call:async(method,params)=>{calls.push({method,params});if(method==='apply')throw new Error('must not write');return {ok:true,token:params?.item?.id}},review:async(item)=>item.id==='edited'?{navigate:1,skipped:'original_missing'}:{accepted:false},record:result=>records.push(result)});
  assert.deepEqual(results.map(r=>r.state),['skipped','rejected']);assert.equal(records.filter(r=>r.item.id==='edited').length,1);assert.equal(calls.some(c=>c.method==='apply'),false);
 });
+
+test('invalid tracking pauses at prepare, preview or acceptance without marking the queue skipped',async()=>{
+ for(const phase of ['prepare','review','apply']){
+  const recorded=[],prepared=[];
+  await assert.rejects(Runner.run(pack,{assertCurrent(){},async call(method,p){
+   if(method==='prepare')prepared.push(p.item.id);
+   return method===phase?{ok:false,code:'tracking_out_of_sync'}:{ok:true,token:'token'};
+  },async review(){return phase==='review'?{skipped:'tracking_out_of_sync'}:{accepted:true,token:'token'}},record:r=>recorded.push(r)}),{code:'tracking_out_of_sync',file:'main.tex'});
+  assert.equal(prepared.length,1);assert.equal(recorded.length,0);
+ }
+});

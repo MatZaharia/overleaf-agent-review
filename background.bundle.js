@@ -2240,7 +2240,16 @@
           }
           await done;
         }
-        return { load, savePack, save, clear, keys };
+        async function clearTracking(project, file) {
+          if (typeof file !== "string" || !file) throw new Error("File required");
+          const database = await db(), tx = database.transaction(["bases", "edits"], "readwrite"), done = complete(tx);
+          for (const name of ["bases", "edits"]) {
+            const store = tx.objectStore(name), rows = await request2(store.index("project").getAll(project));
+            for (const row of rows) if (row.file === file) store.delete(row.key);
+          }
+          await done;
+        }
+        return { load, savePack, save, clear, clearTracking, keys };
       }
       module.exports = { create };
     }
@@ -2335,6 +2344,11 @@
       }
       if (message.type === "progress") {
         await progress.save(projectId, message);
+        return { ok: true };
+      }
+      if (message.type === "clearTracking") {
+        if (message.projectId !== projectId) throw new Error("Project mismatch");
+        await progress.clearTracking(projectId, message.file);
         return { ok: true };
       }
       if (message.type === "clearProgress") {

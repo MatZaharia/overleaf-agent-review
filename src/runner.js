@@ -1,6 +1,6 @@
 'use strict';
 const Counts = require('./reviewCounts');
-function halt(code) { return ['project_changed', 'cancelled', 'write_unconfirmed', 'bridge_failed', 'bridge_timeout'].includes(code); }
+function halt(code) { return ['project_changed', 'cancelled', 'write_unconfirmed', 'bridge_failed', 'bridge_timeout', 'tracking_out_of_sync'].includes(code); }
 async function run(pack, deps) {
   const results = new Map(), settled = new Set();
   const list = () => [...results.entries()].sort((a,b)=>a[0]-b[0]).map(([,result])=>result);
@@ -49,6 +49,7 @@ async function run(pack, deps) {
     catch (_) { throw Object.assign(new Error('连接中断，没有自动重试'), { code: 'bridge_timeout', results:list() }); }
     deps.assertCurrent();
     if (!prepared.ok) {
+      if(prepared.code==='tracking_out_of_sync')throw Object.assign(new Error('定位记录已失效'),{code:prepared.code,file:item.file,results:list()});
       const result = { item, state: 'skipped', code: prepared.code };
       save(index,result); await deps.record(result);
       if (halt(prepared.code)) throw Object.assign(new Error('审阅已停止'), { code: prepared.code, results:list() });
@@ -62,6 +63,7 @@ async function run(pack, deps) {
       await deps.call('cancel',{});deps.assertCurrent();index=decision.navigate;continue;
     }
     if (decision.skipped) {
+      if(decision.skipped==='tracking_out_of_sync')throw Object.assign(new Error('定位记录已失效'),{code:decision.skipped,file:item.file,results:list()});
       const result = { item, state: 'skipped', code: decision.skipped };
       save(index,result); await deps.record(result);
       if (halt(decision.skipped)) throw Object.assign(new Error('审阅已停止'), { code: decision.skipped, results:list() });
@@ -74,6 +76,7 @@ async function run(pack, deps) {
     let applied;
     try { applied = await deps.call('apply', { token: decision.token, projectId: deps.projectId }); }
     catch (_) { throw Object.assign(new Error('写入状态未确认，检查当前文件；不要重复接受'), { code: 'write_unconfirmed', results:list() }); }
+    if(applied.code==='tracking_out_of_sync')throw Object.assign(new Error('定位记录已失效'),{code:applied.code,file:item.file,results:list()});
     const verified = applied.ok === true && applied.verified === true;
     const code = applied.code || (verified ? '' : 'write_unconfirmed');
     const result = { item, state: verified ? 'written' : applied.changedDocument ? 'unknown' : 'skipped', code };

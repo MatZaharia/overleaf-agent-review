@@ -2262,6 +2262,11 @@
     "src/i18n.js"(exports, module) {
       "use strict";
       var english = {
+        "\u91CD\u65B0\u5EFA\u7ACB\u5B9A\u4F4D\uFF08\u4FDD\u7559\u51B3\u5B9A\uFF09": "Rebuild tracking (keep decisions)",
+        "\u5B9A\u4F4D\u8BB0\u5F55\u4E0E\u5F53\u524D\u6B63\u6587\u4E0D\u4E00\u81F4\uFF0C\u5BA1\u9605\u5DF2\u6682\u505C\u3002\u53EF\u91CD\u65B0\u5EFA\u7ACB\u5B9A\u4F4D\uFF0C\u4FDD\u7559\u63A5\u53D7\uFF0F\u62D2\u7EDD\u51B3\u5B9A\u3002": "Saved tracking no longer matches the source. Review paused. Rebuild tracking to keep accepted/rejected decisions.",
+        "\u6B63\u5728\u51C6\u5907\u5BA1\u9605\u2026": "Preparing review\u2026",
+        "\u6B63\u5728\u8F7D\u5165\u65B0\u7248\u672C\u5EFA\u8BAE\u2026": "Loading the updated suggestion pack\u2026",
+        "\u5BA1\u9605\u5DF2\u505C\u6B62\uFF0C\u53EF\u8FD4\u56DE\u5BFC\u5165\u540E\u7EE7\u7EED": "Review stopped. Return to import to resume.",
         "\u6269\u5C55\u5DF2\u66F4\u65B0\u6216\u91CD\u65B0\u52A0\u8F7D\uFF0C\u5BA1\u9605\u5DF2\u505C\u6B62\u3002\u8BF7\u5237\u65B0 Overleaf \u9875\u9762\u540E\u7EE7\u7EED\uFF1B\u521A\u63A5\u53D7\u7684\u4FEE\u6539\u8BF7\u5148\u6838\u5BF9\u6B63\u6587\u3002": "The extension was updated or reloaded. Review has stopped. Refresh Overleaf to continue; check the source if you just accepted a change.",
         "\u65E0\u6CD5\u8FDE\u63A5\u6269\u5C55": "Cannot connect to the extension",
         "\u5F53\u524D\u539F\u6587\u5DF2\u53D8\u5316\uFF0C\u6B64\u9879\u5DF2\u5931\u6548\uFF1B\u53EF\u7EE7\u7EED\u7F16\u8F91\uFF0C\u70B9\u51FB\u5BFC\u822A\u540E\u8DF3\u8FC7": "The original changed; this item is stale. Continue editing; navigation will skip it.",
@@ -2550,7 +2555,7 @@
           if (!view || !view.state.selection?.main) return failure("file_not_ready");
           if (!params.scanId) {
             const text = textOf(view), ledger = ledgerFor(params.projectId, file, text);
-            if (ledger.invalid) return { ...failure("position_mismatch"), journal: drain() };
+            if (ledger.invalid) return { ...failure("tracking_out_of_sync"), journal: drain() };
             let cache = navigationCache.get(view.state.doc);
             if (typeof view.state.doc.length !== "number" || !cache || cache.ledger !== ledger || cache.version !== ledger.version) {
               cache = { ledger, version: ledger.version, positions: /* @__PURE__ */ new Map() };
@@ -2609,7 +2614,7 @@
           if (!view) return failure("file_not_ready");
           const text = textOf(view);
           const ledger = ledgerFor(owner, item.file, text);
-          const match = ledger.invalid ? failure("position_mismatch") : Rebase.resolve(text, item, ledger);
+          const match = ledger.invalid ? failure("tracking_out_of_sync") : Rebase.resolve(text, item, ledger);
           if (!match.ok) return { ...match, journal: drain() };
           const highlights = characterEdits(match.patch, text);
           if (!highlights) return failure("diff_too_complex");
@@ -2681,7 +2686,7 @@
             cancel();
             return failure("editor_changed");
           }
-          const text = textOf(view), ledger = ledgerFor(item.projectId, item.item.file, text), match = ledger.invalid ? failure("position_mismatch") : Rebase.resolve(text, item.item, ledger);
+          const text = textOf(view), ledger = ledgerFor(item.projectId, item.item.file, text), match = ledger.invalid ? failure("tracking_out_of_sync") : Rebase.resolve(text, item.item, ledger);
           if (!match.ok) {
             cancel();
             return { ...match, journal: drain() };

@@ -79,3 +79,12 @@ test('typing elsewhere refreshes highlights without reopening, selecting or scro
  }
  await h.prepare();assert.equal(shown.at(-1).reveal,true);assert.equal(opens,2);assert.equal(h.writes.length,0);
 });
+
+test('irreconcilable saved tracking pauses without writes; a fresh baseline locates current exact source',async()=>{
+ const h=fixture();h.service.begin({ledgers:{'main.tex':{base:'x'.repeat(10000),edits:[]}}});
+ assert.equal((await h.prepare()).code,'tracking_out_of_sync');
+ assert.equal(h.writes.length,0);
+ h.service.begin({ledgers:{}});
+ const pending=await h.prepare();assert.equal(pending.ok,true);assert.equal(h.writes.length,0);
+ assert.equal(h.service.apply({token:pending.token}).verified,true);assert.equal(h.text,'lead\nnew\ntail');
+});

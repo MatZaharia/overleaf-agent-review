@@ -57,6 +57,12 @@ function create(indexedDB,crypto){
   }await done;
  }
  async function clear(project){const database=await db(),tx=database.transaction(['packs','decisions','bases','edits'],'readwrite'),done=complete(tx);for(const name of ['packs','decisions','bases','edits']){const store=tx.objectStore(name),rows=await request(store.index('project').getAll(project));for(const row of rows)store.delete(row.key)}await done;}
- return {load,savePack,save,clear,keys};
+ async function clearTracking(project,file){
+  if(typeof file!=='string'||!file)throw new Error('File required');
+  const database=await db(),tx=database.transaction(['bases','edits'],'readwrite'),done=complete(tx);
+  for(const name of ['bases','edits']){const store=tx.objectStore(name),rows=await request(store.index('project').getAll(project));for(const row of rows)if(row.file===file)store.delete(row.key)}
+  await done;
+ }
+ return {load,savePack,save,clear,clearTracking,keys};
 }
 module.exports={create};

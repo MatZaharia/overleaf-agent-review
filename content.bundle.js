@@ -157,7 +157,7 @@
       "use strict";
       var Counts = require_reviewCounts();
       function halt(code) {
-        return ["project_changed", "cancelled", "write_unconfirmed", "bridge_failed", "bridge_timeout"].includes(code);
+        return ["project_changed", "cancelled", "write_unconfirmed", "bridge_failed", "bridge_timeout", "tracking_out_of_sync"].includes(code);
       }
       async function run(pack, deps) {
         const results = /* @__PURE__ */ new Map(), settled = /* @__PURE__ */ new Set();
@@ -227,6 +227,7 @@
             }
             deps.assertCurrent();
             if (!prepared.ok) {
+              if (prepared.code === "tracking_out_of_sync") throw Object.assign(new Error("\u5B9A\u4F4D\u8BB0\u5F55\u5DF2\u5931\u6548"), { code: prepared.code, file: item.file, results: list() });
               const result2 = { item, state: "skipped", code: prepared.code };
               save(index, result2);
               await deps.record(result2);
@@ -253,6 +254,7 @@
               continue;
             }
             if (decision.skipped) {
+              if (decision.skipped === "tracking_out_of_sync") throw Object.assign(new Error("\u5B9A\u4F4D\u8BB0\u5F55\u5DF2\u5931\u6548"), { code: decision.skipped, file: item.file, results: list() });
               const result2 = { item, state: "skipped", code: decision.skipped };
               save(index, result2);
               await deps.record(result2);
@@ -274,6 +276,7 @@
             } catch (_) {
               throw Object.assign(new Error("\u5199\u5165\u72B6\u6001\u672A\u786E\u8BA4\uFF0C\u68C0\u67E5\u5F53\u524D\u6587\u4EF6\uFF1B\u4E0D\u8981\u91CD\u590D\u63A5\u53D7"), { code: "write_unconfirmed", results: list() });
             }
+            if (applied.code === "tracking_out_of_sync") throw Object.assign(new Error("\u5B9A\u4F4D\u8BB0\u5F55\u5DF2\u5931\u6548"), { code: applied.code, file: item.file, results: list() });
             const verified = applied.ok === true && applied.verified === true;
             const code = applied.code || (verified ? "" : "write_unconfirmed");
             const result = { item, state: verified ? "written" : applied.changedDocument ? "unknown" : "skipped", code };
@@ -398,6 +401,11 @@
     "src/i18n.js"(exports, module) {
       "use strict";
       var english = {
+        "\u91CD\u65B0\u5EFA\u7ACB\u5B9A\u4F4D\uFF08\u4FDD\u7559\u51B3\u5B9A\uFF09": "Rebuild tracking (keep decisions)",
+        "\u5B9A\u4F4D\u8BB0\u5F55\u4E0E\u5F53\u524D\u6B63\u6587\u4E0D\u4E00\u81F4\uFF0C\u5BA1\u9605\u5DF2\u6682\u505C\u3002\u53EF\u91CD\u65B0\u5EFA\u7ACB\u5B9A\u4F4D\uFF0C\u4FDD\u7559\u63A5\u53D7\uFF0F\u62D2\u7EDD\u51B3\u5B9A\u3002": "Saved tracking no longer matches the source. Review paused. Rebuild tracking to keep accepted/rejected decisions.",
+        "\u6B63\u5728\u51C6\u5907\u5BA1\u9605\u2026": "Preparing review\u2026",
+        "\u6B63\u5728\u8F7D\u5165\u65B0\u7248\u672C\u5EFA\u8BAE\u2026": "Loading the updated suggestion pack\u2026",
+        "\u5BA1\u9605\u5DF2\u505C\u6B62\uFF0C\u53EF\u8FD4\u56DE\u5BFC\u5165\u540E\u7EE7\u7EED": "Review stopped. Return to import to resume.",
         "\u6269\u5C55\u5DF2\u66F4\u65B0\u6216\u91CD\u65B0\u52A0\u8F7D\uFF0C\u5BA1\u9605\u5DF2\u505C\u6B62\u3002\u8BF7\u5237\u65B0 Overleaf \u9875\u9762\u540E\u7EE7\u7EED\uFF1B\u521A\u63A5\u53D7\u7684\u4FEE\u6539\u8BF7\u5148\u6838\u5BF9\u6B63\u6587\u3002": "The extension was updated or reloaded. Review has stopped. Refresh Overleaf to continue; check the source if you just accepted a change.",
         "\u65E0\u6CD5\u8FDE\u63A5\u6269\u5C55": "Cannot connect to the extension",
         "\u5F53\u524D\u539F\u6587\u5DF2\u53D8\u5316\uFF0C\u6B64\u9879\u5DF2\u5931\u6548\uFF1B\u53EF\u7EE7\u7EED\u7F16\u8F91\uFF0C\u70B9\u51FB\u5BFC\u822A\u540E\u8DF3\u8FC7": "The original changed; this item is stale. Continue editing; navigation will skip it.",
@@ -699,12 +707,12 @@
     const shadow = host.attachShadow({ mode: "open" });
     shadow.innerHTML = `<style>
 :host{font:13px/1.5 system-ui;color:#273342}*{box-sizing:border-box}button,textarea,input{font:inherit}button{border:1px solid #cdd6df;border-radius:6px;background:#fff;color:#273342;padding:7px 11px;cursor:pointer}button:disabled{opacity:.45;cursor:default}button:focus-visible,textarea:focus-visible{outline:3px solid #8aafe3;outline-offset:2px}.primary,.launch{background:#176347;color:#fff;border-color:#176347}.launch{box-shadow:0 4px 18px #18352925}.drawer{position:fixed;display:flex;flex-direction:column;overflow:hidden;background:#fff;border:1px solid #cbd5de;border-radius:10px;box-shadow:0 10px 40px #14253630;margin-bottom:10px}.head{padding:14px 16px;border-bottom:1px solid #e0e6ec;display:flex;align-items:center;justify-content:space-between}.head strong{font-size:15px}.head button{padding:3px 8px}.body{padding:16px 16px 26px;overflow:auto;min-height:0;flex:1}.head{flex-shrink:0;gap:12px}.head strong{flex:1}.language{font:inherit;border:1px solid #cdd6df;border-radius:5px;background:white;padding:3px}.muted{color:#657687;font-size:12px;margin:0 0 12px}.label{display:block;margin-bottom:6px;font-weight:600}textarea{display:block;width:100%;height:130px;padding:10px;border:1px solid #ccd7e0;border-radius:6px;resize:vertical;font:12px/1.45 ui-monospace,monospace}.toolbar{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.message{font-size:12px;padding:10px;background:#f0f5f4;border-radius:5px}.card{border:1px solid #d2dce4;border-radius:7px;padding:12px;margin-top:12px}.card strong{display:block}.path{font:11px/1.5 ui-monospace,monospace;color:#687888}.reason{font-size:12px;margin:8px 0}.source{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 ui-monospace,monospace;margin:6px 0 10px;padding:8px;max-height:180px;overflow:auto;border-radius:4px}.old,.new{background:#f6f8fa;color:#586673}.actions{display:flex;gap:8px}.history{padding:8px 0;border-bottom:1px solid #e3e9ed;font-size:12px}.history b{color:#176347}.unknown{color:#9a452c}.session-toolbar{display:flex;justify-content:space-between;gap:8px;margin-bottom:12px}.history-details{margin-top:14px;font-size:12px;color:#657687}.footer{margin-top:14px;font-size:11px;color:#6b7b88}[hidden]{display:none!important}
-${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="head"><strong>\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE</strong><select class="language" aria-label="\u8BED\u8A00"><option value="zh-CN">\u4E2D\u6587</option><option value="en">English</option></select><button class="close" aria-label="\u6536\u8D77">\xD7</button></div><div class="body"><div class="session-toolbar" hidden><button class="back">\u2190 \u8FD4\u56DE\u5BFC\u5165</button><button class="continue" hidden>\u7EE7\u7EED\u5BA1\u9605</button><button class="stop" hidden>\u505C\u6B62</button></div><div class="setup-view"><p class="muted">\u5148\u5BFC\u5165\u5EFA\u8BAE\u5305\uFF0C\u518D\u9010\u9879\u786E\u8BA4\u3002\u6BCF\u6B21\u63A5\u53D7\u90FD\u4F1A\u641C\u7D22\u5F53\u524D\u539F\u6587\uFF1B\u8FC7\u65F6\u6216\u4E0D\u552F\u4E00\u7684\u9879\u81EA\u52A8\u8DF3\u8FC7\u3002</p><label class="label" for="pack">\u5EFA\u8BAE\u5305 JSON</label><textarea id="pack" spellcheck="false" placeholder="\u7C98\u8D34 Agent \u751F\u6210\u7684\u5EFA\u8BAE\u5305"></textarea><input type="file" accept=".json,application/json" hidden><div class="toolbar"><button class="connect">\u8FDE\u63A5 Agent</button><button class="disconnect">\u65AD\u5F00</button></div><div class="bridge-status" role="status"></div><input class="bridge-token" type="password" placeholder="\u672C\u5730\u8FDE\u63A5\u914D\u5BF9\u4EE4\u724C" autocomplete="off"><div class="toolbar"><button class="file">\u9009\u62E9 JSON \u6587\u4EF6</button><button class="primary start">\u5F00\u59CB\u5BA1\u9605</button><button class="resume">\u6062\u590D\u4E0A\u6B21\u5BA1\u9605</button><button class="reset">\u6E05\u9664\u8FDB\u5EA6</button></div><div class="setup-message message" role="status" aria-live="polite">\u7B49\u5F85\u5BFC\u5165\u5EFA\u8BAE\u5305</div></div><div class="review-view" hidden><div class="message review-message" role="status" aria-live="polite">\u7B49\u5F85\u5BFC\u5165\u5EFA\u8BAE\u5305</div><div class="pending"></div><details class="history-details"><summary>\u6700\u8FD1\u5904\u7406\u8BB0\u5F55</summary><div class="history-list"></div></details><p class="footer">\u5DF2\u5199\u5165\u8868\u793A\u7F16\u8F91\u5668\u5185\u5BB9\u5DF2\u6838\u9A8C\uFF0C\u670D\u52A1\u5668\u4FDD\u5B58\u9700\u5728 Overleaf \u68C0\u67E5\u3002\u53EF\u4F7F\u7528 Overleaf \u7684\u64A4\u9500\u6309\u94AE\u3002</p></div></div><button class="resize" aria-label="\u62D6\u52A8\u53F3\u4E0B\u89D2\u8C03\u6574\u5927\u5C0F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03" title="\u62D6\u52A8\u53F3\u4E0B\u89D2\u8C03\u6574\u5927\u5C0F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03"></button></section><button class="launch">\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE</button>`;
+${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="head"><strong>\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE</strong><select class="language" aria-label="\u8BED\u8A00"><option value="zh-CN">\u4E2D\u6587</option><option value="en">English</option></select><button class="close" aria-label="\u6536\u8D77">\xD7</button></div><div class="body"><div class="session-toolbar" hidden><button class="back">\u2190 \u8FD4\u56DE\u5BFC\u5165</button><button class="continue" hidden>\u7EE7\u7EED\u5BA1\u9605</button><button class="stop" hidden>\u505C\u6B62</button></div><div class="setup-view"><p class="muted">\u5148\u5BFC\u5165\u5EFA\u8BAE\u5305\uFF0C\u518D\u9010\u9879\u786E\u8BA4\u3002\u6BCF\u6B21\u63A5\u53D7\u90FD\u4F1A\u641C\u7D22\u5F53\u524D\u539F\u6587\uFF1B\u8FC7\u65F6\u6216\u4E0D\u552F\u4E00\u7684\u9879\u81EA\u52A8\u8DF3\u8FC7\u3002</p><label class="label" for="pack">\u5EFA\u8BAE\u5305 JSON</label><textarea id="pack" spellcheck="false" placeholder="\u7C98\u8D34 Agent \u751F\u6210\u7684\u5EFA\u8BAE\u5305"></textarea><input type="file" accept=".json,application/json" hidden><div class="toolbar"><button class="connect">\u8FDE\u63A5 Agent</button><button class="disconnect">\u65AD\u5F00</button></div><div class="bridge-status" role="status"></div><input class="bridge-token" type="password" placeholder="\u672C\u5730\u8FDE\u63A5\u914D\u5BF9\u4EE4\u724C" autocomplete="off"><div class="toolbar"><button class="file">\u9009\u62E9 JSON \u6587\u4EF6</button><button class="primary start">\u5F00\u59CB\u5BA1\u9605</button><button class="resume">\u6062\u590D\u4E0A\u6B21\u5BA1\u9605</button><button class="reset">\u6E05\u9664\u8FDB\u5EA6</button></div><div class="setup-message message" role="status" aria-live="polite">\u7B49\u5F85\u5BFC\u5165\u5EFA\u8BAE\u5305</div></div><div class="review-view" hidden><div class="message review-message" role="status" aria-live="polite">\u7B49\u5F85\u5BFC\u5165\u5EFA\u8BAE\u5305</div><button class="repair" hidden>\u91CD\u65B0\u5EFA\u7ACB\u5B9A\u4F4D\uFF08\u4FDD\u7559\u51B3\u5B9A\uFF09</button><div class="pending"></div><details class="history-details"><summary>\u6700\u8FD1\u5904\u7406\u8BB0\u5F55</summary><div class="history-list"></div></details><p class="footer">\u5DF2\u5199\u5165\u8868\u793A\u7F16\u8F91\u5668\u5185\u5BB9\u5DF2\u6838\u9A8C\uFF0C\u670D\u52A1\u5668\u4FDD\u5B58\u9700\u5728 Overleaf \u68C0\u67E5\u3002\u53EF\u4F7F\u7528 Overleaf \u7684\u64A4\u9500\u6309\u94AE\u3002</p></div></div><button class="resize" aria-label="\u62D6\u52A8\u53F3\u4E0B\u89D2\u8C03\u6574\u5927\u5C0F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03" title="\u62D6\u52A8\u53F3\u4E0B\u89D2\u8C03\u6574\u5927\u5C0F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03"></button></section><button class="launch">\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE</button>`;
     document.body.append(host);
     const $ = (selector) => shadow.querySelector(selector);
     const capability = Array.from(crypto.getRandomValues(new Uint8Array(32)), (b) => b.toString(16).padStart(2, "0")).join("");
     const persistent = typeof chrome !== "undefined" && !!chrome.runtime?.id;
-    let contextLost = false;
+    let contextLost = false, trackingFile = null, stopReason = null;
     const runtime = ExtensionRuntime.create(() => typeof chrome === "undefined" ? null : chrome, onContextInvalidated);
     let language = "zh-CN", languageTouched = false, packLabel = null, reviewLanguageRefresh = null;
     function setPackLabel(text) {
@@ -823,7 +831,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
     function lockInvalidContext() {
       $(".drawer").hidden = false;
       floating.layout();
-      shadow.querySelectorAll(".setup-view button,.pending button,.stop,.continue,.language").forEach((node) => {
+      shadow.querySelectorAll(".setup-view button,.pending button,.stop,.continue,.language,.repair").forEach((node) => {
         node.disabled = true;
       });
       $("#pack").disabled = true;
@@ -1105,6 +1113,9 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
       const epoch = ++startEpoch;
       starting = true;
       $(".start").disabled = true;
+      trackingFile = null;
+      $(".repair").hidden = true;
+      status("\u6B63\u5728\u51C6\u5907\u5BA1\u9605\u2026");
       let pack, session = { decisions: {}, ledgers: {} };
       try {
         pack = await parseInput(importedPack || $("#pack").value);
@@ -1129,6 +1140,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
       running = true;
       starting = false;
       cancelled = false;
+      stopReason = null;
       $(".start").disabled = true;
       $(".resume").disabled = true;
       $(".reset").disabled = true;
@@ -1166,7 +1178,12 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
         const count = (state) => results.filter((result) => result.state === state).length;
         status("\u5BA1\u9605\u7ED3\u675F\uFF1A\u5199\u5165 " + count("written") + " \u9879\uFF0C\u62D2\u7EDD " + count("rejected") + " \u9879\uFF0C\u8DF3\u8FC7 " + count("skipped") + " \u9879\uFF0C\u4FDD\u7559\u5148\u524D\u51B3\u5B9A " + count("retained") + " \u9879\u3002");
       } catch (error) {
-        status(error.code === "write_unconfirmed" ? "\u5199\u5165\u7ED3\u679C\u672A\u786E\u8BA4\uFF0C\u5DF2\u505C\u6B62\u3002\u8BF7\u68C0\u67E5\u5F53\u524D\u6B63\u6587\uFF0C\u4E0D\u8981\u91CD\u590D\u63A5\u53D7\u3002" : "\u5BA1\u9605\u5DF2\u505C\u6B62\uFF1A" + (error.code || error.message));
+        if (error.code === "tracking_out_of_sync") {
+          trackingFile = error.file;
+          $(".repair").hidden = false;
+          status("\u5B9A\u4F4D\u8BB0\u5F55\u4E0E\u5F53\u524D\u6B63\u6587\u4E0D\u4E00\u81F4\uFF0C\u5BA1\u9605\u5DF2\u6682\u505C\u3002\u53EF\u91CD\u65B0\u5EFA\u7ACB\u5B9A\u4F4D\uFF0C\u4FDD\u7559\u63A5\u53D7\uFF0F\u62D2\u7EDD\u51B3\u5B9A\u3002");
+        } else if (error.code === "cancelled") status(stopReason === "update" ? "\u6B63\u5728\u8F7D\u5165\u65B0\u7248\u672C\u5EFA\u8BAE\u2026" : "\u5BA1\u9605\u5DF2\u505C\u6B62\uFF0C\u53EF\u8FD4\u56DE\u5BFC\u5165\u540E\u7EE7\u7EED");
+        else status(error.code === "write_unconfirmed" ? "\u5199\u5165\u7ED3\u679C\u672A\u786E\u8BA4\uFF0C\u5DF2\u505C\u6B62\u3002\u8BF7\u68C0\u67E5\u5F53\u524D\u6B63\u6587\uFF0C\u4E0D\u8981\u91CD\u590D\u63A5\u53D7\u3002" : "\u5BA1\u9605\u5DF2\u505C\u6B62\uFF1A" + (error.code || error.message));
       } finally {
         pendingAbort?.();
         pendingAbort = null;
@@ -1232,6 +1249,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
         }
         if (result.pack && result.revision !== bridgeRevision) {
           ++startEpoch;
+          stopReason = "update";
           cancelled = true;
           pendingAbort?.();
           await call("cancel", {});
@@ -1303,6 +1321,22 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
         status(error.message);
       }
     });
+    $(".repair").addEventListener("click", async () => {
+      if (contextLost || running || starting || !trackingFile) return;
+      const file = trackingFile;
+      $(".repair").disabled = true;
+      try {
+        if (persistent) {
+          const saved = await runtime.message({ type: "clearTracking", file, projectId: owner });
+          if (!saved.ok) throw new Error(saved.error);
+        }
+        await start();
+      } catch (error) {
+        status(error.message);
+      } finally {
+        $(".repair").disabled = contextLost;
+      }
+    });
     $(".reset").addEventListener("click", async () => {
       if (running || starting) return;
       try {
@@ -1324,6 +1358,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
     $(".start").addEventListener("click", start);
     $(".stop").addEventListener("click", () => {
       ++startEpoch;
+      stopReason = "user";
       cancelled = true;
       pendingAbort?.();
       call("cancel", {}).catch(() => {
