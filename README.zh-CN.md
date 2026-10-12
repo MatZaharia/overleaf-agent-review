@@ -8,7 +8,7 @@
 
 让在线 LaTeX 审阅，细到每个字符、每次决定。
 
-[![Release](https://img.shields.io/github/v/release/MatZaharia/overleaf-agent-review?include_prereleases&style=flat-square&color=6752c7)](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.5.3)
+[![Release](https://img.shields.io/github/v/release/MatZaharia/overleaf-agent-review?include_prereleases&style=flat-square&color=6752c7)](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.5.4)
 [![CI](https://github.com/MatZaharia/overleaf-agent-review/actions/workflows/ci.yml/badge.svg)](https://github.com/MatZaharia/overleaf-agent-review/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-278262?style=flat-square)](LICENSE)
 [![Chrome](https://img.shields.io/badge/Chrome-Manifest_V3-456cb3?style=flat-square)](#安装)
@@ -16,7 +16,7 @@
 
 **简体中文** · [English](README.md)
 
-[下载扩展](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.5.3) · [连接 Agent](#本地-agent-连接) · [Agent 操作指南](docs/agent-guide.md) · [反馈问题](https://github.com/MatZaharia/overleaf-agent-review/issues)
+[下载扩展](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.5.4) · [连接 Agent](#本地-agent-连接) · [Agent 操作指南](docs/agent-guide.md) · [反馈问题](https://github.com/MatZaharia/overleaf-agent-review/issues)
 
 </div>
 
@@ -58,7 +58,7 @@ Agent 发来建议包，Overleaf 高亮变化的字符。**你可以接受、拒
 
 ## 安装
 
-1. 在 [Releases](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.5.3) 下载插件 ZIP 并解压。请选择插件安装包，不是 GitHub 自动生成的 Source code ZIP。
+1. 在 [Releases](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.5.4) 下载插件 ZIP 并解压。请选择插件安装包，不是 GitHub 自动生成的 Source code ZIP。
 2. 在 Chrome 打开 `chrome://extensions`，开启“开发者模式”。
 3. 点击“加载未打包的扩展程序”，选择解压后包含 `manifest.json` 的 `overleaf-agent-review` 文件夹。
 4. 打开 Overleaf 项目，刷新页面，切换到 **Code** 源码模式。
@@ -146,6 +146,8 @@ CLI 和建议包格式不绑定模型厂商。目前以 Codex 开发和验证流
 
 行号仅用于展示，不作为替换地址。
 
+如果 Chrome 显示 **Extension context invalidated**，通常是扩展重新加载后，旧页面连接已经失效。确认 Overleaf 已保存正文后，刷新 Overleaf 标签页，再点“恢复上次审阅”；使用 Agent 桥接时，刷新后重新连接即可，无需清除进度。v1.5.4 会停止旧审阅、关闭旧预览并提示刷新；接受前也会确认扩展连接仍然有效。见 [验证记录](docs/validation-v1.5.4.md)。
+
 ## 审阅导航
 
 开始审阅后进入单独的审阅界面，隐藏导入表单和连接设置。点 **返回导入** 查看设置，当前项保持待确认；点 **继续审阅** 回到同一项。最近处理记录默认折叠。
@@ -162,7 +164,7 @@ CLI 和建议包格式不绑定模型厂商。目前以 Codex 开发和验证流
 
 撤销已接受的修改后，对应建议会回到待审队列，数量及导航同步更新；其他已接受修改的位置记录继续保留。如果审阅已结束，或你在停止审阅期间撤销，点击“恢复上次审阅”即可根据当前打开文件的正文核对进度。拒绝决定仍保留，重做不会触发插件自动写入。见 [v1.5.3 验证记录](docs/validation-v1.5.3.md)。
 
-这些界面改进已包含在 v1.5.3 Release ZIP 中。更新扩展后重新加载，并刷新 Overleaf。
+这些界面改进已包含在 v1.5.4 Release ZIP 中。更新扩展后重新加载，并刷新 Overleaf。
 
 **上一项／下一项**按建议包顺序循环切换未决定项：最后一项的下一项是第一项，第一项的上一项是最后一项。两侧按钮和审阅卡片的 ↑／↓ 都采用这个循环；剩两项时，两个方向都到另一项；只剩一项时保持当前项。**光标上一处／光标下一处**在当前文件中，按实时修改字符的位置查找光标前后最近的可定位待处理建议，不按 JSON 顺序或行号寻找。切换只移动预览，不拒绝、不写入；暂不处理的项仍待确认，其他项处理后会回来。已接受／拒绝的项不参与导航。搜索期间正文、文件或光标变化时，请重新点击导航。
 

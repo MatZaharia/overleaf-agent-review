@@ -398,6 +398,8 @@
     "src/i18n.js"(exports, module) {
       "use strict";
       var english = {
+        "\u6269\u5C55\u5DF2\u66F4\u65B0\u6216\u91CD\u65B0\u52A0\u8F7D\uFF0C\u5BA1\u9605\u5DF2\u505C\u6B62\u3002\u8BF7\u5237\u65B0 Overleaf \u9875\u9762\u540E\u7EE7\u7EED\uFF1B\u521A\u63A5\u53D7\u7684\u4FEE\u6539\u8BF7\u5148\u6838\u5BF9\u6B63\u6587\u3002": "The extension was updated or reloaded. Review has stopped. Refresh Overleaf to continue; check the source if you just accepted a change.",
+        "\u65E0\u6CD5\u8FDE\u63A5\u6269\u5C55": "Cannot connect to the extension",
         "\u5F53\u524D\u539F\u6587\u5DF2\u53D8\u5316\uFF0C\u6B64\u9879\u5DF2\u5931\u6548\uFF1B\u53EF\u7EE7\u7EED\u7F16\u8F91\uFF0C\u70B9\u51FB\u5BFC\u822A\u540E\u8DF3\u8FC7": "The original changed; this item is stale. Continue editing; navigation will skip it.",
         "\u5B9A\u4F4D\u540E\u7684\u5B57\u7B26\u4E0E\u539F\u6587\u4E0D\u4E00\u81F4\uFF0C\u8DF3\u8FC7": "Located characters do not match the original; skipped",
         "\u914D\u5BF9\u4EE4\u724C\u683C\u5F0F\u4E0D\u6B63\u786E": "Invalid pairing token format",
@@ -635,6 +637,50 @@
     }
   });
 
+  // src/extensionRuntime.js
+  var require_extensionRuntime = __commonJS({
+    "src/extensionRuntime.js"(exports, module) {
+      "use strict";
+      var message = "\u6269\u5C55\u5DF2\u66F4\u65B0\u6216\u91CD\u65B0\u52A0\u8F7D\uFF0C\u5BA1\u9605\u5DF2\u505C\u6B62\u3002\u8BF7\u5237\u65B0 Overleaf \u9875\u9762\u540E\u7EE7\u7EED\uFF1B\u521A\u63A5\u53D7\u7684\u4FEE\u6539\u8BF7\u5148\u6838\u5BF9\u6B63\u6587\u3002";
+      function create(getChrome, onInvalid = () => {
+      }) {
+        let invalid = false;
+        const error = () => Object.assign(new Error(message), { code: "extension_invalidated" });
+        function invalidate() {
+          if (!invalid) {
+            invalid = true;
+            onInvalid();
+          }
+          return error();
+        }
+        function check() {
+          if (invalid) throw error();
+          try {
+            if (getChrome()?.runtime?.id) return;
+          } catch {
+          }
+          throw invalidate();
+        }
+        async function run(operation) {
+          check();
+          try {
+            const result = await operation(getChrome());
+            check();
+            return result;
+          } catch (cause) {
+            if (cause?.code === "extension_invalidated" || /extension context invalidated/i.test(cause?.message || "")) throw invalidate();
+            check();
+            throw cause;
+          }
+        }
+        return { check, message: (body) => run((chrome2) => chrome2.runtime.sendMessage(body)), storage: (method, value) => run((chrome2) => chrome2.storage.local[method](value)), get invalid() {
+          return invalid;
+        } };
+      }
+      module.exports = { create, message };
+    }
+  });
+
   // src/content.js
   var Core = require_suggestions();
   var Runner = require_runner();
@@ -644,6 +690,7 @@
   var Diff = require_reviewDiff();
   var Keyboard = require_reviewKeyboard();
   var Scroll = require_reviewScroll();
+  var ExtensionRuntime = require_extensionRuntime();
   if (!document.querySelector("[data-suggestion-importer]")) mount();
   function mount() {
     const host = document.createElement("div");
@@ -657,6 +704,8 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
     const $ = (selector) => shadow.querySelector(selector);
     const capability = Array.from(crypto.getRandomValues(new Uint8Array(32)), (b) => b.toString(16).padStart(2, "0")).join("");
     const persistent = typeof chrome !== "undefined" && !!chrome.runtime?.id;
+    let contextLost = false;
+    const runtime = ExtensionRuntime.create(() => typeof chrome === "undefined" ? null : chrome, onContextInvalidated);
     let language = "zh-CN", languageTouched = false, packLabel = null, reviewLanguageRefresh = null;
     function setPackLabel(text) {
       packLabel = text;
@@ -715,6 +764,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
       $(".body").scrollTop = 0;
     }
     let startEpoch = 0, sessionActive = false, reconcileReview = null, decisionUpdates = [];
+    let bridgeRevision = 0, bridgeEnabled = false, bridgeBusy = false, bridgeResults = [];
     let importedPack = null, initialized = null, running = false, starting = false, owner = "", cancelled = false, pendingAbort = null;
     function send(method, params) {
       const id = crypto.randomUUID();
@@ -737,12 +787,21 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
       });
     }
     async function call(method, params) {
+      if (persistent && method !== "cancel") {
+        runtime.check();
+        if (method === "apply") {
+          const ready = await runtime.message({ type: "ping" });
+          if (!ready?.ok) throw new Error("\u65E0\u6CD5\u8FDE\u63A5\u6269\u5C55");
+          runtime.check();
+        }
+      }
       if (!initialized) initialized = send("hello", {});
       const handshake = await initialized;
       if (!handshake.ok) throw new Error("\u65E0\u6CD5\u8FDE\u63A5\u9875\u9762");
+      if (persistent && method !== "cancel") runtime.check();
       const result = await send(method, params);
       if (persistent && sessionActive && result.journal?.length) {
-        const saved = await chrome.runtime.sendMessage({ type: "progress", journal: result.journal });
+        const saved = await runtime.message({ type: "progress", journal: result.journal });
         if (!saved.ok) throw new Error("\u4FDD\u5B58\u5B9A\u4F4D\u8BB0\u5F55\u5931\u8D25\uFF1A" + saved.error);
       }
       const updates = (result.journal || []).flatMap((entry) => entry.decisions || []);
@@ -757,9 +816,31 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
       if (cancelled || current !== owner) throw Object.assign(new Error("\u5DF2\u505C\u6B62"), { code: cancelled ? "cancelled" : "project_changed" });
     };
     const status = (text) => {
-      setUI($(".setup-message"), text);
-      setUI($(".review-message"), text);
+      const value = contextLost ? ExtensionRuntime.message : text;
+      setUI($(".setup-message"), value);
+      setUI($(".review-message"), value);
     };
+    function lockInvalidContext() {
+      $(".drawer").hidden = false;
+      floating.layout();
+      shadow.querySelectorAll(".setup-view button,.pending button,.stop,.continue,.language").forEach((node) => {
+        node.disabled = true;
+      });
+      $("#pack").disabled = true;
+      status(ExtensionRuntime.message);
+      setUI($(".bridge-status"), ExtensionRuntime.message);
+    }
+    function onContextInvalidated() {
+      contextLost = true;
+      ++startEpoch;
+      cancelled = true;
+      bridgeEnabled = false;
+      sessionActive = false;
+      pendingAbort?.();
+      if (initialized) send("cancel", {}).catch(() => {
+      });
+      lockInvalidContext();
+    }
     async function changeLanguage(value) {
       language = I18n.normalize(value);
       $(".language").value = language;
@@ -771,9 +852,9 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
     $(".language").addEventListener("change", () => {
       languageTouched = true;
       changeLanguage($(".language").value);
-      if (persistent && chrome.storage?.local) chrome.storage.local.set({ reviewLanguage: language });
+      if (persistent) runtime.storage("set", { reviewLanguage: language }).catch((error) => status(error.message));
     });
-    if (persistent && chrome.storage?.local) chrome.storage.local.get("reviewLanguage").then((saved) => {
+    if (persistent) runtime.storage("get", "reviewLanguage").then((saved) => {
       if (!languageTouched) changeLanguage(saved.reviewLanguage || "zh-CN");
     }).catch(() => {
     });
@@ -993,7 +1074,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
     }
     async function record(result) {
       if (persistent && ["written", "rejected", "unknown"].includes(result.state)) {
-        const saved = await chrome.runtime.sendMessage({ type: "progress", decision: { reviewKey: result.item.reviewKey, state: result.state, code: result.code } });
+        const saved = await runtime.message({ type: "progress", decision: { reviewKey: result.item.reviewKey, state: result.state, code: result.code } });
         if (!saved.ok) throw new Error("\u4FDD\u5B58\u5BA1\u9605\u51B3\u5B9A\u5931\u8D25\uFF1A" + saved.error);
       }
       if (bridgeRevision) bridgeResults.push({ revision: bridgeRevision, id: result.item.id, state: result.state, code: result.code });
@@ -1012,15 +1093,15 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
         const uploadId = crypto.randomUUID();
         let index = 0;
         for (let from = 0; from < input.length; from += 262144) {
-          response = await chrome.runtime.sendMessage({ type: "parseChunk", uploadId, index: index++, chunk: input.slice(from, from + 262144), last: from + 262144 >= input.length });
+          response = await runtime.message({ type: "parseChunk", uploadId, index: index++, chunk: input.slice(from, from + 262144), last: from + 262144 >= input.length });
           if (!response.ok) throw new Error(response.error);
         }
-      } else response = await chrome.runtime.sendMessage({ type: "parse", input });
+      } else response = await runtime.message({ type: "parse", input });
       if (!response.ok) throw new Error(response.error);
       return response.pack;
     }
     async function start() {
-      if (running || starting) return;
+      if (contextLost || running || starting) return;
       const epoch = ++startEpoch;
       starting = true;
       $(".start").disabled = true;
@@ -1032,7 +1113,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
         if (pack.projectId && pack.projectId !== current.projectId) throw new Error("\u5EFA\u8BAE\u5305\u5C5E\u4E8E\u5176\u4ED6\u9879\u76EE\uFF0C\u6CA1\u6709\u5199\u5165");
         if (epoch !== startEpoch) throw new Error("\u5EFA\u8BAE\u5DF2\u66F4\u65B0\u6216\u5BA1\u9605\u5DF2\u505C\u6B62");
         if (persistent) {
-          session = await chrome.runtime.sendMessage({ type: "session", pack });
+          session = await runtime.message({ type: "session", pack });
           if (!session.ok) throw new Error(session.error);
           pack = session.pack;
         }
@@ -1042,7 +1123,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
       } catch (error) {
         status(error.message);
         starting = false;
-        $(".start").disabled = false;
+        $(".start").disabled = contextLost;
         return;
       }
       running = true;
@@ -1065,7 +1146,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
         let itemBuffer = [], bufferStart = -1;
         const itemAt = persistent ? async (index) => {
           if (index < bufferStart || index >= bufferStart + itemBuffer.length) {
-            const fetched = await chrome.runtime.sendMessage({ type: "items", ref: pack.ref, index });
+            const fetched = await runtime.message({ type: "items", ref: pack.ref, index });
             if (!fetched.ok) throw new Error(fetched.error);
             bufferStart = index;
             itemBuffer = fetched.items;
@@ -1101,12 +1182,12 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
         $("#pack").disabled = false;
         $(".stop").hidden = true;
         showScreen(screen);
+        if (contextLost) lockInvalidContext();
       }
     }
-    let bridgeRevision = 0, bridgeEnabled = false, bridgeBusy = false, bridgeResults = [];
-    const bridgeMessage = (message) => chrome.runtime.sendMessage(message);
+    const bridgeMessage = (message) => runtime.message(message);
     $(".connect").addEventListener("click", async () => {
-      if (typeof chrome === "undefined" || !chrome.runtime?.id) {
+      if (!persistent) {
         status("\u672C\u5730\u8FDE\u63A5\u9700\u8981\u5728 Chrome \u6269\u5C55\u4E2D\u4F7F\u7528");
         return;
       }
@@ -1122,8 +1203,12 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
     });
     $(".disconnect").addEventListener("click", async () => {
       bridgeEnabled = false;
-      if (typeof chrome !== "undefined") await bridgeMessage({ type: "disconnect" });
-      setUI($(".bridge-status"), "\u5DF2\u65AD\u5F00\u672C\u5730\u8FDE\u63A5");
+      try {
+        if (persistent) await bridgeMessage({ type: "disconnect" });
+        setUI($(".bridge-status"), "\u5DF2\u65AD\u5F00\u672C\u5730\u8FDE\u63A5");
+      } catch (error) {
+        status(error.message);
+      }
     });
     async function pollBridge() {
       if (!bridgeEnabled || bridgeBusy) return;
@@ -1162,7 +1247,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
         }
         setUI($(".bridge-status"), "\u5DF2\u8FDE\u63A5 \xB7 \u6E90\u7801\u6309\u9700\u8BFB\u53D6 \xB7 \u5EFA\u8BAE\u7248\u672C " + bridgeRevision);
       } catch (error) {
-        setUI($(".bridge-status"), "\u672C\u5730\u8FDE\u63A5\u6682\u4E0D\u53EF\u7528\uFF1A" + error.message);
+        setUI($(".bridge-status"), contextLost ? ExtensionRuntime.message : "\u672C\u5730\u8FDE\u63A5\u6682\u4E0D\u53EF\u7528\uFF1A" + error.message);
       } finally {
         bridgeBusy = false;
         if (bridgeEnabled) setTimeout(pollBridge, 2e3);
@@ -1208,7 +1293,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
         return;
       }
       try {
-        const session = await chrome.runtime.sendMessage({ type: "session" });
+        const session = await runtime.message({ type: "session" });
         if (!session.ok) throw new Error(session.error);
         if (!session.pack) throw new Error("\u5F53\u524D\u9879\u76EE\u6CA1\u6709\u4FDD\u5B58\u7684\u5EFA\u8BAE\u5305");
         importedPack = session.pack;
@@ -1220,12 +1305,17 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
     });
     $(".reset").addEventListener("click", async () => {
       if (running || starting) return;
-      if (persistent) {
-        const saved = await chrome.runtime.sendMessage({ type: "clearProgress" });
-        if (!saved.ok) {
-          status(saved.error);
-          return;
+      try {
+        if (persistent) {
+          const saved = await runtime.message({ type: "clearProgress" });
+          if (!saved.ok) {
+            status(saved.error);
+            return;
+          }
         }
+      } catch (error) {
+        status(error.message);
+        return;
       }
       sessionActive = false;
       $(".history-list").replaceChildren();

@@ -8,7 +8,7 @@
 
 Review one change at a time, directly inside Overleaf.
 
-[![Release](https://img.shields.io/github/v/release/MatZaharia/overleaf-agent-review?include_prereleases&style=flat-square&color=6752c7)](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.5.3)
+[![Release](https://img.shields.io/github/v/release/MatZaharia/overleaf-agent-review?include_prereleases&style=flat-square&color=6752c7)](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.5.4)
 [![CI](https://github.com/MatZaharia/overleaf-agent-review/actions/workflows/ci.yml/badge.svg)](https://github.com/MatZaharia/overleaf-agent-review/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-278262?style=flat-square)](LICENSE)
 [![Chrome](https://img.shields.io/badge/Chrome-Manifest_V3-456cb3?style=flat-square)](#install)
@@ -16,7 +16,7 @@ Review one change at a time, directly inside Overleaf.
 
 **English** · [简体中文](README.zh-CN.md)
 
-[Download extension](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.5.3) · [Connect your Agent](#local-agent-connection) · [Agent guide](docs/agent-guide.md) · [Report an issue](https://github.com/MatZaharia/overleaf-agent-review/issues)
+[Download extension](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.5.4) · [Connect your Agent](#local-agent-connection) · [Agent guide](docs/agent-guide.md) · [Report an issue](https://github.com/MatZaharia/overleaf-agent-review/issues)
 
 </div>
 
@@ -58,7 +58,7 @@ Your Agent sends a suggestion pack. Overleaf highlights the changed characters. 
 
 ## Install
 
-1. Download the extension ZIP from [Releases](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.5.3) and extract it. Use the extension asset, rather than GitHub's automatically generated source ZIP.
+1. Download the extension ZIP from [Releases](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.5.4) and extract it. Use the extension asset, rather than GitHub's automatically generated source ZIP.
 2. Open `chrome://extensions` in Chrome and enable **Developer mode**.
 3. Click **Load unpacked** and select the extracted `overleaf-agent-review` folder containing `manifest.json`.
 4. Open your Overleaf project and refresh the page. Select **Code** mode.
@@ -150,6 +150,8 @@ Click Start review. Only `P` is highlighted; the source stays unchanged until yo
 
 The displayed line number is informational. It is never used as the replacement address.
 
+If Chrome reports **Extension context invalidated**, the extension was reloaded while this page was still open. Check that Overleaf has saved your work, refresh the Overleaf tab, then choose **Resume review**. If using the Agent bridge, reconnect on the refreshed page. You do not need to clear progress. v1.5.4 stops the old review, removes its preview and shows this recovery instruction; accepting first checks that the extension connection is still valid. See [validation](docs/validation-v1.5.4.md).
+
 ## Review navigation
 
 Starting a review opens a separate review screen: the import form and connection settings are hidden. **Back to import** returns to setup while preserving the current pending item; **Continue review** returns to that item. Recent decisions are collapsed by default.
@@ -166,7 +168,7 @@ You can click elsewhere in the editor and type normally while a suggestion stays
 
 Undoing an accepted change returns its suggestion to the pending queue and updates its counter and navigation. Unrelated accepted changes keep their baseline positions. If review has already ended or you undid a change while review was stopped, click **Resume last review** to reconcile the open file with saved progress. Rejections remain decided. Redo never causes an automatic editor write. See [v1.5.3 validation](docs/validation-v1.5.3.md).
 
-These interface improvements are included in the v1.5.3 Release ZIP. Reload the updated extension and refresh Overleaf.
+These interface improvements are included in the v1.5.4 Release ZIP. Reload the updated extension and refresh Overleaf.
 
 **上一项 / 下一项** cycle through undecided suggestions in pack order, wrapping from the last pending item to the first and from the first to the last. Buttons on both panels and the review card’s ↑ / ↓ keys use the same loop. With two pending items, either direction reaches the other; with only one, the current item stays selected. **光标上一处 / 光标下一处** find the nearest locatable undecided suggestion before/after the editor cursor in the current file, using live character-change positions rather than JSON order or line numbers. Navigation moves the preview only; it does not reject or write an item. Deferred items remain pending and return after later items are settled. Accepted/rejected items are excluded. If source, file or cursor changes during a search, retry the navigation.
 

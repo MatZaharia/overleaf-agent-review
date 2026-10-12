@@ -2320,6 +2320,7 @@
       if (!/^https:\/\/(www\.)?overleaf\.com\/project\/([a-f\d]{24})(?:\/|$)/i.test(sender.url || "")) throw new Error("Overleaf project required");
       const projectId = sender.url.match(/\/project\/([a-f\d]{24})/i)[1];
       const name = "bridge-" + projectId;
+      if (message.type === "ping") return { ok: true };
       if (message.type === "parse") return { ok: true, pack: catalog.parse(projectId, message.input) };
       if (message.type === "parseChunk") return { ok: true, pack: catalog.chunk(projectId, message) };
       if (message.type === "items") return { ok: true, items: catalog.items(projectId, message.ref, message.index) };

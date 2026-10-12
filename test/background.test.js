@@ -9,6 +9,8 @@ test('extension background pairs, syncs source, receives newer packs and disconn
  const chrome={runtime:{id:'test-extension',onMessage:{addListener(fn){listener=fn}}},storage:{local:{async set(values){Object.assign(store,values)},async get(key){return{[key]:store[key]}},async remove(key){delete store[key]}}}};
  vm.runInNewContext(fs.readFileSync(require.resolve('../src/background.js'),'utf8'),{chrome,require:name=>require('../src/'+name.slice(2)),indexedDB,crypto:webcrypto,fetch:(url,options)=>fetch(url.replace('http://127.0.0.1:43127',base),options),AbortSignal});
  const send=(message,url='https://www.overleaf.com/project/'+id)=>new Promise(resolve=>listener(message,{id:'test-extension',url},resolve));
+ assert.equal((await send({type:'ping'})).ok,true);
+ assert.equal((await send({type:'ping'},'https://example.com')).ok,false);
  assert.equal((await send({type:'connect',token:'c'.repeat(64)})).ok,false);
  assert.equal((await send({type:'connect',token})).ok,true);
  const pack={format:'codex-overleaf-suggestions',version:1,projectId:id,suggestions:[{file:'main.tex',original:'old',replacement:'new'}]};

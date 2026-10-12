@@ -2262,6 +2262,8 @@
     "src/i18n.js"(exports, module) {
       "use strict";
       var english = {
+        "\u6269\u5C55\u5DF2\u66F4\u65B0\u6216\u91CD\u65B0\u52A0\u8F7D\uFF0C\u5BA1\u9605\u5DF2\u505C\u6B62\u3002\u8BF7\u5237\u65B0 Overleaf \u9875\u9762\u540E\u7EE7\u7EED\uFF1B\u521A\u63A5\u53D7\u7684\u4FEE\u6539\u8BF7\u5148\u6838\u5BF9\u6B63\u6587\u3002": "The extension was updated or reloaded. Review has stopped. Refresh Overleaf to continue; check the source if you just accepted a change.",
+        "\u65E0\u6CD5\u8FDE\u63A5\u6269\u5C55": "Cannot connect to the extension",
         "\u5F53\u524D\u539F\u6587\u5DF2\u53D8\u5316\uFF0C\u6B64\u9879\u5DF2\u5931\u6548\uFF1B\u53EF\u7EE7\u7EED\u7F16\u8F91\uFF0C\u70B9\u51FB\u5BFC\u822A\u540E\u8DF3\u8FC7": "The original changed; this item is stale. Continue editing; navigation will skip it.",
         "\u5B9A\u4F4D\u540E\u7684\u5B57\u7B26\u4E0E\u539F\u6587\u4E0D\u4E00\u81F4\uFF0C\u8DF3\u8FC7": "Located characters do not match the original; skipped",
         "\u914D\u5BF9\u4EE4\u724C\u683C\u5F0F\u4E0D\u6B63\u786E": "Invalid pairing token format",

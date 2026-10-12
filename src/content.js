@@ -7,6 +7,7 @@ const I18n = require('./i18n');
 const Diff = require('./reviewDiff');
 const Keyboard = require('./reviewKeyboard');
 const Scroll = require('./reviewScroll');
+const ExtensionRuntime = require('./extensionRuntime');
 if (!document.querySelector('[data-suggestion-importer]')) mount();
 function mount() {
   const host = document.createElement('div'); host.dataset.suggestionImporter = '';
@@ -19,6 +20,8 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
   const $ = selector => shadow.querySelector(selector);
   const capability = Array.from(crypto.getRandomValues(new Uint8Array(32)), b => b.toString(16).padStart(2, '0')).join('');
   const persistent=typeof chrome!=='undefined' && !!chrome.runtime?.id;
+  let contextLost=false;
+  const runtime=ExtensionRuntime.create(()=>typeof chrome==='undefined'?null:chrome,onContextInvalidated);
   let language='zh-CN', languageTouched=false, packLabel=null, reviewLanguageRefresh=null;
   function setPackLabel(text){packLabel=text;$('#pack').value=t(text);}
   const uiText=new Map(),uiAttributes=new Map();
@@ -51,6 +54,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
     setUI($('.head strong'),screen==='review'?'逐项审阅':'导入修改建议');$('.body').scrollTop=0;
   }
   let startEpoch = 0, sessionActive=false, reconcileReview=null, decisionUpdates=[];
+  let bridgeRevision=0, bridgeEnabled=false, bridgeBusy=false, bridgeResults=[];
   let importedPack = null, initialized = null, running = false, starting = false, owner = '', cancelled = false, pendingAbort = null;
   function send(method, params) {
     const id = crypto.randomUUID();
@@ -67,11 +71,13 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
     });
   }
   async function call(method, params) {
+    if(persistent&&method!=='cancel'){runtime.check();if(method==='apply'){const ready=await runtime.message({type:'ping'});if(!ready?.ok)throw new Error('无法连接扩展');runtime.check()}}
     if (!initialized) initialized = send('hello', {});
     const handshake = await initialized;
     if (!handshake.ok) throw new Error('无法连接页面');
+    if(persistent&&method!=='cancel')runtime.check();
     const result=await send(method, params);
-    if(persistent && sessionActive && result.journal?.length){const saved=await chrome.runtime.sendMessage({type:'progress',journal:result.journal});if(!saved.ok)throw new Error('保存定位记录失败：'+saved.error)}
+    if(persistent && sessionActive && result.journal?.length){const saved=await runtime.message({type:'progress',journal:result.journal});if(!saved.ok)throw new Error('保存定位记录失败：'+saved.error)}
     const updates=(result.journal||[]).flatMap(entry=>entry.decisions||[]);
     if(updates.length){if(reconcileReview)reconcileReview(updates);else decisionUpdates.push(...updates)}
     return result;
@@ -80,10 +86,21 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
     const current = location.pathname.match(/^\/project\/([a-f\d]{24})(?:\/|$)/i)?.[1];
     if (cancelled || current !== owner) throw Object.assign(new Error('已停止'), { code: cancelled ? 'cancelled' : 'project_changed' });
   };
-  const status = text => {setUI($('.setup-message'),text);setUI($('.review-message'),text)};
+  const status = text => {const value=contextLost?ExtensionRuntime.message:text;setUI($('.setup-message'),value);setUI($('.review-message'),value)};
+  function lockInvalidContext(){
+    $('.drawer').hidden=false;floating.layout();
+    shadow.querySelectorAll('.setup-view button,.pending button,.stop,.continue,.language').forEach(node=>{node.disabled=true});
+    $('#pack').disabled=true;status(ExtensionRuntime.message);setUI($('.bridge-status'),ExtensionRuntime.message);
+  }
+  function onContextInvalidated(){
+    contextLost=true;++startEpoch;cancelled=true;bridgeEnabled=false;sessionActive=false;
+    pendingAbort?.();
+    if(initialized)send('cancel',{}).catch(()=>{});
+    lockInvalidContext();
+  }
   async function changeLanguage(value){language=I18n.normalize(value);$('.language').value=language;refreshUI();reviewLanguageRefresh?.();await call('language',{language}).catch(()=>{});}
-  $('.language').addEventListener('change',()=>{languageTouched=true;changeLanguage($('.language').value);if(persistent && chrome.storage?.local)chrome.storage.local.set({reviewLanguage:language});});
-  if(persistent && chrome.storage?.local)chrome.storage.local.get('reviewLanguage').then(saved=>{if(!languageTouched)changeLanguage(saved.reviewLanguage || 'zh-CN')}).catch(()=>{});
+  $('.language').addEventListener('change',()=>{languageTouched=true;changeLanguage($('.language').value);if(persistent)runtime.storage('set',{reviewLanguage:language}).catch(error=>status(error.message));});
+  if(persistent)runtime.storage('get','reviewLanguage').then(saved=>{if(!languageTouched)changeLanguage(saved.reviewLanguage || 'zh-CN')}).catch(()=>{});
   function review(item, prepared, options, itemAt, catalogId) {
     return new Promise((resolve, reject) => {
       let token = prepared.token, settled = false, timer = null, navigating=false,staleCode=null,statusRequest=null;
@@ -205,7 +222,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
   let historyMessages=[],historyFrame=null;
   function renderHistory(){if(historyFrame!==null)return;historyFrame=requestAnimationFrame(()=>{historyFrame=null;$('.history-list').replaceChildren(...historyMessages.map(text=>{const row=document.createElement('div');row.className='history';setUI(row,text);return row}));refreshUI()})}
   async function record(result) {
-    if(persistent && ['written','rejected','unknown'].includes(result.state)){const saved=await chrome.runtime.sendMessage({type:'progress',decision:{reviewKey:result.item.reviewKey,state:result.state,code:result.code}});if(!saved.ok)throw new Error('保存审阅决定失败：'+saved.error)}
+    if(persistent && ['written','rejected','unknown'].includes(result.state)){const saved=await runtime.message({type:'progress',decision:{reviewKey:result.item.reviewKey,state:result.state,code:result.code}});if(!saved.ok)throw new Error('保存审阅决定失败：'+saved.error)}
     if(bridgeRevision) bridgeResults.push({revision:bridgeRevision,id:result.item.id,state:result.state,code:result.code});
     if($('.pending').firstChild)$('.pending').replaceChildren();
     const word = result.state === 'written' ? '已写入' : result.state === 'rejected' ? '已拒绝' : result.state === 'unknown' ? '写入未确认' : Core.skipped[result.code] || '已跳过：' + result.code;
@@ -217,12 +234,12 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
     if(!persistent)return Core.parsePack(input);
     let response;
     if(input?.ref)return input;
-    if(typeof input==='string'&&input.length>262144){const uploadId=crypto.randomUUID();let index=0;for(let from=0;from<input.length;from+=262144){response=await chrome.runtime.sendMessage({type:'parseChunk',uploadId,index:index++,chunk:input.slice(from,from+262144),last:from+262144>=input.length});if(!response.ok)throw new Error(response.error)}}
-    else response=await chrome.runtime.sendMessage({type:'parse',input});
+    if(typeof input==='string'&&input.length>262144){const uploadId=crypto.randomUUID();let index=0;for(let from=0;from<input.length;from+=262144){response=await runtime.message({type:'parseChunk',uploadId,index:index++,chunk:input.slice(from,from+262144),last:from+262144>=input.length});if(!response.ok)throw new Error(response.error)}}
+    else response=await runtime.message({type:'parse',input});
     if(!response.ok)throw new Error(response.error);return response.pack;
   }
   async function start() {
-    if (running || starting) return;
+    if (contextLost || running || starting) return;
     const epoch = ++startEpoch;
     starting = true; $('.start').disabled = true;
     let pack, session={decisions:{},ledgers:{}};
@@ -232,10 +249,10 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
       if (!current.ok || !current.projectId) throw new Error('请先打开 Overleaf 项目');
       if (pack.projectId && pack.projectId !== current.projectId) throw new Error('建议包属于其他项目，没有写入');
       if (epoch !== startEpoch) throw new Error('建议已更新或审阅已停止');
-      if(persistent){session=await chrome.runtime.sendMessage({type:'session',pack});if(!session.ok)throw new Error(session.error);pack=session.pack}
+      if(persistent){session=await runtime.message({type:'session',pack});if(!session.ok)throw new Error(session.error);pack=session.pack}
       if(epoch!==startEpoch)throw new Error('建议已更新或审阅已停止');
       owner = current.projectId;sessionActive=true;
-    } catch (error) { status(error.message); starting = false; $('.start').disabled = false; return; }
+    } catch (error) { status(error.message); starting = false; $('.start').disabled = contextLost; return; }
     running = true; starting = false; cancelled = false;
     $('.start').disabled = true; $('.resume').disabled=true;$('.reset').disabled=true; $('.file').disabled = true; $('#pack').disabled = true; $('.stop').hidden = false;
     historyMessages=[];$('.history-list').replaceChildren();$('.history-details').open=false;showScreen('review');
@@ -243,7 +260,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
       decisionUpdates=[];await call('begin', {ledgers:session.ledgers});
       const catalogId=crypto.randomUUID();
       let itemBuffer=[],bufferStart=-1;
-      const itemAt=persistent?async index=>{if(index<bufferStart||index>=bufferStart+itemBuffer.length){const fetched=await chrome.runtime.sendMessage({type:'items',ref:pack.ref,index});if(!fetched.ok)throw new Error(fetched.error);bufferStart=index;itemBuffer=fetched.items}return itemBuffer[index-bufferStart]}:async index=>pack.suggestions[index];
+      const itemAt=persistent?async index=>{if(index<bufferStart||index>=bufferStart+itemBuffer.length){const fetched=await runtime.message({type:'items',ref:pack.ref,index});if(!fetched.ok)throw new Error(fetched.error);bufferStart=index;itemBuffer=fetched.items}return itemBuffer[index-bufferStart]}:async index=>pack.suggestions[index];
       const results = await Runner.run(pack, { projectId: owner, assertCurrent, call, observe:fn=>{reconcileReview=fn;if(fn&&decisionUpdates.length){const updates=decisionUpdates;decisionUpdates=[];fn(updates)}}, review:(item,prepared,options)=>review(item,prepared,options,itemAt,catalogId), record, initialCounts:session.initialCounts, decidedIndexes:session.decidedIndexes, decisionIndexes:session.decisionIndexes, decisions:session.decisions, itemAt, retained:result=>{if(bridgeRevision)bridgeResults.push({revision:bridgeRevision,id:result.item.id,state:result.state,code:'retained_decision'})} });
       const count = state => results.filter(result => result.state === state).length;
       status('审阅结束：写入 ' + count('written') + ' 项，拒绝 ' + count('rejected') + ' 项，跳过 ' + count('skipped') + ' 项，保留先前决定 ' + count('retained') + ' 项。');
@@ -253,19 +270,18 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
       pendingAbort?.(); pendingAbort = null;
       await call('cancel', {}).catch(() => {});
       $('.pending').replaceChildren();reviewLanguageRefresh=null; running = false;
-      $('.start').disabled = false;$('.resume').disabled=false;$('.reset').disabled=false; $('.file').disabled = false; $('#pack').disabled = false; $('.stop').hidden = true;showScreen(screen);
+      $('.start').disabled = false;$('.resume').disabled=false;$('.reset').disabled=false; $('.file').disabled = false; $('#pack').disabled = false; $('.stop').hidden = true;showScreen(screen);if(contextLost)lockInvalidContext();
     }
   }
 
-  let bridgeRevision=0, bridgeEnabled=false, bridgeBusy=false, bridgeResults=[];
-  const bridgeMessage=message=>chrome.runtime.sendMessage(message);
+  const bridgeMessage=message=>runtime.message(message);
   $('.connect').addEventListener('click',async()=>{
-    if(typeof chrome==='undefined'||!chrome.runtime?.id){status('本地连接需要在 Chrome 扩展中使用');return;}
+    if(!persistent){status('本地连接需要在 Chrome 扩展中使用');return;}
     const result=await bridgeMessage({type:'connect',token:$('.bridge-token').value}).catch(e=>({error:e.message}));
     if(!result.ok){setUI($('.bridge-status'),result.error);return;}
     $('.bridge-token').value=''; bridgeEnabled=true; setUI($('.bridge-status'),'已连接：Agent 请求时才读取源码；新建议等待逐项确认'); pollBridge();
   });
-  $('.disconnect').addEventListener('click',async()=>{bridgeEnabled=false;if(typeof chrome!=='undefined')await bridgeMessage({type:'disconnect'});setUI($('.bridge-status'),'已断开本地连接');});
+  $('.disconnect').addEventListener('click',async()=>{bridgeEnabled=false;try{if(persistent)await bridgeMessage({type:'disconnect'});setUI($('.bridge-status'),'已断开本地连接')}catch(error){status(error.message)}});
   async function pollBridge(){
     if(!bridgeEnabled||bridgeBusy)return;bridgeBusy=true;
     try {
@@ -293,7 +309,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
         $('.drawer').hidden=false; floating.layout(); start();
       }
       setUI($('.bridge-status'),'已连接 · 源码按需读取 · 建议版本 '+bridgeRevision);
-    }catch(error){setUI($('.bridge-status'),'本地连接暂不可用：'+error.message);}
+    }catch(error){setUI($('.bridge-status'),contextLost?ExtensionRuntime.message:'本地连接暂不可用：'+error.message);}
     finally{bridgeBusy=false;if(bridgeEnabled)setTimeout(pollBridge,2000);}
   }
 
@@ -311,11 +327,11 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
   $('#pack').addEventListener('input',()=>{importedPack=null;packLabel=null;});
   $('.resume').addEventListener('click',async()=>{
     if(!persistent){status('恢复进度需要 Chrome 扩展');return}
-    try{const session=await chrome.runtime.sendMessage({type:'session'});if(!session.ok)throw new Error(session.error);if(!session.pack)throw new Error('当前项目没有保存的建议包');importedPack=session.pack;setPackLabel('已恢复 '+(session.pack.count ?? session.pack.suggestions.length)+' 项建议');start()}catch(error){status(error.message)}
+    try{const session=await runtime.message({type:'session'});if(!session.ok)throw new Error(session.error);if(!session.pack)throw new Error('当前项目没有保存的建议包');importedPack=session.pack;setPackLabel('已恢复 '+(session.pack.count ?? session.pack.suggestions.length)+' 项建议');start()}catch(error){status(error.message)}
   });
   $('.reset').addEventListener('click',async()=>{
     if(running||starting)return;
-    if(persistent){const saved=await chrome.runtime.sendMessage({type:'clearProgress'});if(!saved.ok){status(saved.error);return}}
+    try{if(persistent){const saved=await runtime.message({type:'clearProgress'});if(!saved.ok){status(saved.error);return}}}catch(error){status(error.message);return}
     sessionActive=false;$('.history-list').replaceChildren();status('已清除当前项目的审阅进度；正文不变，可重新导入审阅');
   });
   $('.start').addEventListener('click', start);

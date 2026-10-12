@@ -9,6 +9,7 @@ import Counts from '../src/reviewCounts';
  const progress=Progress.create(indexedDB,crypto),project='0123456789abcdef01234567';
  self.onmessage=async event=>{const {id,message}=event.data;let result;try{
  result=await (async()=>{
+  if(message.type==='ping')return {ok:true};
   if(message.type==='parse')return {ok:true,pack:catalog.parse(project,message.input)};
   if(message.type==='parseChunk')return{ok:true,pack:catalog.chunk(project,message)};
   if(message.type==='items')return{ok:true,items:catalog.items(project,message.ref,message.index)};
