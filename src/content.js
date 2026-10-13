@@ -2,6 +2,7 @@
 const Core = require('./suggestions');
 const Runner = require('./runner');
 const Navigation = require('./navigation');
+const SuggestionSearch = require('./suggestionSearch');
 const Floating = require('./floatingPanel');
 const I18n = require('./i18n');
 const Diff = require('./reviewDiff');
@@ -15,14 +16,15 @@ function mount() {
   host.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:2147483100;';
   const shadow = host.attachShadow({ mode: 'open' });
   shadow.innerHTML = `<style>
-:host{font:13px/1.5 system-ui;color:#273342}*{box-sizing:border-box}button,textarea,input{font:inherit}button{border:1px solid #cdd6df;border-radius:6px;background:#fff;color:#273342;padding:7px 11px;cursor:pointer}button:disabled{opacity:.45;cursor:default}button:focus-visible,textarea:focus-visible{outline:3px solid #8aafe3;outline-offset:2px}.primary,.launch{background:#176347;color:#fff;border-color:#176347}.launch{box-shadow:0 4px 18px #18352925}.drawer{position:fixed;display:flex;flex-direction:column;overflow:hidden;background:#fff;border:1px solid #cbd5de;border-radius:10px;box-shadow:0 10px 40px #14253630;margin-bottom:10px}.head{padding:14px 16px;border-bottom:1px solid #e0e6ec;display:flex;align-items:center;justify-content:space-between}.head strong{font-size:15px}.head button{padding:3px 8px}.body{padding:16px 16px 26px;overflow:auto;min-height:0;flex:1}.head{flex-shrink:0;gap:12px}.head strong{flex:1}.language{font:inherit;border:1px solid #cdd6df;border-radius:5px;background:white;padding:3px}.muted{color:#657687;font-size:12px;margin:0 0 12px}.label{display:block;margin-bottom:6px;font-weight:600}textarea{display:block;width:100%;height:130px;padding:10px;border:1px solid #ccd7e0;border-radius:6px;resize:vertical;font:12px/1.45 ui-monospace,monospace}.toolbar{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.message{font-size:12px;padding:10px;background:#f0f5f4;border-radius:5px}.card{border:1px solid #d2dce4;border-radius:7px;padding:12px;margin-top:12px}.card strong{display:block}.path{font:11px/1.5 ui-monospace,monospace;color:#687888}.reason{font-size:12px;margin:8px 0}.comparison-label{font-weight:600;font-size:12px;margin:12px 0 6px}.context{font-size:12px;color:#657687;margin:14px 0}.context summary{cursor:pointer;padding:8px;border:1px solid #e0e6ec;border-radius:6px}.card{border:0;padding:0}.path{margin-top:4px}.reason{line-height:1.6}.session-toolbar{flex-wrap:wrap}.source{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 ui-monospace,monospace;margin:6px 0 10px;padding:8px;max-height:180px;overflow:auto;border-radius:4px}.old,.new{background:#f6f8fa;color:#586673}.actions{display:flex;gap:8px}.history{padding:8px 0;border-bottom:1px solid #e3e9ed;font-size:12px}.history b{color:#176347}.unknown{color:#9a452c}.session-toolbar{display:flex;justify-content:space-between;gap:8px;margin-bottom:12px}.history-details{margin-top:14px;font-size:12px;color:#657687}.footer{margin-top:14px;font-size:11px;color:#6b7b88}[hidden]{display:none!important}
+:host{font:13px/1.5 system-ui;color:#273342}*{box-sizing:border-box}button,textarea,input{font:inherit}button{border:1px solid #cdd6df;border-radius:6px;background:#fff;color:#273342;padding:7px 11px;cursor:pointer}button:disabled{opacity:.45;cursor:default}button:focus-visible,textarea:focus-visible{outline:3px solid #8aafe3;outline-offset:2px}.primary,.launch{background:#176347;color:#fff;border-color:#176347}.launch{box-shadow:0 4px 18px #18352925}.drawer{position:fixed;display:flex;flex-direction:column;overflow:hidden;background:#fff;border:1px solid #cbd5de;border-radius:10px;box-shadow:0 10px 40px #14253630;margin-bottom:10px}.head{padding:14px 16px;border-bottom:1px solid #e0e6ec;display:flex;align-items:center;justify-content:space-between}.head strong{font-size:15px}.head button{padding:3px 8px}.body{padding:16px 16px 26px;overflow:auto;min-height:0;flex:1}.head{flex-shrink:0;gap:12px}.head strong{flex:1}.language{font:inherit;border:1px solid #cdd6df;border-radius:5px;background:white;padding:3px}.muted{color:#657687;font-size:12px;margin:0 0 12px}.label{display:block;margin-bottom:6px;font-weight:600}textarea{display:block;width:100%;height:130px;padding:10px;border:1px solid #ccd7e0;border-radius:6px;resize:vertical;font:12px/1.45 ui-monospace,monospace}.toolbar{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.message{font-size:12px;padding:10px;background:#f0f5f4;border-radius:5px}.card{border:1px solid #d2dce4;border-radius:7px;padding:12px;margin-top:12px}.card strong{display:block}.path{font:11px/1.5 ui-monospace,monospace;color:#687888}.reason{font-size:12px;margin:8px 0}.comparison-label{font-weight:600;font-size:12px;margin:12px 0 6px}.context{font-size:12px;color:#657687;margin:14px 0}.context summary{cursor:pointer;padding:8px;border:1px solid #e0e6ec;border-radius:6px}.card{border:0;padding:0}.path{margin-top:4px}.reason{line-height:1.6}.session-toolbar{flex-wrap:wrap}.source{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 ui-monospace,monospace;margin:6px 0 10px;padding:8px;overflow:auto;border-radius:4px}.old,.new{background:#f6f8fa;color:#586673}.actions{display:flex;gap:8px}.history{padding:8px 0;border-bottom:1px solid #e3e9ed;font-size:12px}.history b{color:#176347}.unknown{color:#9a452c}.session-toolbar{display:flex;justify-content:space-between;gap:8px;margin-bottom:12px}.history-details{margin-top:14px;font-size:12px;color:#657687}.footer{margin-top:14px;font-size:11px;color:#6b7b88}[hidden]{display:none!important}
+.drawer{container-type:size}.source{max-height:max(100px,calc((100cqh - 240px)/2))}.combined{max-height:max(120px,calc(100cqh - 340px))}.search-label{display:block;font-size:12px;margin:12px 0 6px}.suggestion-search{width:100%;padding:7px 9px;border:1px solid #cdd6df;border-radius:6px;background:#fff;color:inherit}.search-status{font-size:11px;color:#657687;margin:4px 0 0}.search-navigation{border-color:#b8ccc5}
 ${Floating.css}${Keyboard.css}${Diff.css}</style><section class="drawer" hidden><div class="head"><strong>导入修改建议</strong><select class="language" aria-label="语言"><option value="zh-CN">中文</option><option value="en">English</option></select><button class="close" aria-label="收起">×</button></div><div class="body"><div class="session-toolbar" hidden><button class="compact">返回精简 ↙</button><button class="back">审阅管理</button><button class="continue" hidden>继续审阅</button><button class="stop" hidden>停止</button></div><div class="setup-view"><p class="muted">先导入建议包，再逐项确认。每次接受都会搜索当前原文；过时或不唯一的项自动跳过。</p><label class="label" for="pack">建议包 JSON</label><textarea id="pack" spellcheck="false" placeholder="粘贴 Agent 生成的建议包"></textarea><input type="file" accept=".json,application/json" hidden><div class="toolbar"><button class="connect">连接 Agent</button><button class="disconnect">断开</button></div><div class="bridge-status" role="status"></div><input class="bridge-token" type="password" placeholder="本地连接配对令牌" autocomplete="off"><div class="toolbar"><button class="file">选择 JSON 文件</button><button class="primary start">开始审阅</button><button class="resume">恢复上次审阅</button><button class="reset">清除进度</button></div><label class="label" for="review-scope">审阅范围</label><select id="review-scope"><option value="current">当前文件（多标签页）</option><option value="all">全部文件（单标签页）</option></select><p class="shared-summary muted" hidden></p><div class="setup-message message" role="status" aria-live="polite">等待导入建议包</div></div><div class="review-view" hidden><div class="message review-message" role="status" aria-live="polite">等待导入建议包</div><button class="repair" hidden>重新建立定位（保留决定）</button><div class="pending"></div><details class="history-details"><summary>最近处理记录</summary><div class="history-list"></div></details><p class="footer">已写入表示编辑器内容已核验，服务器保存需在 Overleaf 检查。可使用 Overleaf 的撤销按钮。</p></div></div><button class="resize" aria-label="拖动右下角调整大小；方向键微调" title="拖动右下角调整大小；方向键微调"></button></section><button class="launch">导入修改建议</button>`;
   document.body.append(host);
   PageModal.watch({document,window,onChange:blocked=>{host.hidden=blocked}});
   const $ = selector => shadow.querySelector(selector);
   const capability = Array.from(crypto.getRandomValues(new Uint8Array(32)), b => b.toString(16).padStart(2, '0')).join('');
   const persistent=typeof chrome!=='undefined' && !!chrome.runtime?.id;
-  let contextLost=false, trackingFile=null, stopReason=null, reviewMode='compact',presentCurrent=null, fullContext=false;
+  let contextLost=false, trackingFile=null, stopReason=null, reviewMode='compact',presentCurrent=null, fullContext=false, searchQuery='';
   const extension=ExtensionRuntime.create(()=>typeof chrome==='undefined'?null:chrome,onContextInvalidated);
   const runtime={check:extension.check,storage:extension.storage,message:body=>extension.message({...body,clientId:capability})};
   let reviewLease=null,reviewFile='',lastRenew=0,sharedSummary=null,pendingBridgeStart=false;
@@ -119,7 +121,7 @@ ${Floating.css}${Keyboard.css}${Diff.css}</style><section class="drawer" hidden>
   async function changeLanguage(value){language=I18n.normalize(value);$('.language').value=language;refreshUI();reviewLanguageRefresh?.();await call('language',{language}).catch(()=>{});}
   $('.language').addEventListener('change',()=>{languageTouched=true;changeLanguage($('.language').value);if(persistent)runtime.storage('set',{reviewLanguage:language}).catch(error=>status(error.message));});
   if(persistent)runtime.storage('get','reviewLanguage').then(saved=>{if(!languageTouched)changeLanguage(saved.reviewLanguage || 'zh-CN')}).catch(()=>{});
-  function review(item, prepared, options, itemAt, catalogId) {
+  function review(item, prepared, options, itemAt, catalogId, searchIndex) {
     return new Promise((resolve, reject) => {
       let token = prepared.token, settled = false, timer = null, navigating=false,staleCode=null,statusRequest=null,suspended=Boolean(prepared.suspended);
       async function check(){
@@ -128,9 +130,36 @@ ${Floating.css}${Keyboard.css}${Diff.css}</style><section class="drawer" hidden>
         try{return await statusRequest}finally{statusRequest=null}
       }
       const card = document.createElement('section'); card.className = 'card';card.setAttribute('aria-label','建议详情');
-      card.innerHTML = '<strong></strong><p class="shared-summary muted" hidden></p><div class="path"></div><div class="comparison-label">修改理由</div><p class="reason"></p><div class="comparison-label">修改对比</div><pre class="source combined"></pre><details class="context"><summary>查看完整上下文</summary><div>原文 · 标出删除</div><pre class="source old"></pre><div>修改后 · 标出新增</div><pre class="source new"></pre></details><div class="toolbar navigation"><button class="previous">上一项</button><button class="next">下一项</button><button class="cursor-previous">光标上一处</button><button class="cursor-next">光标下一处</button></div><div class="actions"><button class="reject">拒绝这一项</button><button class="primary accept">接受这一项</button></div>';
+      card.innerHTML = '<strong></strong><p class="shared-summary muted" hidden></p><div class="path"></div><div class="comparison-label">修改理由</div><p class="reason"></p><div class="comparison-label">修改对比</div><pre class="source combined"></pre><details class="context"><summary>查看完整上下文</summary><div>原文 · 标出删除</div><pre class="source old"></pre><div>修改后 · 标出新增</div><pre class="source new"></pre></details><label class="search-label" for="suggestion-search">搜索建议</label><input id="suggestion-search" class="suggestion-search" type="search" placeholder="搜索原文或修改后" aria-label="搜索建议" spellcheck="false"><p class="search-status" role="status" aria-live="polite"></p><div class="toolbar navigation"><button class="previous">上一项</button><button class="next">下一项</button><button class="cursor-previous">光标上一处</button><button class="cursor-next">光标下一处</button><button class="search-previous search-navigation" disabled>上一个搜索项</button><button class="search-next search-navigation" disabled>下一个搜索项</button></div><div class="actions"><button class="reject">拒绝这一项</button><button class="primary accept">接受这一项</button></div>';
       $('.pending').replaceChildren(card);
       rememberUI(card);showShared();
+      const searchInput=card.querySelector('.suggestion-search'),searchStatus=card.querySelector('.search-status');
+      const searchButtons=[card.querySelector('.search-previous'),card.querySelector('.search-next')];
+      let searchTimer=null,searchEpoch=0,searchMatches=null,searchError=null;
+      searchInput.value=searchQuery;
+      function renderSearch(){
+        if(settled)return;
+        const matches=SuggestionSearch.pending(searchMatches||[],options.isPending);
+        const canNavigate=matches.some(index=>index!==options.index);
+        searchButtons.forEach(button=>{button.disabled=navigating||!canNavigate});
+        const label=!searchQuery?'搜索原文或修改后':searchError?'搜索失败，请重新输入':searchMatches===null?'正在搜索建议…':matches.length?'搜索结果 '+(matches.indexOf(options.index)+1)+' / '+matches.length:'没有匹配的待处理建议';
+        if(searchStatus.textContent!==t(label))setUI(searchStatus,label);
+      }
+      async function findSuggestions(){
+        const own=++searchEpoch,query=searchQuery;searchMatches=null;searchError=null;renderSearch();
+        try{const matches=await searchIndex.search(query);if(settled||own!==searchEpoch||query!==searchQuery||matches===null)return;searchMatches=matches;renderSearch()}
+        catch(error){if(!settled&&own===searchEpoch){searchError=error;renderSearch()}}
+      }
+      searchInput.addEventListener('input',()=>{searchQuery=searchInput.value;searchEpoch++;searchMatches=null;searchError=null;clearTimeout(searchTimer);renderSearch();searchTimer=setTimeout(findSuggestions,250)});
+      async function navigateSearch(direction){
+        if(settled||navigating||searchMatches===null)return;
+        const matches=SuggestionSearch.pending(searchMatches,options.isPending),target=SuggestionSearch.adjacent(matches,options.index,direction);
+        if(target===null||target===options.index)return;
+        await navigate(direction,false,target);
+      }
+      searchButtons[0].addEventListener('click',()=>navigateSearch(-1));searchButtons[1].addEventListener('click',()=>navigateSearch(1));
+      searchInput.addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.isComposing&&!event.repeat&&!event.ctrlKey&&!event.altKey&&!event.metaKey){event.preventDefault();event.stopPropagation();navigateSearch(event.shiftKey?-1:1)}});
+      findSuggestions();
       const context=card.querySelector('.context'),comparison=card.querySelector('.combined'),comparisonLabel=comparison.previousElementSibling;
       function contextPerspective(){if(!card.isConnected)return;fullContext=context.open;comparison.hidden=fullContext;comparisonLabel.hidden=fullContext;setUI(context.querySelector('summary'),fullContext?'返回简洁对比':'查看完整上下文')}
       context.open=fullContext;contextPerspective();context.addEventListener('toggle',contextPerspective);
@@ -147,7 +176,7 @@ ${Floating.css}${Keyboard.css}${Diff.css}</style><section class="drawer" hidden>
       }
       renderDiff();
       const help=document.createElement('p');help.className='muted keyboard-help';setUI(help,'↑ 上一项 · ↓ 下一项 · Enter 接受（审阅卡片内）');card.append(help);
-      const refresh=()=>{renderDiff();card.setAttribute('aria-label',t('建议详情'))};reviewLanguageRefresh=refresh;
+      const refresh=()=>{renderDiff();renderSearch();card.setAttribute('aria-label',t('建议详情'))};reviewLanguageRefresh=refresh;
       status(prepared.inline ? '原文已在源码中高亮，等待确认' : '高亮暂不可用，请在此核对原文与建议');
       async function present(mode,focus=false){
         if(settled)return;
@@ -167,11 +196,11 @@ ${Floating.css}${Keyboard.css}${Diff.css}</style><section class="drawer" hidden>
       function finish(accepted, skipped, navigate) {
         if (settled) return;
         fullContext=context.open;
-        settled = true; clearTimeout(timer); pendingAbort = null;if(presentCurrent===present)presentCurrent=null;if(reviewLanguageRefresh===refresh)reviewLanguageRefresh=null;
+        settled = true; clearTimeout(timer); clearTimeout(searchTimer); pendingAbort = null;if(presentCurrent===present)presentCurrent=null;if(reviewLanguageRefresh===refresh)reviewLanguageRefresh=null;
         card.querySelectorAll('button').forEach(button => { button.disabled = true; });
         resolve({ accepted, skipped, token, navigate });
       }
-      async function navigate(direction,fromCursor){
+      async function navigate(direction,fromCursor,searchTarget){
         if(settled||navigating)return;
         navigating=true;clearTimeout(timer);card.querySelectorAll('button').forEach(button=>{button.disabled=true});
         try{
@@ -182,7 +211,8 @@ ${Floating.css}${Keyboard.css}${Diff.css}</style><section class="drawer" hidden>
           if(settled)return;
           if(!current.ok&&!['original_missing','already_applied','ambiguous_match','scope_missing','ambiguous_scope','overlapping_change','position_mismatch','no_change','diff_too_complex'].includes(current.code)){finish(false,current.code);return}
           update(current);let target;
-          if(!fromCursor){
+          if(searchTarget!==undefined){target=options.isPending(searchTarget)?searchTarget:null}
+          else if(!fromCursor){
             const checked=new Set([options.index]);target=options.index;
             do{
               target=Navigation.adjacent(target,options.total,direction,index=>options.isPending(index)&&!checked.has(index));
@@ -221,7 +251,7 @@ ${Floating.css}${Keyboard.css}${Diff.css}</style><section class="drawer" hidden>
           if(target!==null){finish(undefined,staleCode,target);return}
           status(fromCursor?'当前文件的光标这一侧没有可定位的待处理建议':'没有其他待处理建议；当前项仍等待确认');
         }catch(error){if(!settled)status(error.message==='review_file_mismatch'?'本页只审阅开始时的文件；请定位当前项，或停止后在新文件开始审阅':error.message==='navigation_changed'?'正文、文件或光标有变化，请重新点击导航':'导航未完成：'+error.message)}
-        finally{navigating=false;if(!settled){card.querySelectorAll('button').forEach(button=>{button.disabled=Boolean((suspended||staleCode) && button.classList.contains('accept'))});timer=setTimeout(poll,300)}}
+        finally{navigating=false;if(!settled){card.querySelectorAll('button').forEach(button=>{button.disabled=Boolean((suspended||staleCode) && button.classList.contains('accept'))});renderSearch();timer=setTimeout(poll,300)}}
       }
       card.querySelector('.previous').addEventListener('click',()=>navigate(-1,false));
       card.querySelector('.next').addEventListener('click',()=>navigate(1,false));
@@ -236,9 +266,9 @@ ${Floating.css}${Keyboard.css}${Diff.css}</style><section class="drawer" hidden>
       card.querySelector('.reject').addEventListener('click', () => finish(false,staleCode));
       Keyboard.attach(card,choice=>{if(settled || navigating)return;if(choice==='accept'){if(!staleCode&&!suspended)accept()}else navigate(choice==='previous'?-1:1,false)});
       if(reviewMode==='details')Scroll.panel($('.body'),card);
-      pendingAbort = () => { if (!settled) { settled = true; clearTimeout(timer);if(presentCurrent===present)presentCurrent=null; reject(Object.assign(new Error('已停止'), { code: 'cancelled' })); } };
+      pendingAbort = () => { if (!settled) { settled = true; clearTimeout(timer);clearTimeout(searchTimer);if(presentCurrent===present)presentCurrent=null; reject(Object.assign(new Error('已停止'), { code: 'cancelled' })); } };
       function update(response){
-        renderCount();
+        renderCount();renderSearch();
         suspended=response.suspended===true;locate.hidden=!suspended;
         card.querySelector('.accept').disabled=suspended||Boolean(!response.ok);
         $('.compact').disabled=suspended||!displayed.inline||Boolean(staleCode);
@@ -296,7 +326,7 @@ ${Floating.css}${Keyboard.css}${Diff.css}</style><section class="drawer" hidden>
     if (contextLost || running || starting) return;
     const epoch = ++startEpoch;
     starting = true; $('.start').disabled = true;trackingFile=null;$('.repair').hidden=true;status('正在准备审阅…');
-    let pack, session={decisions:{},ledgers:{}};
+    let pack, searchIndex, session={decisions:{},ledgers:{}};
     try {
       pack = await parseInput(importedPack || $('#pack').value);
       const current = await call('project', {});
@@ -318,7 +348,8 @@ ${Floating.css}${Keyboard.css}${Diff.css}</style><section class="drawer" hidden>
       const catalogId=crypto.randomUUID();
       let itemBuffer=[],bufferStart=-1;
       const itemAt=persistent?async index=>{if(index<bufferStart||index>=bufferStart+itemBuffer.length){const fetched=await runtime.message({type:'items',ref:pack.ref,index});if(!fetched.ok)throw new Error(fetched.error);bufferStart=index;itemBuffer=fetched.items}return itemBuffer[index-bufferStart]}:async index=>pack.suggestions[index];
-      const results = await Runner.run(pack, { projectId: owner, assertCurrent, call, presentation:state=>({mode:reviewMode,...state}), observe:fn=>{reconcileReview=fn;if(fn&&decisionUpdates.length){const updates=decisionUpdates;decisionUpdates=[];fn(updates)}}, review:(item,prepared,options)=>review(item,prepared,options,itemAt,catalogId), record, initialCounts:session.initialCounts, decidedIndexes:session.decidedIndexes, decisionIndexes:session.decisionIndexes, decisions:session.decisions, itemAt, retained:result=>{if(bridgeRevision)bridgeResults.push({revision:bridgeRevision,id:result.item.id,state:result.state,code:'retained_decision'})} });
+      searchIndex=SuggestionSearch.create({total:pack.count??pack.suggestions.length,readPage:persistent?async index=>{const fetched=await runtime.message({type:'items',ref:pack.ref,index});if(!fetched.ok)throw new Error(fetched.error);return fetched.items}:async index=>pack.suggestions.slice(index,index+32)});
+      const results = await Runner.run(pack, { projectId: owner, assertCurrent, call, presentation:state=>({mode:reviewMode,...state}), observe:fn=>{reconcileReview=fn;if(fn&&decisionUpdates.length){const updates=decisionUpdates;decisionUpdates=[];fn(updates)}}, review:(item,prepared,options)=>review(item,prepared,options,itemAt,catalogId,searchIndex), record, initialCounts:session.initialCounts, decidedIndexes:session.decidedIndexes, decisionIndexes:session.decisionIndexes, decisions:session.decisions, itemAt, retained:result=>{if(bridgeRevision)bridgeResults.push({revision:bridgeRevision,id:result.item.id,state:result.state,code:'retained_decision'})} });
       const count = state => results.filter(result => result.state === state).length;
       $('.drawer').hidden=false;floating.layout();status('审阅结束：写入 ' + count('written') + ' 项，拒绝 ' + count('rejected') + ' 项，跳过 ' + count('skipped') + ' 项，保留先前决定 ' + count('retained') + ' 项。');
     } catch (error) {
@@ -328,7 +359,7 @@ ${Floating.css}${Keyboard.css}${Diff.css}</style><section class="drawer" hidden>
       else if(error.code==='cancelled')status(stopReason==='update'?'正在载入新版本建议…':'审阅已停止，可返回导入后继续');
       else status(error.code === 'write_unconfirmed' ? '写入结果未确认，已停止。请检查当前正文，不要重复接受。' : '审阅已停止：' + (error.code || error.message));
     } finally {
-      pendingAbort?.(); pendingAbort = null;
+      searchIndex?.cancel();pendingAbort?.(); pendingAbort = null;
       await call('cancel', {}).catch(() => {});
       sessionActive=false;if(reviewLease){await runtime.message({type:'reviewRelease',lease:reviewLease}).catch(()=>{});reviewLease=null}
       $('#review-scope').disabled=false;

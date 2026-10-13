@@ -2262,6 +2262,13 @@
     "src/i18n.js"(exports, module) {
       "use strict";
       var english = {
+        "\u641C\u7D22\u5EFA\u8BAE": "Search suggestions",
+        "\u641C\u7D22\u539F\u6587\u6216\u4FEE\u6539\u540E": "Search original or replacement",
+        "\u4E0A\u4E00\u4E2A\u641C\u7D22\u9879": "Previous match",
+        "\u4E0B\u4E00\u4E2A\u641C\u7D22\u9879": "Next match",
+        "\u6B63\u5728\u641C\u7D22\u5EFA\u8BAE\u2026": "Searching suggestions\u2026",
+        "\u6CA1\u6709\u5339\u914D\u7684\u5F85\u5904\u7406\u5EFA\u8BAE": "No matching pending suggestions",
+        "\u641C\u7D22\u5931\u8D25\uFF0C\u8BF7\u91CD\u65B0\u8F93\u5165": "Search failed; edit the query to retry",
         "\u5BA1\u9605\u8303\u56F4": "Review scope",
         "\u5F53\u524D\u6587\u4EF6\uFF08\u591A\u6807\u7B7E\u9875\uFF09": "Current file (multiple tabs)",
         "\u5168\u90E8\u6587\u4EF6\uFF08\u5355\u6807\u7B7E\u9875\uFF09": "All files (one tab)",
@@ -2394,6 +2401,7 @@
         "\u6BCF\u9879 id \u5FC5\u987B\u552F\u4E00": "Each item id must be unique"
       };
       var templates = [
+        [/^搜索结果 (\d+) \/ (\d+)$/, (_, position, total) => `Search matches ${position} / ${total}`],
         [/^项目已确认 (\d+) \/ (\d+)$/, (_, done, total) => `Project decisions ${done} / ${total}`],
         [/^建议 (\d+) \/ (\d+)$/, (_, position, remaining) => `Suggestion ${position} / ${remaining}`],
         [/^修改 (.*)$/, (_, id) => "Change " + id],
@@ -4598,7 +4606,7 @@
       function action(event) {
         if (event.defaultPrevented || event.isComposing || event.repeat || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return null;
         const path = event.composedPath?.() || [event.target];
-        if (event.key === "Enter" && path.some((node) => node?.matches?.(".locate"))) return null;
+        if (event.key === "Enter" && path.some((node) => node?.matches?.(".locate") || node?.matches?.(".search-navigation"))) return null;
         if (path.some((node) => node?.matches?.('input,textarea,select,[contenteditable]:not([contenteditable="false"]),.panel-drag,.panel-resize'))) return null;
         return { ArrowUp: "previous", ArrowDown: "next", Enter: "accept" }[event.key] || null;
       }
@@ -4647,7 +4655,7 @@
         }
         return { request, flush, cancel, dispose: cancel };
       }
-      var css = ".card:focus-within{outline:3px solid #0969da;outline-offset:1px}";
+      var css = ".card:focus{outline:none}";
       module.exports = { action, attach, deferredFocus, css };
     }
   });

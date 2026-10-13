@@ -66,3 +66,8 @@ test('disposed, disconnected and background cards never receive a deferred focus
 test('a fresh explicit navigation can focus after an earlier request was cancelled',()=>{
  const f=focusFixture();f.focus.request();f.outside('pointerdown');f.show();f.focus.request();assert.equal(f.card.focuses.length,1);assert.equal(f.document.count(),0);
 });
+test('Enter on search navigation buttons keeps their native search action instead of accepting',()=>{
+ const button={matches:selector=>selector==='.search-navigation'};
+ assert.equal(action(event('Enter',{composedPath:()=>[button]})),null);
+ assert.equal(action(event('ArrowDown',{composedPath:()=>[button]})),'next');
+});

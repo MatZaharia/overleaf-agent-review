@@ -2,7 +2,7 @@
 function action(event){
  if(event.defaultPrevented || event.isComposing || event.repeat || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey)return null;
  const path=event.composedPath?.() || [event.target];
- if(event.key==='Enter'&&path.some(node=>node?.matches?.('.locate')))return null;
+ if(event.key==='Enter'&&path.some(node=>node?.matches?.('.locate')||node?.matches?.('.search-navigation')))return null;
  if(path.some(node=>node?.matches?.('input,textarea,select,[contenteditable]:not([contenteditable="false"]),.panel-drag,.panel-resize')))return null;
  return {ArrowUp:'previous',ArrowDown:'next',Enter:'accept'}[event.key] || null;
 }
@@ -39,5 +39,5 @@ function deferredFocus(card,{document=card.ownerDocument,visible}){
  }
  return {request,flush,cancel,dispose:cancel};
 }
-const css='.card:focus-within{outline:3px solid #0969da;outline-offset:1px}';
+const css='.card:focus{outline:none}';
 module.exports={action,attach,deferredFocus,css};

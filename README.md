@@ -8,7 +8,7 @@
 
 Review one change at a time, directly inside Overleaf.
 
-[![Release](https://img.shields.io/github/v/release/MatZaharia/overleaf-agent-review?include_prereleases&style=flat-square&color=6752c7)](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.7.1)
+[![Release](https://img.shields.io/github/v/release/MatZaharia/overleaf-agent-review?include_prereleases&style=flat-square&color=6752c7)](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.8.0)
 [![CI](https://github.com/MatZaharia/overleaf-agent-review/actions/workflows/ci.yml/badge.svg)](https://github.com/MatZaharia/overleaf-agent-review/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-278262?style=flat-square)](LICENSE)
 [![Chrome](https://img.shields.io/badge/Chrome-Manifest_V3-456cb3?style=flat-square)](#install)
@@ -16,7 +16,7 @@ Review one change at a time, directly inside Overleaf.
 
 **English** · [简体中文](README.zh-CN.md)
 
-[Download extension](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.7.1) · [Connect your Agent](#local-agent-connection) · [Agent guide](docs/agent-guide.md) · [Report an issue](https://github.com/MatZaharia/overleaf-agent-review/issues)
+[Download extension](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.8.0) · [Connect your Agent](#local-agent-connection) · [Agent guide](docs/agent-guide.md) · [Report an issue](https://github.com/MatZaharia/overleaf-agent-review/issues)
 
 </div>
 
@@ -58,7 +58,7 @@ Your Agent sends a suggestion pack. Overleaf highlights the changed characters. 
 
 ## Install
 
-1. Download the extension ZIP from [Releases](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.7.1) and extract it. Use the extension asset, rather than GitHub's automatically generated source ZIP.
+1. Download the extension ZIP from [Releases](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.8.0) and extract it. Use the extension asset, rather than GitHub's automatically generated source ZIP.
 2. Open `chrome://extensions` in Chrome and enable **Developer mode**.
 3. Click **Load unpacked** and select the extracted `overleaf-agent-review` folder containing `manifest.json`.
 4. Open your Overleaf project and refresh the page. Select **Code** mode.
@@ -166,7 +166,9 @@ Both views are movable and resizable, but only one is shown at a time. Drag the 
 
 Both views use one inline comparison: removed characters are red and struck through, added characters are green and underlined. Long unchanged context is shortened in the summary; **Show full context** switches details to the exact before/after texts and hides the concise comparison. This choice persists when navigating or accepting suggestions. Webpage dialogs temporarily hide review surfaces; closing them restores the same suggestion and progress. Display-only shortening never changes the source edits. Accepting/navigating centers the next source target; switching views does not move source selection or scroll. See [v1.6.2 validation](docs/validation-v1.6.2.md).
 
-With a review card focused (click its text, title or controls), **↑ / ↓** select the previous/next pending item and **Enter** accepts the current item. Navigation waits until a distant source target and its card are visible before activating shortcuts. A blue outline marks focus within the card. Clicking or typing in the source cancels any pending focus request, so manual editing keeps its normal keys. Tab-focused panel move/resize handles retain their layout controls. Holding Enter never accepts a sequence of items. See [v1.7.1 validation](docs/validation-v1.7.1.md).
+With a review card focused (click its text, title or controls), **↑ / ↓** select the previous/next pending item and **Enter** accepts the current item. Navigation waits until a distant source target and its card are visible before activating shortcuts. Clicking or typing in the source cancels any pending focus request, so manual editing keeps its normal keys. Tab-focused panel move/resize handles retain their layout controls. Holding Enter never accepts a sequence of items. See [v1.7.1 validation](docs/validation-v1.7.1.md).
+
+**Search suggestions** in Details matches the pack’s original or replacement text, case-insensitively and literally. **Previous match / Next match** follow pending queue order and wrap; accepting, rejecting or skipping removes that item from results, and undo restores it. The query survives item and compact/detail changes. Enter in the search field goes to the next match (Shift+Enter goes back), and never accepts an item. Current-file scope searches only that file; all-files scope searches the project pack. Search uses bounded pages, yields between batches and caches the last query’s result indices. Long before/after text areas now expand with the detail panel height, while short texts keep their natural size. The large blue card outline is removed; keyboard focus and shortcuts remain. See [v1.8.0 validation](docs/validation-v1.8.0.md).
 
 Manually opening another file suspends the current suggestion without marking it skipped or opening another file automatically. You can edit freely; acceptance is disabled while away. **Locate current item** returns to the same suggestion; in **All files** mode, previous/next can navigate across files and cursor navigation searches the file you have open. In **Current file** mode, both stay within the file selected at the start. Manually returning refreshes the preview without moving your cursor or scroll. File opening waits for readiness instead of a fixed 250 ms delay, and still requires the target file and a new editor identity on file switches.
 
@@ -174,7 +176,7 @@ You can click elsewhere in the editor and type normally while a suggestion stays
 
 Undoing an accepted change returns its suggestion to the pending queue and updates its counter and navigation. Unrelated accepted changes keep their baseline positions. If review has already ended or you undid a change while review was stopped, click **Resume last review** to reconcile the open file with saved progress. Rejections remain decided. Redo never causes an automatic editor write. See [v1.5.3 validation](docs/validation-v1.5.3.md).
 
-These interface improvements are included in the v1.7.1 Release ZIP. Reload the updated extension and refresh Overleaf.
+These interface improvements are included in the v1.8.0 Release ZIP. Reload the updated extension and refresh Overleaf.
 
 **上一项 / 下一项** cycle through undecided suggestions in pack order, wrapping from the last pending item to the first and from the first to the last. Buttons in either view and the review card’s ↑ / ↓ keys use the same loop. With two pending items, either direction reaches the other; with only one, the current item stays selected. **光标上一处 / 光标下一处** find the nearest locatable undecided suggestion before/after the editor cursor in the current file, using live character-change positions rather than JSON order or line numbers. Navigation moves the preview only; it does not reject or write an item. Deferred items remain pending and return after later items are settled. Accepted/rejected items are excluded. If source, file or cursor changes during a search, retry the navigation.
 

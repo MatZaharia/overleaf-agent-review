@@ -1,6 +1,7 @@
 'use strict';
 // UI text only. Manuscript source, replacements and Agent reasons are never passed here.
 const english = {
+ '搜索建议':'Search suggestions','搜索原文或修改后':'Search original or replacement','上一个搜索项':'Previous match','下一个搜索项':'Next match','正在搜索建议…':'Searching suggestions…','没有匹配的待处理建议':'No matching pending suggestions','搜索失败，请重新输入':'Search failed; edit the query to retry',
  '审阅范围':'Review scope','当前文件（多标签页）':'Current file (multiple tabs)','全部文件（单标签页）':'All files (one tab)',
  '本页只审阅开始时的文件；请定位当前项，或停止后在新文件开始审阅':'This tab reviews its starting file. Locate the current item, or stop and start review in the new file.',
  '标签页审阅权限已失效，请重新开始审阅':'This tab’s review permission is no longer valid. Start review again.',
@@ -46,6 +47,7 @@ const english = {
  '文件路径必须是项目内的相对路径':'File paths must be relative to the project','只支持项目内的文本文件':'Only project text files are supported','每项必须包含非空 original 和字符串 replacement':'Each item needs a nonempty original and a string replacement','单项修改过长':'Suggestion text is too long','上下文必须是文本且不超过 10000 字符':'Context must be text with at most 10,000 characters','scope 必须包含 start，可选 end，均为原文标记':'scope requires start and an optional end, both exact source markers','需要 codex-overleaf-suggestions v1 建议包，含 1–10000 项':'Use a codex-overleaf-suggestions v1 pack with 1–10,000 items','projectId 必须是 Overleaf 项目 ID':'projectId must be an Overleaf project ID','每项 id 必须唯一':'Each item id must be unique'
 };
 const templates=[
+ [/^搜索结果 (\d+) \/ (\d+)$/,(_,position,total)=>`Search matches ${position} / ${total}`],
  [/^项目已确认 (\d+) \/ (\d+)$/,(_,done,total)=>`Project decisions ${done} / ${total}`],
  [/^建议 (\d+) \/ (\d+)$/,(_,position,remaining)=>`Suggestion ${position} / ${remaining}`],
  [/^修改 (.*)$/, (_,id)=>'Change '+id],
