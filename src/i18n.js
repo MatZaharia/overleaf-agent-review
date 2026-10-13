@@ -1,6 +1,10 @@
 'use strict';
 // UI text only. Manuscript source, replacements and Agent reasons are never passed here.
 const english = {
+ '建议详情':'Suggestion details','详情 ↗':'Details ↗','返回精简 ↙':'Back to compact ↙','审阅管理':'Review setup',
+ '修改理由':'Reason','修改对比':'Changes','查看完整上下文':'Show full context',
+ '拒绝':'Reject','接受':'Accept','↑↓ 切换 · Enter 接受':'↑↓ Navigate · Enter Accept',
+ '已停止，返回导入后可继续':'Stopped; return to import to resume',
  '重新建立定位（保留决定）':'Rebuild tracking (keep decisions)',
  '定位记录与当前正文不一致，审阅已暂停。可重新建立定位，保留接受／拒绝决定。':'Saved tracking no longer matches the source. Review paused. Rebuild tracking to keep accepted/rejected decisions.',
  '正在准备审阅…':'Preparing review…',
@@ -49,5 +53,5 @@ function translate(text,language){
  return text;
 }
 function normalize(language){return language==='en'?'en':'zh-CN'}
-function previewLabels(item,line,language){const t=text=>translate(text,language);return{added:t('新增'),removed:t('删除'),replaced:t('替换原文'),title:t('修改 '+item.id+' · L'+line),hint:t('↑ 上一项 · ↓ 下一项 · Enter 接受（审阅卡片内）'),accept:t('接受这一项'),reject:t('拒绝这一项'),empty:t('（删除此段）'),previous:t('上一项'),next:t('下一项'),move:t('拖动标题移动面板；方向键微调'),resize:t('拖动右下角调整大小；方向键微调')}}
+function previewLabels(item,line,language){const t=text=>translate(text,language);return{added:t('新增'),removed:t('删除'),replaced:t('替换原文'),title:t('修改 '+item.id+' · L'+line),details:t('详情 ↗'),reason:item.reason,compactHint:t('↑↓ 切换 · Enter 接受'),hint:t('↑ 上一项 · ↓ 下一项 · Enter 接受（审阅卡片内）'),accept:t('接受这一项'),reject:t('拒绝这一项'),empty:t('（删除此段）'),previous:t('上一项'),next:t('下一项'),move:t('拖动标题移动面板；方向键微调'),resize:t('拖动右下角调整大小；方向键微调')}}
 module.exports={translate,normalize,previewLabels,english};

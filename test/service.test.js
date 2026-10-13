@@ -59,8 +59,8 @@ test('inline navigation is consumed once without a decision, write or token repl
 });
 test('switching language updates pending labels without source edits or losing the acceptance token',async()=>{
  const h=fixture(),labels=[];h.preview.labels=p=>labels.push(p.labels);
- const pending=await h.prepare();h.service.setLanguage({language:'en'});assert.equal(labels[0].accept,'Accept this item');assert.equal(labels[0].previous,'Previous item');
- h.service.setLanguage({language:'zh-CN'});assert.equal(labels[1].accept,'接受这一项');assert.equal(h.writes.length,0);assert.equal(h.service.apply({token:pending.token}).verified,true);
+ const pending=await h.prepare();h.service.setLanguage({language:'en'});assert.equal(labels[0].accept,'Accept');assert.equal(labels[0].previous,'Previous item');
+ h.service.setLanguage({language:'zh-CN'});assert.equal(labels[1].accept,'接受');assert.equal(h.writes.length,0);assert.equal(h.service.apply({token:pending.token}).verified,true);
 });
 test('preview character diffs refresh from live source with no implicit editor write',async()=>{
  const h=fixture();let shown;h.preview.show=async p=>{shown=p;return {ok:true}};
@@ -87,4 +87,42 @@ test('irreconcilable saved tracking pauses without writes; a fresh baseline loca
  h.service.begin({ledgers:{}});
  const pending=await h.prepare();assert.equal(pending.ok,true);assert.equal(h.writes.length,0);
  assert.equal(h.service.apply({token:pending.token}).verified,true);assert.equal(h.text,'lead\nnew\ntail');
+});
+
+test('compact/detail/setup switches keep the same token and never reopen or write source',async()=>{
+ const h=fixture(),modes=[],labels=[];let shows=0,opens=0;
+ h.preview.show=async()=>{shows++;return {ok:true}};h.preview.labels=p=>labels.push(p.labels);h.preview.present=p=>{modes.push(p);return {ok:true,token:p.token}};
+ h.adapter.open=async()=>{opens++;return true};
+ const pending=await h.prepare();
+ for(const mode of ['details','compact','setup','details','compact']){
+  const result=h.service.setPresentation({token:pending.token,projectId:'owner',mode,position:2,remaining:3});
+  assert.equal(result.token,pending.token);assert.equal((await h.service.status({token:pending.token})).ok,true);
+ }
+ assert.equal(shows,1);assert.equal(opens,1);assert.equal(h.writes.length,0);assert.equal(h.text,'lead\nold\ntail');
+ assert.equal(labels.at(-1).title,'建议 2 / 3');
+ assert.equal(h.service.apply({token:pending.token}).verified,true);assert.equal(h.writes.length,1);
+ assert.equal(h.service.setPresentation({token:pending.token,projectId:'owner',mode:'compact'}).code,'expired');
+});
+test('display switching retains decisions and consumes a details request once without changing tokens',async()=>{
+ const h=fixture();let request='details';h.preview.read=p=>({ok:true,token:p.token,decision:false,presentation:request});h.preview.consumePresentation=()=>request=null;
+ const p=await h.prepare(),first=await h.service.status({token:p.token});
+ assert.equal(first.presentation,'details');assert.equal(first.decision,false);assert.equal(first.token,p.token);
+ assert.equal((await h.service.status({token:p.token})).presentation,null);assert.equal(h.writes.length,0);
+});
+test('details mode, progress labels and language survive a source refresh; stale project cannot switch',async()=>{
+ const h=fixture(),shown=[];h.preview.show=async p=>{shown.push(p);return {ok:true}};h.preview.labels=()=>{};h.preview.present=()=>({ok:true});
+ let p=await h.service.prepare({item,projectId:'owner',presentation:{mode:'compact',position:2,remaining:4}});
+ h.service.setPresentation({token:p.token,projectId:'owner',mode:'details',position:2,remaining:3});h.service.setLanguage({language:'en'});
+ h.edit('prefix\nlead\nold\ntail');p=await h.service.status({token:p.token});
+ assert.equal(p.refreshed,true);assert.equal(shown.at(-1).mode,'details');assert.equal(shown.at(-1).reveal,false);assert.equal(shown.at(-1).labels.title,'Suggestion 2 / 3');
+ assert.equal(h.service.setPresentation({token:p.token,projectId:'another',mode:'compact'}).code,'project_changed');assert.equal(h.writes.length,0);
+});
+
+test('unsupported inline preview keeps a working details view with the original acceptance token',async()=>{
+ const h=fixture();h.preview.show=async()=>({ok:false,code:'review_preview_unsupported'});
+ h.preview.labels=()=>assert.fail('no inline labels without an inline preview');h.preview.present=()=>assert.fail('no missing inline card operations');
+ const p=await h.prepare();assert.equal(p.ok,true);assert.equal(p.inline,false);
+ assert.equal(h.service.setPresentation({token:p.token,projectId:'owner',mode:'details'}).ok,true);
+ assert.equal((await h.service.status({token:p.token})).ok,true);assert.equal(h.writes.length,0);
+ assert.equal(h.service.apply({token:p.token}).verified,true);
 });

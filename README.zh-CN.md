@@ -8,7 +8,7 @@
 
 让在线 LaTeX 审阅，细到每个字符、每次决定。
 
-[![Release](https://img.shields.io/github/v/release/MatZaharia/overleaf-agent-review?include_prereleases&style=flat-square&color=6752c7)](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.5.4)
+[![Release](https://img.shields.io/github/v/release/MatZaharia/overleaf-agent-review?include_prereleases&style=flat-square&color=6752c7)](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.6.0)
 [![CI](https://github.com/MatZaharia/overleaf-agent-review/actions/workflows/ci.yml/badge.svg)](https://github.com/MatZaharia/overleaf-agent-review/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-278262?style=flat-square)](LICENSE)
 [![Chrome](https://img.shields.io/badge/Chrome-Manifest_V3-456cb3?style=flat-square)](#安装)
@@ -16,7 +16,7 @@
 
 **简体中文** · [English](README.md)
 
-[下载扩展](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.5.4) · [连接 Agent](#本地-agent-连接) · [Agent 操作指南](docs/agent-guide.md) · [反馈问题](https://github.com/MatZaharia/overleaf-agent-review/issues)
+[下载扩展](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.6.0) · [连接 Agent](#本地-agent-连接) · [Agent 操作指南](docs/agent-guide.md) · [反馈问题](https://github.com/MatZaharia/overleaf-agent-review/issues)
 
 </div>
 
@@ -58,7 +58,7 @@ Agent 发来建议包，Overleaf 高亮变化的字符。**你可以接受、拒
 
 ## 安装
 
-1. 在 [Releases](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.5.4) 下载插件 ZIP 并解压。请选择插件安装包，不是 GitHub 自动生成的 Source code ZIP。
+1. 在 [Releases](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.6.0) 下载插件 ZIP 并解压。请选择插件安装包，不是 GitHub 自动生成的 Source code ZIP。
 2. 在 Chrome 打开 `chrome://extensions`，开启“开发者模式”。
 3. 点击“加载未打包的扩展程序”，选择解压后包含 `manifest.json` 的 `overleaf-agent-review` 文件夹。
 4. 打开 Overleaf 项目，刷新页面，切换到 **Code** 源码模式。
@@ -152,13 +152,15 @@ CLI 和建议包格式不绑定模型厂商。目前以 Codex 开发和验证流
 
 ## 审阅导航
 
-开始审阅后进入单独的审阅界面，隐藏导入表单和连接设置。点 **返回导入** 查看设置，当前项保持待确认；点 **继续审阅** 回到同一项。最近处理记录默认折叠。
+开始审阅后，默认只显示**源码旁的精简卡片**，包含待审计数、简短理由、合并差异和导航／接受／拒绝按钮。点 **详情 ↗** 打开详情面板，同时收起小卡片；点 **返回精简 ↙** 或详情面板的关闭按钮回到小卡片。切换只改变显示方式，保留当前建议、确认状态、接受／拒绝记录、源码光标和滚动位置，以及面板布局、已展开的上下文。源码内预览不支持时，会保留可用的详情界面。
 
-卡片计数表示 **当前在待处理队列中的位置／待处理总数**，不再使用建议包的固定序号。例如处理掉 `2 / 3` 后，下一项显示 `2 / 2`。接受、拒绝或跳过才减少总数，仅切换不减少；恢复审阅时会排除当前建议包中已经决定的项。建议包原始序号以 `#N` 放在文件路径旁，界面不再显示额外进度条。
+点 **审阅管理** 查看导入、连接和最近处理记录，不重启当前项；点 **继续审阅** 返回。小卡片滚出源码视口时，右下角 **详情 ↗** 仍可打开当前建议。
 
-两块面板都可拖动标题移动，拖动右下角斜线手柄调整大小；切换建议时保留布局，位置不会越出浏览器窗口。标题或缩放手柄获得焦点后，也可用方向键微调，Shift 加快调整。左侧 **↑／↓** 切换建议包中的上一项／下一项；光标导航只在右侧。中英文切换即时更新两侧控件，保留当前待确认项，原文、替换文本和 Agent 的修改理由不会被翻译。
+计数表示 **当前在待处理队列中的位置／待处理总数**。处理掉 `2 / 3` 后，下一项显示 `2 / 2`；接受、拒绝或跳过才减少总数，切换界面和导航不减少。恢复审阅时排除已有决定。建议包原始序号以 `#N` 放在详情的文件路径旁。
 
-左侧显示修改后的文本，只强调新增或替换的字符；纯删除用小的红色 `−文本` 标记显示位置。右侧对照将删除字符划掉、新增字符加深，未变化部分保持普通显示。差异直接来自实际字符写入范围。接受或导航后，下一项的源码位置自动居中，自动放置的预览框避开高亮行。
+两种界面均可移动和调整大小，但同一时刻只显示一个。拖动标题或右下角手柄；各自布局在界面切换和建议导航后保留。标题／手柄获得焦点后也可用方向键微调，Shift 加快。详情或管理界面的标题栏可切换 **中文／English**，语言偏好保存在本地；原文、替换文本和 Agent 理由保持原样。
+
+两种界面统一显示合并差异：删除字符用红色删除线，新增字符用绿色下划线。摘要缩短较长的未变化上下文；详情中的 **查看完整上下文** 可展开精确的修改前后文本。显示缩略不影响实际字符写入范围。接受或导航会居中下一处源码，切换界面不改变源码选区或滚动。见 [v1.6.0 验证记录](docs/validation-v1.6.0.md)。
 
 审阅卡片获得焦点时（点击卡片文字即可），**↑／↓** 切换上一项／下一项，**Enter** 接受当前项。LaTeX 编辑器、输入框及面板移动／缩放控件保留正常按键行为；长按 Enter 不会连续接受多项。
 
@@ -166,9 +168,9 @@ CLI 和建议包格式不绑定模型厂商。目前以 Codex 开发和验证流
 
 撤销已接受的修改后，对应建议会回到待审队列，数量及导航同步更新；其他已接受修改的位置记录继续保留。如果审阅已结束，或你在停止审阅期间撤销，点击“恢复上次审阅”即可根据当前打开文件的正文核对进度。拒绝决定仍保留，重做不会触发插件自动写入。见 [v1.5.3 验证记录](docs/validation-v1.5.3.md)。
 
-这些界面改进已包含在 v1.5.4 Release ZIP 中。更新扩展后重新加载，并刷新 Overleaf。
+这些界面改进已包含在 v1.6.0 Release ZIP 中。更新扩展后重新加载，并刷新 Overleaf。
 
-**上一项／下一项**按建议包顺序循环切换未决定项：最后一项的下一项是第一项，第一项的上一项是最后一项。两侧按钮和审阅卡片的 ↑／↓ 都采用这个循环；剩两项时，两个方向都到另一项；只剩一项时保持当前项。**光标上一处／光标下一处**在当前文件中，按实时修改字符的位置查找光标前后最近的可定位待处理建议，不按 JSON 顺序或行号寻找。切换只移动预览，不拒绝、不写入；暂不处理的项仍待确认，其他项处理后会回来。已接受／拒绝的项不参与导航。搜索期间正文、文件或光标变化时，请重新点击导航。
+**上一项／下一项**按建议包顺序循环切换未决定项：最后一项的下一项是第一项，第一项的上一项是最后一项。两种界面的按钮和审阅卡片的 ↑／↓ 都采用这个循环；剩两项时，两个方向都到另一项；只剩一项时保持当前项。**光标上一处／光标下一处**在当前文件中，按实时修改字符的位置查找光标前后最近的可定位待处理建议，不按 JSON 顺序或行号寻找。切换只移动预览，不拒绝、不写入；暂不处理的项仍待确认，其他项处理后会回来。已接受／拒绝的项不参与导航。搜索期间正文、文件或光标变化时，请重新点击导航。
 
 ## 建议包格式
 

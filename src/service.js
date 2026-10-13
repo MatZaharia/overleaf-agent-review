@@ -7,12 +7,12 @@ const Navigation = require('./navigation');
 
 const { characterEdits } = require('./characterEdits');
 function create({ adapter, preview, crypto }) {
-  let pending = null, generation = 0, scan = null, language='zh-CN';
+  let pending = null, generation = 0, scan = null, language='zh-CN',presentation={mode:'compact'};
   const receipts = new Map(), ledgers = new Map();
   let journals=[];const textCache=new WeakMap(), navigationCache=new WeakMap();
   function textOf(view){const doc=view.state.doc;if(typeof doc.length!=='number')return doc.toString();if(!textCache.has(doc))textCache.set(doc,doc.toString());return textCache.get(doc)}
   const drain=()=>{const value=journals.map(entry=>({...entry,id:crypto.randomUUID()}));journals=[];return value};
-  function begin(saved={}) { cancel(); ledgers.clear();journals=[];
+  function begin(saved={}) { presentation={mode:saved.mode==='details'?'details':'compact'};cancel(); ledgers.clear();journals=[];
     for(const [file,data] of Object.entries(saved.ledgers||{})){
       if(typeof data.base!=='string'||!Array.isArray(data.edits))continue;
       const edits=data.edits.map(p=>({...p})).sort((a,b)=>a.from-b.from||a.to-b.to);
@@ -79,6 +79,7 @@ function create({ adapter, preview, crypto }) {
   }
   async function prepare(params) {
     const item = Core.normalizeItem(params.item), owner = params.projectId;
+    if(params.presentation)presentation={...presentation,...params.presentation};
     cancel(); const attempt = generation;
     if (!current(owner)) return failure('project_changed');
     const reveal=params.reveal!==false;
@@ -98,7 +99,7 @@ function create({ adapter, preview, crypto }) {
     const token = crypto.randomUUID();
     pending = { item, reviewKey:params.item.reviewKey, projectId: owner, token, view, text, doc:view.state.doc, line:match.line };
     const shown = await preview.show({ reveal, token, runProjectId: owner, path: item.file, base: text, patch: match.patch, highlightPatches: highlights, diff,
-      labels: I18n.previewLabels(item,match.line,language) });
+      mode:presentation.mode,labels: previewLabels(item,match.line) });
     if (attempt !== generation) { preview.clear({ token }); return failure('cancelled'); }
     if (!shown.ok && shown.code !== 'review_preview_unsupported') { cancel(); return failure('file_not_ready'); }
     pending.inline = shown.ok;
@@ -118,6 +119,7 @@ function create({ adapter, preview, crypto }) {
     }
     if(item.stale)return {...failure(item.stale),journal:drain()};
     const result=item.inline ? preview.read({ token: item.token }) : { ok: true, token: item.token, decision: null };
+    if(result.presentation)preview.consumePresentation?.({token:item.token});
     if(result.navigation===-1 || result.navigation===1)preview.consumeNavigation({token:item.token});
     return result;
   }
@@ -159,7 +161,22 @@ function create({ adapter, preview, crypto }) {
     if (receipts.size > 500) receipts.delete(receipts.keys().next().value);
     return result;
   }
-  function setLanguage(params){language=I18n.normalize(params.language);if(pending?.inline)preview.labels({labels:I18n.previewLabels(pending.item,pending.line,language)});return {ok:true}}
-  return { prepare, status, apply, cancel, begin, snapshot, navigation, setLanguage };
+  function previewLabels(item,line){
+    const labels=I18n.previewLabels(item,line,language);
+    if(Number.isInteger(presentation.position)&&Number.isInteger(presentation.remaining))labels.title=I18n.translate('建议 '+presentation.position+' / '+presentation.remaining,language);
+    labels.accept=I18n.translate('接受',language);labels.reject=I18n.translate('拒绝',language);
+    return labels;
+  }
+  function setPresentation(params){
+    if(!pending||params.token!==pending.token)return failure('expired');
+    if(!current(params.projectId)||params.projectId!==pending.projectId)return failure('project_changed');
+    presentation={...presentation,mode:['compact','details','setup'].includes(params.mode)?params.mode:presentation.mode};
+    for(const field of ['position','remaining'])if(Number.isInteger(params[field])&&params[field]>0)presentation[field]=params[field];
+    if(!pending.inline)return {ok:true,token:pending.token};
+    preview.labels({labels:previewLabels(pending.item,pending.line)});
+    return preview.present?.({token:pending.token,mode:presentation.mode,focus:params.focus===true})||{ok:true};
+  }
+  function setLanguage(params){language=I18n.normalize(params.language);if(pending?.inline)preview.labels({labels:previewLabels(pending.item,pending.line)});return {ok:true}}
+  return { prepare, status, apply, cancel, begin, snapshot, navigation, setLanguage, setPresentation };
 }
 module.exports = { create };

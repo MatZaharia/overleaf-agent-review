@@ -45,7 +45,7 @@ async function run(pack, deps) {
     if(retained?.state==='unknown')throw Object.assign(new Error('先核对上次未确认的写入'),{code:'write_unconfirmed',results:list()});
     if(retained && ['written','rejected'].includes(retained.state)){save(index,{item,state:'retained',previous:retained.state});await deps.retained?.({item,state:retained.state});if(index%100===0)await new Promise(resolve=>setTimeout(resolve,0));index++;continue}
     let prepared;
-    try { prepared = await deps.call('prepare', { item, projectId: deps.projectId }); }
+    try { prepared = await deps.call('prepare', { item, projectId: deps.projectId, presentation:deps.presentation?.({index,total,remaining:total-finished.size,position:Counts.position(index,finished)}) }); }
     catch (_) { throw Object.assign(new Error('连接中断，没有自动重试'), { code: 'bridge_timeout', results:list() }); }
     deps.assertCurrent();
     if (!prepared.ok) {

@@ -38,7 +38,7 @@ const Scroll = require('../src/reviewScroll');
     function read(params) {
       if (!active || active.token !== params.token) return fail('review_preview_expired');
       validate();
-      return active.failure ? fail(active.failure) : { ok: true, decision: active.decision, navigation: active.navigation, token: active.token };
+      return active.failure ? fail(active.failure) : { ok: true, decision: active.decision, navigation: active.navigation, presentation:active.presentationRequest, token: active.token };
     }
     function clear(params = {}) {
       if (params.token) {
@@ -77,12 +77,14 @@ const Scroll = require('../src/reviewScroll');
       host.style.cssText = 'position:fixed;z-index:2147483000;pointer-events:none;overflow:visible;';
       const shadow = host.attachShadow({ mode: 'open' });
       const style = document.createElement('style');
-      style.textContent = ':host{font:13px/1.45 system-ui;color:#202833}*{box-sizing:border-box}.mark{position:absolute;background:rgba(255,176,104,.30);border-bottom:2px solid #c76827;pointer-events:none}.card{position:fixed;display:flex;flex-direction:column;pointer-events:auto;background:#fff;border:1px solid #d4dce5;border-radius:9px;padding:12px;box-shadow:0 8px 28px #14233325;overflow:hidden;padding-bottom:24px}.title{font-weight:650;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}.hint,.actions{flex-shrink:0}.actions{flex-wrap:wrap}.text{flex:1;min-height:24px}.text{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 ui-monospace,monospace;background:#eef9f0;color:#165d2a;padding:8px;margin:0 0 10px;overflow:auto}.hint{max-height:3em;overflow:auto;font-size:11px;color:#697383;margin:0 0 8px}.actions{display:flex;gap:8px}button{font:inherit;padding:6px 10px;border:1px solid #c8d0da;border-radius:6px;background:#fff;color:#263140;cursor:pointer}button.accept{background:#16764b;border-color:#16764b;color:#fff}button:focus-visible{outline:3px solid #78a9e6}button:disabled{opacity:.5;cursor:default}' + Floating.css + Diff.css;
+      style.textContent = ':host{font:13px/1.45 system-ui;color:#202833}*{box-sizing:border-box}[hidden]{display:none!important}.mark{position:absolute;background:rgba(255,176,104,.30);border-bottom:2px solid #c76827;pointer-events:none}.card{position:fixed;display:flex;flex-direction:column;pointer-events:auto;background:#fff;border:1px solid #d4dce5;border-radius:9px;padding:12px;box-shadow:0 8px 28px #14233325;overflow:hidden;padding-bottom:24px}.title-row{display:flex;align-items:center;gap:8px;flex-shrink:0;margin-bottom:6px}.title-row .title{margin:0;flex:1;min-width:0}.details{border:0;color:#176347;padding:2px 4px;background:transparent}.reason{font-size:12px;line-height:1.5;margin:0 0 10px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;flex-shrink:0}.title{font-weight:650;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}.hint,.actions{flex-shrink:0}.actions{flex-wrap:wrap}.text{flex:1;min-height:24px}.text{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 ui-monospace,monospace;background:#f6f8fa;color:#586673;padding:8px;margin:0 0 10px;overflow:auto}.hint{max-height:3em;overflow:auto;font-size:11px;color:#697383;margin:0 0 8px}.actions{display:flex;gap:8px}button{font:inherit;padding:6px 10px;border:1px solid #c8d0da;border-radius:6px;background:#fff;color:#263140;cursor:pointer}button.accept{background:#16764b;border-color:#16764b;color:#fff}button:focus-visible{outline:3px solid #78a9e6}button:disabled{opacity:.5;cursor:default}' + Floating.css + Diff.css;
       const marks = document.createElement('div');
       const card = document.createElement('section'); card.className = 'card'; card.setAttribute('aria-label', params.labels?.title || 'Review one change');
       const title = document.createElement('div'); title.className = 'title'; title.textContent = params.labels?.title || 'Review one change';
-      const hint = document.createElement('p'); hint.className = 'hint'; hint.textContent = params.labels?.hint || 'Original highlighted. Source is unchanged until accepted.';
-      const proposed = document.createElement('pre'); proposed.className = 'text'; const diff=params.diff || Diff.parts(patch,highlights);Diff.render(proposed,diff.inline,params.labels);
+      const titleRow=document.createElement('div');titleRow.className='title-row';const details=document.createElement('button');details.className='details';details.type='button';details.textContent=params.labels?.details||'Details ↗';details.addEventListener('click',()=>{if(validate()&&active.decision===null)active.presentationRequest='details'});titleRow.append(title,details);
+      const reason=document.createElement('p');reason.className='reason';reason.textContent=params.labels?.reason||'';reason.title=reason.textContent;
+      const hint = document.createElement('p'); hint.className = 'hint'; hint.textContent = params.labels?.compactHint || params.labels?.hint || 'Original highlighted. Source is unchanged until accepted.';
+      const proposed = document.createElement('pre'); proposed.className = 'text'; const diff=params.diff || Diff.parts(patch,highlights);Diff.render(proposed,Diff.compact(diff.combined||diff.inline),params.labels);
       const actions = document.createElement('div'); actions.className = 'actions';
       for (const [direction, symbol, label] of [[-1, '↑', params.labels?.previous || 'Previous item'], [1, '↓', params.labels?.next || 'Next item']]) {
         const button = document.createElement('button');button.type='button';button.textContent=symbol;
@@ -102,10 +104,10 @@ const Scroll = require('../src/reviewScroll');
         });
         actions.append(button);
       }
-      card.append(title, hint, proposed, actions, resize); shadow.append(style, marks, card); document.body.append(host);
-      active = { token: params.token, projectId: params.runProjectId, path: params.path, view, text, patch, highlights, host, marks, card, navigation: null, decision: null, failure: '', timer: null };
-      active.floating=Floating.attach({panel:card,drag:title,resize,window,state:panelState,minimum:{width:260,height:230},defaultRect:()=>active.defaultRect || {left:8,top:8,width:370,height:220}});
-      active.elements={title,hint,resize,actions,proposed};active.diff=diff;
+      card.append(titleRow, reason, proposed, actions, hint, resize); shadow.append(style, marks, card); document.body.append(host);
+      active = { token: params.token, projectId: params.runProjectId, path: params.path, view, text, patch, highlights, host, marks, card, navigation: null, presentationRequest:null, mode:params.mode||'compact', decision: null, failure: '', timer: null };
+      active.floating=Floating.attach({panel:card,drag:title,resize,window,state:panelState,minimum:{width:290,height:200},defaultRect:()=>active.defaultRect || {left:8,top:8,width:370,height:220}});
+      active.elements={title,hint,resize,actions,proposed,details,reason};active.diff=diff;
       Keyboard.attach(card,choice=>{
         if(!validate() || active.decision!==null)return;
         if(choice==='accept'){active.decision=true;actions.querySelectorAll('button').forEach(button=>{button.disabled=true})}
@@ -115,6 +117,7 @@ const Scroll = require('../src/reviewScroll');
       // of relying only on the periodic highlight renderer.
       view.requestMeasure?.({key:host,read:()=>null,write:()=>window.requestAnimationFrame(()=>{if(active?.host===host)render()})});
       render();
+      if(params.reveal!==false&&!card.hidden)card.focus({preventScroll:true});
       active.timer = window.setInterval(render, 250);
       return { ok: true, token: params.token, changedDocument: false };
     }
@@ -149,7 +152,7 @@ const Scroll = require('../src/reviewScroll');
       }));
       // Hide the suggestion when its range is outside the viewport; no floating
       // accept button detached from its original text. Sidebar remains available.
-      card.hidden = !visible.length || width < 160 || height < 100;
+      card.hidden = item.mode!=='compact' || !visible.length || width < 160 || height < 100;
       if (card.hidden) return;
       const first = visible[0];
       item.defaultRect=Scroll.previewRect(bounds,first);
@@ -157,17 +160,24 @@ const Scroll = require('../src/reviewScroll');
     }
     function labels(params) {
       if(!active)return {ok:true};
-      const value=params.labels,{title,hint,resize,actions,proposed}=active.elements;
-      active.card.setAttribute('aria-label',value.title);title.textContent=value.title;title.title=value.move;title.setAttribute('aria-label',value.move);hint.textContent=value.hint;
+      const value=params.labels,{title,hint,resize,actions,proposed,details,reason}=active.elements;
+      active.card.setAttribute('aria-label',value.title);title.textContent=value.title;title.title=value.move;title.setAttribute('aria-label',value.move);hint.textContent=value.compactHint||value.hint;details.textContent=value.details||'Details ↗';reason.textContent=value.reason||'';reason.title=reason.textContent;
       resize.title=value.resize;resize.setAttribute('aria-label',value.resize);
       actions.querySelector('[data-review-choice="true"]').textContent=value.accept;
       actions.querySelector('[data-review-choice="false"]').textContent=value.reject;
       for(const [direction,label] of [[-1,value.previous],[1,value.next]]){const button=actions.querySelector(`[data-review-navigate="${direction}"]`);button.title=label;button.setAttribute('aria-label',label)}
-      Diff.render(proposed,active.diff.inline,value);
+      Diff.render(proposed,Diff.compact(active.diff.combined||active.diff.inline),value);
       return {ok:true};
     }
+    function present(params){
+      if(!active||active.token!==params.token)return fail('review_preview_expired');
+      active.mode=params.mode;render();
+      if(params.focus&&!active.card.hidden)active.card.focus({preventScroll:true});
+      return {ok:true,token:active.token};
+    }
+    function consumePresentation(params){if(!active||active.token!==params.token)return fail('review_preview_expired');active.presentationRequest=null;return {ok:true}}
     function consumeNavigation(params){if(!active || active.token!==params.token)return fail('review_preview_expired');active.navigation=null;return {ok:true}}
-    return { show, read, clear, labels, consumeNavigation, dispose: () => { generation++; dispose(); } };
+    return { show, read, clear, labels, present, consumePresentation, consumeNavigation, dispose: () => { generation++; dispose(); } };
   }
   return { create };
 });

@@ -15,8 +15,8 @@ function panel(body,card){
 function previewRect(bounds,target){
  const width=Math.min(370,bounds.right-bounds.left-16);
  const belowRoom=bounds.bottom-target.bottom-16,aboveRoom=target.top-bounds.top-16;
- const below=belowRoom>=230 || belowRoom>=aboveRoom;
- const height=Math.min(270,Math.max(230,below?belowRoom:aboveRoom));
+ const below=belowRoom>=210 || belowRoom>=aboveRoom;
+ const height=Math.min(230,Math.max(210,below?belowRoom:aboveRoom));
  const left=Math.max(bounds.left+8,Math.min(target.left,bounds.right-width-8));
  const top=below?target.bottom+8:target.top-height-8;
  return {left,top:Math.max(bounds.top+8,Math.min(top,bounds.bottom-height-8)),width,height};

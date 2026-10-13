@@ -2262,6 +2262,17 @@
     "src/i18n.js"(exports, module) {
       "use strict";
       var english = {
+        "\u5EFA\u8BAE\u8BE6\u60C5": "Suggestion details",
+        "\u8BE6\u60C5 \u2197": "Details \u2197",
+        "\u8FD4\u56DE\u7CBE\u7B80 \u2199": "Back to compact \u2199",
+        "\u5BA1\u9605\u7BA1\u7406": "Review setup",
+        "\u4FEE\u6539\u7406\u7531": "Reason",
+        "\u4FEE\u6539\u5BF9\u6BD4": "Changes",
+        "\u67E5\u770B\u5B8C\u6574\u4E0A\u4E0B\u6587": "Show full context",
+        "\u62D2\u7EDD": "Reject",
+        "\u63A5\u53D7": "Accept",
+        "\u2191\u2193 \u5207\u6362 \xB7 Enter \u63A5\u53D7": "\u2191\u2193 Navigate \xB7 Enter Accept",
+        "\u5DF2\u505C\u6B62\uFF0C\u8FD4\u56DE\u5BFC\u5165\u540E\u53EF\u7EE7\u7EED": "Stopped; return to import to resume",
         "\u91CD\u65B0\u5EFA\u7ACB\u5B9A\u4F4D\uFF08\u4FDD\u7559\u51B3\u5B9A\uFF09": "Rebuild tracking (keep decisions)",
         "\u5B9A\u4F4D\u8BB0\u5F55\u4E0E\u5F53\u524D\u6B63\u6587\u4E0D\u4E00\u81F4\uFF0C\u5BA1\u9605\u5DF2\u6682\u505C\u3002\u53EF\u91CD\u65B0\u5EFA\u7ACB\u5B9A\u4F4D\uFF0C\u4FDD\u7559\u63A5\u53D7\uFF0F\u62D2\u7EDD\u51B3\u5B9A\u3002": "Saved tracking no longer matches the source. Review paused. Rebuild tracking to keep accepted/rejected decisions.",
         "\u6B63\u5728\u51C6\u5907\u5BA1\u9605\u2026": "Preparing review\u2026",
@@ -2393,7 +2404,7 @@
       }
       function previewLabels(item, line, language) {
         const t = (text) => translate(text, language);
-        return { added: t("\u65B0\u589E"), removed: t("\u5220\u9664"), replaced: t("\u66FF\u6362\u539F\u6587"), title: t("\u4FEE\u6539 " + item.id + " \xB7 L" + line), hint: t("\u2191 \u4E0A\u4E00\u9879 \xB7 \u2193 \u4E0B\u4E00\u9879 \xB7 Enter \u63A5\u53D7\uFF08\u5BA1\u9605\u5361\u7247\u5185\uFF09"), accept: t("\u63A5\u53D7\u8FD9\u4E00\u9879"), reject: t("\u62D2\u7EDD\u8FD9\u4E00\u9879"), empty: t("\uFF08\u5220\u9664\u6B64\u6BB5\uFF09"), previous: t("\u4E0A\u4E00\u9879"), next: t("\u4E0B\u4E00\u9879"), move: t("\u62D6\u52A8\u6807\u9898\u79FB\u52A8\u9762\u677F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03"), resize: t("\u62D6\u52A8\u53F3\u4E0B\u89D2\u8C03\u6574\u5927\u5C0F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03") };
+        return { added: t("\u65B0\u589E"), removed: t("\u5220\u9664"), replaced: t("\u66FF\u6362\u539F\u6587"), title: t("\u4FEE\u6539 " + item.id + " \xB7 L" + line), details: t("\u8BE6\u60C5 \u2197"), reason: item.reason, compactHint: t("\u2191\u2193 \u5207\u6362 \xB7 Enter \u63A5\u53D7"), hint: t("\u2191 \u4E0A\u4E00\u9879 \xB7 \u2193 \u4E0B\u4E00\u9879 \xB7 Enter \u63A5\u53D7\uFF08\u5BA1\u9605\u5361\u7247\u5185\uFF09"), accept: t("\u63A5\u53D7\u8FD9\u4E00\u9879"), reject: t("\u62D2\u7EDD\u8FD9\u4E00\u9879"), empty: t("\uFF08\u5220\u9664\u6B64\u6BB5\uFF09"), previous: t("\u4E0A\u4E00\u9879"), next: t("\u4E0B\u4E00\u9879"), move: t("\u62D6\u52A8\u6807\u9898\u79FB\u52A8\u9762\u677F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03"), resize: t("\u62D6\u52A8\u53F3\u4E0B\u89D2\u8C03\u6574\u5927\u5C0F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03") };
       }
       module.exports = { translate, normalize, previewLabels, english };
     }
@@ -2404,7 +2415,7 @@
     "src/reviewDiff.js"(exports, module) {
       "use strict";
       function parts(patch, edits) {
-        const before = [], after = [], inline = [];
+        const before = [], after = [], inline = [], combined = [];
         let offset = 0;
         const push = (list, text, kind = "equal", previous = "") => {
           if (text) list.push({ text, kind, previous });
@@ -2413,7 +2424,9 @@
           const from = edit.from - patch.from, to = edit.to - patch.from;
           if (from < offset || to < from || to > patch.expected.length || patch.expected.slice(from, to) !== edit.expected) throw new Error("invalid_display_diff");
           const equal2 = patch.expected.slice(offset, from);
-          for (const list of [before, after, inline]) push(list, equal2);
+          for (const list of [before, after, inline, combined]) push(list, equal2);
+          push(combined, edit.expected, "removed");
+          push(combined, edit.insert, "added");
           push(before, edit.expected, "removed");
           push(after, edit.insert, "added", edit.expected);
           if (edit.insert) push(inline, edit.insert, "added", edit.expected);
@@ -2421,8 +2434,8 @@
           offset = to;
         }
         const equal = patch.expected.slice(offset);
-        for (const list of [before, after, inline]) push(list, equal);
-        return { before, after, inline };
+        for (const list of [before, after, inline, combined]) push(list, equal);
+        return { before, after, inline, combined };
       }
       var css = ".diff-equal{color:#586673}.diff-added{background:#bceac9;color:#105331;font-weight:700;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px;border-radius:2px}.diff-removed{background:#ffd5c3;color:#8b321b;font-weight:700;text-decoration:line-through;border-radius:2px}.diff-deletion{user-select:none;display:inline-block;background:#ffe1d6;color:#8b321b;font-weight:700;border:1px solid #f0b39d;border-radius:3px;padding:0 3px;margin:0 2px;font-size:.9em}.diff-empty{color:#687888}";
       function render(element, parts2, labels = {}) {
@@ -2446,7 +2459,21 @@
         }
         element.replaceChildren(fragment);
       }
-      module.exports = { parts, render, css };
+      function compact(parts2, context = 45) {
+        const changed = parts2.map((p, i) => p.kind === "equal" ? -1 : i).filter((i) => i >= 0);
+        if (!changed.length) return parts2;
+        const first = changed[0], last = changed[changed.length - 1];
+        return parts2.map((p, i) => {
+          if (p.kind !== "equal") return p;
+          const chars = Array.from(p.text);
+          let text = p.text;
+          if (i < first && chars.length > context) text = "\u2026" + chars.slice(-context).join("");
+          else if (i > last && chars.length > context) text = chars.slice(0, context).join("") + "\u2026";
+          else if (i > first && i < last && chars.length > context * 2) text = chars.slice(0, context).join("") + " \u2026 " + chars.slice(-context).join("");
+          return { ...p, text };
+        });
+      }
+      module.exports = { parts, render, compact, css };
     }
   });
 
@@ -2485,7 +2512,7 @@
       var Navigation = require_navigation();
       var { characterEdits } = require_characterEdits();
       function create({ adapter: adapter2, preview: preview2, crypto }) {
-        let pending = null, generation = 0, scan = null, language = "zh-CN";
+        let pending = null, generation = 0, scan = null, language = "zh-CN", presentation = { mode: "compact" };
         const receipts = /* @__PURE__ */ new Map(), ledgers = /* @__PURE__ */ new Map();
         let journals = [];
         const textCache = /* @__PURE__ */ new WeakMap(), navigationCache = /* @__PURE__ */ new WeakMap();
@@ -2501,6 +2528,7 @@
           return value;
         };
         function begin(saved = {}) {
+          presentation = { mode: saved.mode === "details" ? "details" : "compact" };
           cancel();
           ledgers.clear();
           journals = [];
@@ -2602,6 +2630,7 @@
         }
         async function prepare(params) {
           const item = Core.normalizeItem(params.item), owner = params.projectId;
+          if (params.presentation) presentation = { ...presentation, ...params.presentation };
           cancel();
           const attempt = generation;
           if (!current(owner)) return failure("project_changed");
@@ -2630,7 +2659,8 @@
             patch: match.patch,
             highlightPatches: highlights,
             diff,
-            labels: I18n.previewLabels(item, match.line, language)
+            mode: presentation.mode,
+            labels: previewLabels(item, match.line)
           });
           if (attempt !== generation) {
             preview2.clear({ token });
@@ -2666,6 +2696,7 @@
           }
           if (item.stale) return { ...failure(item.stale), journal: drain() };
           const result = item.inline ? preview2.read({ token: item.token }) : { ok: true, token: item.token, decision: null };
+          if (result.presentation) preview2.consumePresentation?.({ token: item.token });
           if (result.navigation === -1 || result.navigation === 1) preview2.consumeNavigation({ token: item.token });
           return result;
         }
@@ -2729,12 +2760,28 @@
           if (receipts.size > 500) receipts.delete(receipts.keys().next().value);
           return result;
         }
+        function previewLabels(item, line) {
+          const labels = I18n.previewLabels(item, line, language);
+          if (Number.isInteger(presentation.position) && Number.isInteger(presentation.remaining)) labels.title = I18n.translate("\u5EFA\u8BAE " + presentation.position + " / " + presentation.remaining, language);
+          labels.accept = I18n.translate("\u63A5\u53D7", language);
+          labels.reject = I18n.translate("\u62D2\u7EDD", language);
+          return labels;
+        }
+        function setPresentation(params) {
+          if (!pending || params.token !== pending.token) return failure("expired");
+          if (!current(params.projectId) || params.projectId !== pending.projectId) return failure("project_changed");
+          presentation = { ...presentation, mode: ["compact", "details", "setup"].includes(params.mode) ? params.mode : presentation.mode };
+          for (const field of ["position", "remaining"]) if (Number.isInteger(params[field]) && params[field] > 0) presentation[field] = params[field];
+          if (!pending.inline) return { ok: true, token: pending.token };
+          preview2.labels({ labels: previewLabels(pending.item, pending.line) });
+          return preview2.present?.({ token: pending.token, mode: presentation.mode, focus: params.focus === true }) || { ok: true };
+        }
         function setLanguage(params) {
           language = I18n.normalize(params.language);
-          if (pending?.inline) preview2.labels({ labels: I18n.previewLabels(pending.item, pending.line, language) });
+          if (pending?.inline) preview2.labels({ labels: previewLabels(pending.item, pending.line) });
           return { ok: true };
         }
-        return { prepare, status, apply, cancel, begin, snapshot, navigation, setLanguage };
+        return { prepare, status, apply, cancel, begin, snapshot, navigation, setLanguage, setPresentation };
       }
       module.exports = { create };
     }
@@ -4527,8 +4574,8 @@
       function previewRect(bounds, target) {
         const width = Math.min(370, bounds.right - bounds.left - 16);
         const belowRoom = bounds.bottom - target.bottom - 16, aboveRoom = target.top - bounds.top - 16;
-        const below = belowRoom >= 230 || belowRoom >= aboveRoom;
-        const height = Math.min(270, Math.max(230, below ? belowRoom : aboveRoom));
+        const below = belowRoom >= 210 || belowRoom >= aboveRoom;
+        const height = Math.min(230, Math.max(210, below ? belowRoom : aboveRoom));
         const left = Math.max(bounds.left + 8, Math.min(target.left, bounds.right - width - 8));
         const top = below ? target.bottom + 8 : target.top - height - 8;
         return { left, top: Math.max(bounds.top + 8, Math.min(top, bounds.bottom - height - 8)), width, height };
@@ -4578,7 +4625,7 @@
           function read(params) {
             if (!active || active.token !== params.token) return fail("review_preview_expired");
             validate();
-            return active.failure ? fail(active.failure) : { ok: true, decision: active.decision, navigation: active.navigation, token: active.token };
+            return active.failure ? fail(active.failure) : { ok: true, decision: active.decision, navigation: active.navigation, presentation: active.presentationRequest, token: active.token };
           }
           function clear(params = {}) {
             if (params.token) {
@@ -4616,7 +4663,7 @@
             host.style.cssText = "position:fixed;z-index:2147483000;pointer-events:none;overflow:visible;";
             const shadow = host.attachShadow({ mode: "open" });
             const style = document2.createElement("style");
-            style.textContent = ":host{font:13px/1.45 system-ui;color:#202833}*{box-sizing:border-box}.mark{position:absolute;background:rgba(255,176,104,.30);border-bottom:2px solid #c76827;pointer-events:none}.card{position:fixed;display:flex;flex-direction:column;pointer-events:auto;background:#fff;border:1px solid #d4dce5;border-radius:9px;padding:12px;box-shadow:0 8px 28px #14233325;overflow:hidden;padding-bottom:24px}.title{font-weight:650;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}.hint,.actions{flex-shrink:0}.actions{flex-wrap:wrap}.text{flex:1;min-height:24px}.text{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 ui-monospace,monospace;background:#eef9f0;color:#165d2a;padding:8px;margin:0 0 10px;overflow:auto}.hint{max-height:3em;overflow:auto;font-size:11px;color:#697383;margin:0 0 8px}.actions{display:flex;gap:8px}button{font:inherit;padding:6px 10px;border:1px solid #c8d0da;border-radius:6px;background:#fff;color:#263140;cursor:pointer}button.accept{background:#16764b;border-color:#16764b;color:#fff}button:focus-visible{outline:3px solid #78a9e6}button:disabled{opacity:.5;cursor:default}" + Floating.css + Diff.css;
+            style.textContent = ":host{font:13px/1.45 system-ui;color:#202833}*{box-sizing:border-box}[hidden]{display:none!important}.mark{position:absolute;background:rgba(255,176,104,.30);border-bottom:2px solid #c76827;pointer-events:none}.card{position:fixed;display:flex;flex-direction:column;pointer-events:auto;background:#fff;border:1px solid #d4dce5;border-radius:9px;padding:12px;box-shadow:0 8px 28px #14233325;overflow:hidden;padding-bottom:24px}.title-row{display:flex;align-items:center;gap:8px;flex-shrink:0;margin-bottom:6px}.title-row .title{margin:0;flex:1;min-width:0}.details{border:0;color:#176347;padding:2px 4px;background:transparent}.reason{font-size:12px;line-height:1.5;margin:0 0 10px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;flex-shrink:0}.title{font-weight:650;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}.hint,.actions{flex-shrink:0}.actions{flex-wrap:wrap}.text{flex:1;min-height:24px}.text{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 ui-monospace,monospace;background:#f6f8fa;color:#586673;padding:8px;margin:0 0 10px;overflow:auto}.hint{max-height:3em;overflow:auto;font-size:11px;color:#697383;margin:0 0 8px}.actions{display:flex;gap:8px}button{font:inherit;padding:6px 10px;border:1px solid #c8d0da;border-radius:6px;background:#fff;color:#263140;cursor:pointer}button.accept{background:#16764b;border-color:#16764b;color:#fff}button:focus-visible{outline:3px solid #78a9e6}button:disabled{opacity:.5;cursor:default}" + Floating.css + Diff.css;
             const marks = document2.createElement("div");
             const card = document2.createElement("section");
             card.className = "card";
@@ -4624,13 +4671,27 @@
             const title = document2.createElement("div");
             title.className = "title";
             title.textContent = params.labels?.title || "Review one change";
+            const titleRow = document2.createElement("div");
+            titleRow.className = "title-row";
+            const details = document2.createElement("button");
+            details.className = "details";
+            details.type = "button";
+            details.textContent = params.labels?.details || "Details \u2197";
+            details.addEventListener("click", () => {
+              if (validate() && active.decision === null) active.presentationRequest = "details";
+            });
+            titleRow.append(title, details);
+            const reason = document2.createElement("p");
+            reason.className = "reason";
+            reason.textContent = params.labels?.reason || "";
+            reason.title = reason.textContent;
             const hint = document2.createElement("p");
             hint.className = "hint";
-            hint.textContent = params.labels?.hint || "Original highlighted. Source is unchanged until accepted.";
+            hint.textContent = params.labels?.compactHint || params.labels?.hint || "Original highlighted. Source is unchanged until accepted.";
             const proposed = document2.createElement("pre");
             proposed.className = "text";
             const diff = params.diff || Diff.parts(patch, highlights);
-            Diff.render(proposed, diff.inline, params.labels);
+            Diff.render(proposed, Diff.compact(diff.combined || diff.inline), params.labels);
             const actions = document2.createElement("div");
             actions.className = "actions";
             for (const [direction, symbol, label] of [[-1, "\u2191", params.labels?.previous || "Previous item"], [1, "\u2193", params.labels?.next || "Next item"]]) {
@@ -4666,12 +4727,12 @@
               });
               actions.append(button);
             }
-            card.append(title, hint, proposed, actions, resize);
+            card.append(titleRow, reason, proposed, actions, hint, resize);
             shadow.append(style, marks, card);
             document2.body.append(host);
-            active = { token: params.token, projectId: params.runProjectId, path: params.path, view, text, patch, highlights, host, marks, card, navigation: null, decision: null, failure: "", timer: null };
-            active.floating = Floating.attach({ panel: card, drag: title, resize, window: window2, state: panelState, minimum: { width: 260, height: 230 }, defaultRect: () => active.defaultRect || { left: 8, top: 8, width: 370, height: 220 } });
-            active.elements = { title, hint, resize, actions, proposed };
+            active = { token: params.token, projectId: params.runProjectId, path: params.path, view, text, patch, highlights, host, marks, card, navigation: null, presentationRequest: null, mode: params.mode || "compact", decision: null, failure: "", timer: null };
+            active.floating = Floating.attach({ panel: card, drag: title, resize, window: window2, state: panelState, minimum: { width: 290, height: 200 }, defaultRect: () => active.defaultRect || { left: 8, top: 8, width: 370, height: 220 } });
+            active.elements = { title, hint, resize, actions, proposed, details, reason };
             active.diff = diff;
             Keyboard.attach(card, (choice) => {
               if (!validate() || active.decision !== null) return;
@@ -4686,6 +4747,7 @@
               if (active?.host === host) render();
             }) });
             render();
+            if (params.reveal !== false && !card.hidden) card.focus({ preventScroll: true });
             active.timer = window2.setInterval(render, 250);
             return { ok: true, token: params.token, changedDocument: false };
           }
@@ -4721,7 +4783,7 @@
               Object.assign(mark.style, { left: Math.max(0, rect.left - bounds.left) + "px", top: Math.max(0, rect.top - bounds.top) + "px", width: Math.max(3, Math.min(bounds.right, rect.right) - Math.max(bounds.left, rect.left)) + "px", height: Math.max(2, Math.min(bounds.bottom, rect.bottom) - Math.max(bounds.top, rect.top)) + "px" });
               return mark;
             }));
-            card.hidden = !visible.length || width < 160 || height < 100;
+            card.hidden = item.mode !== "compact" || !visible.length || width < 160 || height < 100;
             if (card.hidden) return;
             const first = visible[0];
             item.defaultRect = Scroll.previewRect(bounds, first);
@@ -4729,12 +4791,15 @@
           }
           function labels(params) {
             if (!active) return { ok: true };
-            const value = params.labels, { title, hint, resize, actions, proposed } = active.elements;
+            const value = params.labels, { title, hint, resize, actions, proposed, details, reason } = active.elements;
             active.card.setAttribute("aria-label", value.title);
             title.textContent = value.title;
             title.title = value.move;
             title.setAttribute("aria-label", value.move);
-            hint.textContent = value.hint;
+            hint.textContent = value.compactHint || value.hint;
+            details.textContent = value.details || "Details \u2197";
+            reason.textContent = value.reason || "";
+            reason.title = reason.textContent;
             resize.title = value.resize;
             resize.setAttribute("aria-label", value.resize);
             actions.querySelector('[data-review-choice="true"]').textContent = value.accept;
@@ -4744,7 +4809,19 @@
               button.title = label;
               button.setAttribute("aria-label", label);
             }
-            Diff.render(proposed, active.diff.inline, value);
+            Diff.render(proposed, Diff.compact(active.diff.combined || active.diff.inline), value);
+            return { ok: true };
+          }
+          function present(params) {
+            if (!active || active.token !== params.token) return fail("review_preview_expired");
+            active.mode = params.mode;
+            render();
+            if (params.focus && !active.card.hidden) active.card.focus({ preventScroll: true });
+            return { ok: true, token: active.token };
+          }
+          function consumePresentation(params) {
+            if (!active || active.token !== params.token) return fail("review_preview_expired");
+            active.presentationRequest = null;
             return { ok: true };
           }
           function consumeNavigation(params) {
@@ -4752,7 +4829,7 @@
             active.navigation = null;
             return { ok: true };
           }
-          return { show, read, clear, labels, consumeNavigation, dispose: () => {
+          return { show, read, clear, labels, present, consumePresentation, consumeNavigation, dispose: () => {
             generation++;
             dispose();
           } };
@@ -5043,6 +5120,7 @@
     const pending = Promise.resolve().then(() => {
       if (message.method === "hello") return { ok: true };
       if (message.method === "begin") return service.begin(message.params);
+      if (message.method === "presentation") return service.setPresentation(message.params);
       if (message.method === "language") return service.setLanguage(message.params);
       if (message.method === "snapshot") return service.snapshot();
       if (message.method === "cancel") return service.cancel();
