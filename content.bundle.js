@@ -657,11 +657,44 @@
           event.stopPropagation();
           handler(choice);
         });
-        card.addEventListener("click", (event) => {
-          if (!event.target.closest?.("button,input,textarea,select,.panel-drag,.panel-resize")) card.focus({ preventScroll: true });
-        });
+        const activate = (event) => {
+          if (!event.target.closest?.('input,textarea,select,[contenteditable]:not([contenteditable="false"]),.panel-resize')) card.focus({ preventScroll: true });
+        };
+        card.addEventListener("pointerdown", (event) => {
+          if (event.button === 0) activate(event);
+        }, true);
+        card.addEventListener("click", activate);
       }
-      module.exports = { action, attach };
+      function deferredFocus(card, { document: document2 = card.ownerDocument, visible }) {
+        let pending = false;
+        const inside = (event) => event.composedPath?.().includes(card) || card.contains(event.target);
+        const interrupt = (event) => {
+          if (!inside(event)) cancel();
+        };
+        const hidden = () => {
+          if (document2.visibilityState === "hidden") cancel();
+        };
+        function cancel() {
+          pending = false;
+          for (const name of ["pointerdown", "focusin", "keydown"]) document2.removeEventListener(name, interrupt, true);
+          document2.removeEventListener("visibilitychange", hidden);
+        }
+        function flush() {
+          if (!pending || document2.visibilityState === "hidden" || !card.isConnected || !visible()) return;
+          cancel();
+          card.focus({ preventScroll: true });
+        }
+        function request() {
+          cancel();
+          pending = true;
+          for (const name of ["pointerdown", "focusin", "keydown"]) document2.addEventListener(name, interrupt, true);
+          document2.addEventListener("visibilitychange", hidden);
+          flush();
+        }
+        return { request, flush, cancel, dispose: cancel };
+      }
+      var css = ".card:focus-within{outline:3px solid #0969da;outline-offset:1px}";
+      module.exports = { action, attach, deferredFocus, css };
     }
   });
 
@@ -801,7 +834,7 @@
     const shadow = host.attachShadow({ mode: "open" });
     shadow.innerHTML = `<style>
 :host{font:13px/1.5 system-ui;color:#273342}*{box-sizing:border-box}button,textarea,input{font:inherit}button{border:1px solid #cdd6df;border-radius:6px;background:#fff;color:#273342;padding:7px 11px;cursor:pointer}button:disabled{opacity:.45;cursor:default}button:focus-visible,textarea:focus-visible{outline:3px solid #8aafe3;outline-offset:2px}.primary,.launch{background:#176347;color:#fff;border-color:#176347}.launch{box-shadow:0 4px 18px #18352925}.drawer{position:fixed;display:flex;flex-direction:column;overflow:hidden;background:#fff;border:1px solid #cbd5de;border-radius:10px;box-shadow:0 10px 40px #14253630;margin-bottom:10px}.head{padding:14px 16px;border-bottom:1px solid #e0e6ec;display:flex;align-items:center;justify-content:space-between}.head strong{font-size:15px}.head button{padding:3px 8px}.body{padding:16px 16px 26px;overflow:auto;min-height:0;flex:1}.head{flex-shrink:0;gap:12px}.head strong{flex:1}.language{font:inherit;border:1px solid #cdd6df;border-radius:5px;background:white;padding:3px}.muted{color:#657687;font-size:12px;margin:0 0 12px}.label{display:block;margin-bottom:6px;font-weight:600}textarea{display:block;width:100%;height:130px;padding:10px;border:1px solid #ccd7e0;border-radius:6px;resize:vertical;font:12px/1.45 ui-monospace,monospace}.toolbar{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.message{font-size:12px;padding:10px;background:#f0f5f4;border-radius:5px}.card{border:1px solid #d2dce4;border-radius:7px;padding:12px;margin-top:12px}.card strong{display:block}.path{font:11px/1.5 ui-monospace,monospace;color:#687888}.reason{font-size:12px;margin:8px 0}.comparison-label{font-weight:600;font-size:12px;margin:12px 0 6px}.context{font-size:12px;color:#657687;margin:14px 0}.context summary{cursor:pointer;padding:8px;border:1px solid #e0e6ec;border-radius:6px}.card{border:0;padding:0}.path{margin-top:4px}.reason{line-height:1.6}.session-toolbar{flex-wrap:wrap}.source{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 ui-monospace,monospace;margin:6px 0 10px;padding:8px;max-height:180px;overflow:auto;border-radius:4px}.old,.new{background:#f6f8fa;color:#586673}.actions{display:flex;gap:8px}.history{padding:8px 0;border-bottom:1px solid #e3e9ed;font-size:12px}.history b{color:#176347}.unknown{color:#9a452c}.session-toolbar{display:flex;justify-content:space-between;gap:8px;margin-bottom:12px}.history-details{margin-top:14px;font-size:12px;color:#657687}.footer{margin-top:14px;font-size:11px;color:#6b7b88}[hidden]{display:none!important}
-${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="head"><strong>\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE</strong><select class="language" aria-label="\u8BED\u8A00"><option value="zh-CN">\u4E2D\u6587</option><option value="en">English</option></select><button class="close" aria-label="\u6536\u8D77">\xD7</button></div><div class="body"><div class="session-toolbar" hidden><button class="compact">\u8FD4\u56DE\u7CBE\u7B80 \u2199</button><button class="back">\u5BA1\u9605\u7BA1\u7406</button><button class="continue" hidden>\u7EE7\u7EED\u5BA1\u9605</button><button class="stop" hidden>\u505C\u6B62</button></div><div class="setup-view"><p class="muted">\u5148\u5BFC\u5165\u5EFA\u8BAE\u5305\uFF0C\u518D\u9010\u9879\u786E\u8BA4\u3002\u6BCF\u6B21\u63A5\u53D7\u90FD\u4F1A\u641C\u7D22\u5F53\u524D\u539F\u6587\uFF1B\u8FC7\u65F6\u6216\u4E0D\u552F\u4E00\u7684\u9879\u81EA\u52A8\u8DF3\u8FC7\u3002</p><label class="label" for="pack">\u5EFA\u8BAE\u5305 JSON</label><textarea id="pack" spellcheck="false" placeholder="\u7C98\u8D34 Agent \u751F\u6210\u7684\u5EFA\u8BAE\u5305"></textarea><input type="file" accept=".json,application/json" hidden><div class="toolbar"><button class="connect">\u8FDE\u63A5 Agent</button><button class="disconnect">\u65AD\u5F00</button></div><div class="bridge-status" role="status"></div><input class="bridge-token" type="password" placeholder="\u672C\u5730\u8FDE\u63A5\u914D\u5BF9\u4EE4\u724C" autocomplete="off"><div class="toolbar"><button class="file">\u9009\u62E9 JSON \u6587\u4EF6</button><button class="primary start">\u5F00\u59CB\u5BA1\u9605</button><button class="resume">\u6062\u590D\u4E0A\u6B21\u5BA1\u9605</button><button class="reset">\u6E05\u9664\u8FDB\u5EA6</button></div><label class="label" for="review-scope">\u5BA1\u9605\u8303\u56F4</label><select id="review-scope"><option value="current">\u5F53\u524D\u6587\u4EF6\uFF08\u591A\u6807\u7B7E\u9875\uFF09</option><option value="all">\u5168\u90E8\u6587\u4EF6\uFF08\u5355\u6807\u7B7E\u9875\uFF09</option></select><p class="shared-summary muted" hidden></p><div class="setup-message message" role="status" aria-live="polite">\u7B49\u5F85\u5BFC\u5165\u5EFA\u8BAE\u5305</div></div><div class="review-view" hidden><div class="message review-message" role="status" aria-live="polite">\u7B49\u5F85\u5BFC\u5165\u5EFA\u8BAE\u5305</div><button class="repair" hidden>\u91CD\u65B0\u5EFA\u7ACB\u5B9A\u4F4D\uFF08\u4FDD\u7559\u51B3\u5B9A\uFF09</button><div class="pending"></div><details class="history-details"><summary>\u6700\u8FD1\u5904\u7406\u8BB0\u5F55</summary><div class="history-list"></div></details><p class="footer">\u5DF2\u5199\u5165\u8868\u793A\u7F16\u8F91\u5668\u5185\u5BB9\u5DF2\u6838\u9A8C\uFF0C\u670D\u52A1\u5668\u4FDD\u5B58\u9700\u5728 Overleaf \u68C0\u67E5\u3002\u53EF\u4F7F\u7528 Overleaf \u7684\u64A4\u9500\u6309\u94AE\u3002</p></div></div><button class="resize" aria-label="\u62D6\u52A8\u53F3\u4E0B\u89D2\u8C03\u6574\u5927\u5C0F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03" title="\u62D6\u52A8\u53F3\u4E0B\u89D2\u8C03\u6574\u5927\u5C0F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03"></button></section><button class="launch">\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE</button>`;
+${Floating.css}${Keyboard.css}${Diff.css}</style><section class="drawer" hidden><div class="head"><strong>\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE</strong><select class="language" aria-label="\u8BED\u8A00"><option value="zh-CN">\u4E2D\u6587</option><option value="en">English</option></select><button class="close" aria-label="\u6536\u8D77">\xD7</button></div><div class="body"><div class="session-toolbar" hidden><button class="compact">\u8FD4\u56DE\u7CBE\u7B80 \u2199</button><button class="back">\u5BA1\u9605\u7BA1\u7406</button><button class="continue" hidden>\u7EE7\u7EED\u5BA1\u9605</button><button class="stop" hidden>\u505C\u6B62</button></div><div class="setup-view"><p class="muted">\u5148\u5BFC\u5165\u5EFA\u8BAE\u5305\uFF0C\u518D\u9010\u9879\u786E\u8BA4\u3002\u6BCF\u6B21\u63A5\u53D7\u90FD\u4F1A\u641C\u7D22\u5F53\u524D\u539F\u6587\uFF1B\u8FC7\u65F6\u6216\u4E0D\u552F\u4E00\u7684\u9879\u81EA\u52A8\u8DF3\u8FC7\u3002</p><label class="label" for="pack">\u5EFA\u8BAE\u5305 JSON</label><textarea id="pack" spellcheck="false" placeholder="\u7C98\u8D34 Agent \u751F\u6210\u7684\u5EFA\u8BAE\u5305"></textarea><input type="file" accept=".json,application/json" hidden><div class="toolbar"><button class="connect">\u8FDE\u63A5 Agent</button><button class="disconnect">\u65AD\u5F00</button></div><div class="bridge-status" role="status"></div><input class="bridge-token" type="password" placeholder="\u672C\u5730\u8FDE\u63A5\u914D\u5BF9\u4EE4\u724C" autocomplete="off"><div class="toolbar"><button class="file">\u9009\u62E9 JSON \u6587\u4EF6</button><button class="primary start">\u5F00\u59CB\u5BA1\u9605</button><button class="resume">\u6062\u590D\u4E0A\u6B21\u5BA1\u9605</button><button class="reset">\u6E05\u9664\u8FDB\u5EA6</button></div><label class="label" for="review-scope">\u5BA1\u9605\u8303\u56F4</label><select id="review-scope"><option value="current">\u5F53\u524D\u6587\u4EF6\uFF08\u591A\u6807\u7B7E\u9875\uFF09</option><option value="all">\u5168\u90E8\u6587\u4EF6\uFF08\u5355\u6807\u7B7E\u9875\uFF09</option></select><p class="shared-summary muted" hidden></p><div class="setup-message message" role="status" aria-live="polite">\u7B49\u5F85\u5BFC\u5165\u5EFA\u8BAE\u5305</div></div><div class="review-view" hidden><div class="message review-message" role="status" aria-live="polite">\u7B49\u5F85\u5BFC\u5165\u5EFA\u8BAE\u5305</div><button class="repair" hidden>\u91CD\u65B0\u5EFA\u7ACB\u5B9A\u4F4D\uFF08\u4FDD\u7559\u51B3\u5B9A\uFF09</button><div class="pending"></div><details class="history-details"><summary>\u6700\u8FD1\u5904\u7406\u8BB0\u5F55</summary><div class="history-list"></div></details><p class="footer">\u5DF2\u5199\u5165\u8868\u793A\u7F16\u8F91\u5668\u5185\u5BB9\u5DF2\u6838\u9A8C\uFF0C\u670D\u52A1\u5668\u4FDD\u5B58\u9700\u5728 Overleaf \u68C0\u67E5\u3002\u53EF\u4F7F\u7528 Overleaf \u7684\u64A4\u9500\u6309\u94AE\u3002</p></div></div><button class="resize" aria-label="\u62D6\u52A8\u53F3\u4E0B\u89D2\u8C03\u6574\u5927\u5C0F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03" title="\u62D6\u52A8\u53F3\u4E0B\u89D2\u8C03\u6574\u5927\u5C0F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03"></button></section><button class="launch">\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE</button>`;
     document.body.append(host);
     PageModal.watch({ document, window, onChange: (blocked) => {
       host.hidden = blocked;

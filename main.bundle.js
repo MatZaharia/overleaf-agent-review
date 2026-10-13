@@ -4611,11 +4611,44 @@
           event.stopPropagation();
           handler(choice);
         });
-        card.addEventListener("click", (event) => {
-          if (!event.target.closest?.("button,input,textarea,select,.panel-drag,.panel-resize")) card.focus({ preventScroll: true });
-        });
+        const activate = (event) => {
+          if (!event.target.closest?.('input,textarea,select,[contenteditable]:not([contenteditable="false"]),.panel-resize')) card.focus({ preventScroll: true });
+        };
+        card.addEventListener("pointerdown", (event) => {
+          if (event.button === 0) activate(event);
+        }, true);
+        card.addEventListener("click", activate);
       }
-      module.exports = { action, attach };
+      function deferredFocus(card, { document: document2 = card.ownerDocument, visible }) {
+        let pending = false;
+        const inside = (event) => event.composedPath?.().includes(card) || card.contains(event.target);
+        const interrupt = (event) => {
+          if (!inside(event)) cancel();
+        };
+        const hidden = () => {
+          if (document2.visibilityState === "hidden") cancel();
+        };
+        function cancel() {
+          pending = false;
+          for (const name of ["pointerdown", "focusin", "keydown"]) document2.removeEventListener(name, interrupt, true);
+          document2.removeEventListener("visibilitychange", hidden);
+        }
+        function flush() {
+          if (!pending || document2.visibilityState === "hidden" || !card.isConnected || !visible()) return;
+          cancel();
+          card.focus({ preventScroll: true });
+        }
+        function request() {
+          cancel();
+          pending = true;
+          for (const name of ["pointerdown", "focusin", "keydown"]) document2.addEventListener(name, interrupt, true);
+          document2.addEventListener("visibilitychange", hidden);
+          flush();
+        }
+        return { request, flush, cancel, dispose: cancel };
+      }
+      var css = ".card:focus-within{outline:3px solid #0969da;outline-offset:1px}";
+      module.exports = { action, attach, deferredFocus, css };
     }
   });
 
@@ -4714,6 +4747,7 @@
           const fail = (code) => ({ ok: false, code, changedDocument: false });
           function dispose() {
             if (active?.timer) window2.clearInterval(active.timer);
+            active?.focus?.dispose();
             active?.floating?.dispose();
             active?.modal?.dispose();
             active?.markHost.remove();
@@ -4728,6 +4762,7 @@
             if (active.failure) return false;
             if (isCurrent(active)) return true;
             active.failure = "review_context_changed";
+            active.focus?.dispose();
             active.floating?.dispose();
             active.modal?.dispose();
             active.markHost.remove();
@@ -4782,7 +4817,7 @@
             const markStyle = document2.createElement("style");
             markStyle.textContent = ".mark{position:absolute;background:rgba(255,176,104,.30);border-bottom:2px solid #c76827;pointer-events:none}";
             const style = document2.createElement("style");
-            style.textContent = ":host{font:13px/1.45 system-ui;color:#202833}*{box-sizing:border-box}[hidden]{display:none!important}.mark{position:absolute;background:rgba(255,176,104,.30);border-bottom:2px solid #c76827;pointer-events:none}.card{position:fixed;display:flex;flex-direction:column;pointer-events:auto;background:#fff;border:1px solid #d4dce5;border-radius:9px;padding:12px;box-shadow:0 8px 28px #14233325;overflow:hidden;padding-bottom:24px}.title-row{display:flex;align-items:center;gap:8px;flex-shrink:0;margin-bottom:6px}.title-row .title{margin:0;flex:1;min-width:0}.details{border:0;color:#176347;padding:2px 4px;background:transparent}.reason{font-size:12px;line-height:1.5;margin:0 0 10px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;flex-shrink:0}.title{font-weight:650;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}.hint,.actions{flex-shrink:0}.actions{flex-wrap:wrap}.text{flex:1;min-height:24px}.text{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 ui-monospace,monospace;background:#f6f8fa;color:#586673;padding:8px;margin:0 0 10px;overflow:auto}.hint{max-height:3em;overflow:auto;font-size:11px;color:#697383;margin:0 0 8px}.actions{display:flex;gap:8px}button{font:inherit;padding:6px 10px;border:1px solid #c8d0da;border-radius:6px;background:#fff;color:#263140;cursor:pointer}button.accept{background:#16764b;border-color:#16764b;color:#fff}button:focus-visible{outline:3px solid #78a9e6}button:disabled{opacity:.5;cursor:default}" + Floating.css + Diff.css;
+            style.textContent = ":host{font:13px/1.45 system-ui;color:#202833}*{box-sizing:border-box}[hidden]{display:none!important}.mark{position:absolute;background:rgba(255,176,104,.30);border-bottom:2px solid #c76827;pointer-events:none}.card{position:fixed;display:flex;flex-direction:column;pointer-events:auto;background:#fff;border:1px solid #d4dce5;border-radius:9px;padding:12px;box-shadow:0 8px 28px #14233325;overflow:hidden;padding-bottom:24px}.title-row{display:flex;align-items:center;gap:8px;flex-shrink:0;margin-bottom:6px}.title-row .title{margin:0;flex:1;min-width:0}.details{border:0;color:#176347;padding:2px 4px;background:transparent}.reason{font-size:12px;line-height:1.5;margin:0 0 10px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;flex-shrink:0}.title{font-weight:650;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}.hint,.actions{flex-shrink:0}.actions{flex-wrap:wrap}.text{flex:1;min-height:24px}.text{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 ui-monospace,monospace;background:#f6f8fa;color:#586673;padding:8px;margin:0 0 10px;overflow:auto}.hint{max-height:3em;overflow:auto;font-size:11px;color:#697383;margin:0 0 8px}.actions{display:flex;gap:8px}button{font:inherit;padding:6px 10px;border:1px solid #c8d0da;border-radius:6px;background:#fff;color:#263140;cursor:pointer}button.accept{background:#16764b;border-color:#16764b;color:#fff}button:focus-visible{outline:3px solid #78a9e6}button:disabled{opacity:.5;cursor:default}" + Floating.css + Diff.css + Keyboard.css;
             const marks = document2.createElement("div");
             const card = document2.createElement("section");
             card.className = "card";
@@ -4854,6 +4889,7 @@
             active.floating = Floating.attach({ panel: card, drag: title, resize, window: window2, state: panelState, minimum: { width: 290, height: 200 }, defaultRect: () => active.defaultRect || { left: 8, top: 8, width: 370, height: 220 } });
             active.elements = { title, hint, resize, actions, proposed, details, reason };
             active.diff = diff;
+            active.focus = Keyboard.deferredFocus(card, { document: document2, visible: () => !host.hidden && !card.hidden });
             active.modal = PageModal.watch({ document: document2, window: window2, onChange: (blocked) => {
               host.hidden = blocked;
               markHost.hidden = blocked;
@@ -4872,7 +4908,7 @@
               if (active?.host === host) render();
             }) });
             render();
-            if (params.reveal !== false && !host.hidden && !card.hidden) card.focus({ preventScroll: true });
+            if (params.reveal !== false && active.mode === "compact") active.focus.request();
             active.timer = window2.setInterval(render, 250);
             return { ok: true, token: params.token, changedDocument: false };
           }
@@ -4915,6 +4951,7 @@
             const first = visible[0];
             item.defaultRect = Scroll.previewRect(bounds, first);
             item.floating.layout();
+            item.focus.flush();
           }
           function labels(params) {
             if (!active) return { ok: true };
@@ -4943,7 +4980,8 @@
             if (!active || active.token !== params.token) return fail("review_preview_expired");
             active.mode = params.mode;
             render();
-            if (params.focus && !active.host.hidden && !active.card.hidden) active.card.focus({ preventScroll: true });
+            if (params.mode !== "compact") active.focus.cancel();
+            else if (params.focus) active.focus.request();
             return { ok: true, token: active.token };
           }
           function consumePresentation(params) {
