@@ -71,3 +71,9 @@ test('Enter on search navigation buttons keeps their native search action instea
  assert.equal(action(event('Enter',{composedPath:()=>[button]})),null);
  assert.equal(action(event('ArrowDown',{composedPath:()=>[button]})),'next');
 });
+
+test('Enter activates the comparison perspective control without accepting the suggestion',()=>{
+ const viewButton={matches:selector=>selector==='.perspective-button'};
+ assert.equal(action(event('Enter',{composedPath:()=>[viewButton]})),null);
+ assert.equal(action(event('ArrowDown',{composedPath:()=>[viewButton]})),'next');
+});

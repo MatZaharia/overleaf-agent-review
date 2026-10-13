@@ -23,3 +23,13 @@ test('review screen and pending position translate without changing numbers',()=
  assert.equal(I18n.translate('建议 2 / 2','en'),'Suggestion 2 / 2');
  for(const label of ['逐项审阅','← 返回导入','继续审阅','最近处理记录'])assert.doesNotMatch(I18n.translate(label,'en'),/[\u3400-\u9fff]/);
 });
+
+test('manual import and stop recovery instructions translate in both modes',()=>{
+ for(const label of ['用 JSON 导入','粘贴建议包，或选择 JSON 文件；导入后点击开始审阅。','审阅已停止，可重新开始或恢复上次审阅']){
+  assert.equal(I18n.translate(label,'zh-CN'),label);assert.doesNotMatch(I18n.translate(label,'en'),/[\u3400-\u9fff]/);
+ }
+});
+
+test('compact toolbar and comparison perspectives have English labels',()=>{
+ for(const label of ['Agent 连接','未连接','连接','建议包','对比视角','简洁对比','完整上下文','精简 ↙','管理','接受 ↵','逐项确认后写入，可在 Overleaf 撤销。'])assert.doesNotMatch(I18n.translate(label,'en'),/[\u3400-\u9fff]/,label);
+});

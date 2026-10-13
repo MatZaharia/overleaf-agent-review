@@ -8,7 +8,7 @@
 
 Review one change at a time, directly inside Overleaf.
 
-[![Release](https://img.shields.io/github/v/release/MatZaharia/overleaf-agent-review?include_prereleases&style=flat-square&color=6752c7)](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.8.0)
+[![Release](https://img.shields.io/github/v/release/MatZaharia/overleaf-agent-review?include_prereleases&style=flat-square&color=6752c7)](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.9.0)
 [![CI](https://github.com/MatZaharia/overleaf-agent-review/actions/workflows/ci.yml/badge.svg)](https://github.com/MatZaharia/overleaf-agent-review/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-278262?style=flat-square)](LICENSE)
 [![Chrome](https://img.shields.io/badge/Chrome-Manifest_V3-456cb3?style=flat-square)](#install)
@@ -16,7 +16,7 @@ Review one change at a time, directly inside Overleaf.
 
 **English** · [简体中文](README.zh-CN.md)
 
-[Download extension](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.8.0) · [Connect your Agent](#local-agent-connection) · [Agent guide](docs/agent-guide.md) · [Report an issue](https://github.com/MatZaharia/overleaf-agent-review/issues)
+[Download extension](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.9.0) · [Connect your Agent](#local-agent-connection) · [Agent guide](docs/agent-guide.md) · [Report an issue](https://github.com/MatZaharia/overleaf-agent-review/issues)
 
 </div>
 
@@ -58,7 +58,7 @@ Your Agent sends a suggestion pack. Overleaf highlights the changed characters. 
 
 ## Install
 
-1. Download the extension ZIP from [Releases](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.8.0) and extract it. Use the extension asset, rather than GitHub's automatically generated source ZIP.
+1. Download the extension ZIP from [Releases](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.9.0) and extract it. Use the extension asset, rather than GitHub's automatically generated source ZIP.
 2. Open `chrome://extensions` in Chrome and enable **Developer mode**.
 3. Click **Load unpacked** and select the extracted `overleaf-agent-review` folder containing `manifest.json`.
 4. Open your Overleaf project and refresh the page. Select **Code** mode.
@@ -160,6 +160,10 @@ Review starts with **one compact card beside the highlighted source**. It contai
 
 **Review setup** opens import, connection and recent decisions without restarting the current item. **Continue review** returns to it. When the compact card is outside the source viewport, the bottom-right **Details ↗** button still opens the current item.
 
+**v1.9.0:** Stop returns directly to review setup, preserving saved decisions. Manual paste and file upload share the collapsed **Import with JSON** section below the setup controls. Expand it to paste a pack or choose a file, then click **Start review**.
+
+The detail and setup screens use a compact header, consistent setup controls and a fixed search/action footer. Full context shows before/after panes side by side above 560px panel width, stacking them on narrower panels. Compact/full comparison selection, search and decisions survive item and screen switches. See [v1.9.0 validation](docs/validation-v1.9.0.md).
+
 The counter is **position / total in the pending queue**, not the original pack index. Settling `2 / 3` moves the next item to `2 / 2`. Accepting, rejecting or skipping reduces the total; switching views or navigating does not. Saved decisions are excluded on resume. The original pack index remains as `#N` in the detail view.
 
 Both views are movable and resizable, but only one is shown at a time. Drag the title or bottom-right grip; their separate layouts survive view and item changes. Arrow keys on a title/grip adjust layout (Shift for larger steps). Switch **中文 / English** in the detail or setup header; the choice is saved locally. Source, replacements and Agent reasons remain verbatim.
@@ -176,7 +180,7 @@ You can click elsewhere in the editor and type normally while a suggestion stays
 
 Undoing an accepted change returns its suggestion to the pending queue and updates its counter and navigation. Unrelated accepted changes keep their baseline positions. If review has already ended or you undid a change while review was stopped, click **Resume last review** to reconcile the open file with saved progress. Rejections remain decided. Redo never causes an automatic editor write. See [v1.5.3 validation](docs/validation-v1.5.3.md).
 
-These interface improvements are included in the v1.8.0 Release ZIP. Reload the updated extension and refresh Overleaf.
+These interface improvements are included in the v1.9.0 Release ZIP. Reload the updated extension and refresh Overleaf.
 
 **上一项 / 下一项** cycle through undecided suggestions in pack order, wrapping from the last pending item to the first and from the first to the last. Buttons in either view and the review card’s ↑ / ↓ keys use the same loop. With two pending items, either direction reaches the other; with only one, the current item stays selected. **光标上一处 / 光标下一处** find the nearest locatable undecided suggestion before/after the editor cursor in the current file, using live character-change positions rather than JSON order or line numbers. Navigation moves the preview only; it does not reject or write an item. Deferred items remain pending and return after later items are settled. Accepted/rejected items are excluded. If source, file or cursor changes during a search, retry the navigation.
 

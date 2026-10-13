@@ -1,6 +1,8 @@
 'use strict';
 // UI text only. Manuscript source, replacements and Agent reasons are never passed here.
 const english = {
+ 'Agent 连接':'Agent connection','未连接':'Disconnected','连接':'Connect','建议包':'Suggestion pack','对比视角':'Comparison view','简洁对比':'Compact diff','完整上下文':'Full context','精简 ↙':'Compact ↙','管理':'Setup','接受 ↵':'Accept ↵','逐项确认后写入，可在 Overleaf 撤销。':'Changes are written after your confirmation. Undo in Overleaf.',
+ '用 JSON 导入':'Import with JSON','粘贴建议包，或选择 JSON 文件；导入后点击开始审阅。':'Paste a suggestion pack or choose a JSON file, then click Start review.','审阅已停止，可重新开始或恢复上次审阅':'Review stopped. Start again or resume your saved review',
  '搜索建议':'Search suggestions','搜索原文或修改后':'Search original or replacement','上一个搜索项':'Previous match','下一个搜索项':'Next match','正在搜索建议…':'Searching suggestions…','没有匹配的待处理建议':'No matching pending suggestions','搜索失败，请重新输入':'Search failed; edit the query to retry',
  '审阅范围':'Review scope','当前文件（多标签页）':'Current file (multiple tabs)','全部文件（单标签页）':'All files (one tab)',
  '本页只审阅开始时的文件；请定位当前项，或停止后在新文件开始审阅':'This tab reviews its starting file. Locate the current item, or stop and start review in the new file.',

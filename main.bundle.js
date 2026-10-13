@@ -2262,6 +2262,20 @@
     "src/i18n.js"(exports, module) {
       "use strict";
       var english = {
+        "Agent \u8FDE\u63A5": "Agent connection",
+        "\u672A\u8FDE\u63A5": "Disconnected",
+        "\u8FDE\u63A5": "Connect",
+        "\u5EFA\u8BAE\u5305": "Suggestion pack",
+        "\u5BF9\u6BD4\u89C6\u89D2": "Comparison view",
+        "\u7B80\u6D01\u5BF9\u6BD4": "Compact diff",
+        "\u5B8C\u6574\u4E0A\u4E0B\u6587": "Full context",
+        "\u7CBE\u7B80 \u2199": "Compact \u2199",
+        "\u7BA1\u7406": "Setup",
+        "\u63A5\u53D7 \u21B5": "Accept \u21B5",
+        "\u9010\u9879\u786E\u8BA4\u540E\u5199\u5165\uFF0C\u53EF\u5728 Overleaf \u64A4\u9500\u3002": "Changes are written after your confirmation. Undo in Overleaf.",
+        "\u7528 JSON \u5BFC\u5165": "Import with JSON",
+        "\u7C98\u8D34\u5EFA\u8BAE\u5305\uFF0C\u6216\u9009\u62E9 JSON \u6587\u4EF6\uFF1B\u5BFC\u5165\u540E\u70B9\u51FB\u5F00\u59CB\u5BA1\u9605\u3002": "Paste a suggestion pack or choose a JSON file, then click Start review.",
+        "\u5BA1\u9605\u5DF2\u505C\u6B62\uFF0C\u53EF\u91CD\u65B0\u5F00\u59CB\u6216\u6062\u590D\u4E0A\u6B21\u5BA1\u9605": "Review stopped. Start again or resume your saved review",
         "\u641C\u7D22\u5EFA\u8BAE": "Search suggestions",
         "\u641C\u7D22\u539F\u6587\u6216\u4FEE\u6539\u540E": "Search original or replacement",
         "\u4E0A\u4E00\u4E2A\u641C\u7D22\u9879": "Previous match",
@@ -4606,7 +4620,7 @@
       function action(event) {
         if (event.defaultPrevented || event.isComposing || event.repeat || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return null;
         const path = event.composedPath?.() || [event.target];
-        if (event.key === "Enter" && path.some((node) => node?.matches?.(".locate") || node?.matches?.(".search-navigation"))) return null;
+        if (event.key === "Enter" && path.some((node) => node?.matches?.(".locate") || node?.matches?.(".search-navigation") || node?.matches?.(".perspective-button"))) return null;
         if (path.some((node) => node?.matches?.('input,textarea,select,[contenteditable]:not([contenteditable="false"]),.panel-drag,.panel-resize'))) return null;
         return { ArrowUp: "previous", ArrowDown: "next", Enter: "accept" }[event.key] || null;
       }

@@ -10,15 +10,23 @@ const Keyboard = require('./reviewKeyboard');
 const Scroll = require('./reviewScroll');
 const ExtensionRuntime = require('./extensionRuntime');
 const PageModal = require('./pageModal');
+const PanelStyles = require('./panelStyles');
 if (!document.querySelector('[data-suggestion-importer]')) mount();
 function mount() {
   const host = document.createElement('div'); host.dataset.suggestionImporter = '';
   host.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:2147483100;';
   const shadow = host.attachShadow({ mode: 'open' });
-  shadow.innerHTML = `<style>
-:host{font:13px/1.5 system-ui;color:#273342}*{box-sizing:border-box}button,textarea,input{font:inherit}button{border:1px solid #cdd6df;border-radius:6px;background:#fff;color:#273342;padding:7px 11px;cursor:pointer}button:disabled{opacity:.45;cursor:default}button:focus-visible,textarea:focus-visible{outline:3px solid #8aafe3;outline-offset:2px}.primary,.launch{background:#176347;color:#fff;border-color:#176347}.launch{box-shadow:0 4px 18px #18352925}.drawer{position:fixed;display:flex;flex-direction:column;overflow:hidden;background:#fff;border:1px solid #cbd5de;border-radius:10px;box-shadow:0 10px 40px #14253630;margin-bottom:10px}.head{padding:14px 16px;border-bottom:1px solid #e0e6ec;display:flex;align-items:center;justify-content:space-between}.head strong{font-size:15px}.head button{padding:3px 8px}.body{padding:16px 16px 26px;overflow:auto;min-height:0;flex:1}.head{flex-shrink:0;gap:12px}.head strong{flex:1}.language{font:inherit;border:1px solid #cdd6df;border-radius:5px;background:white;padding:3px}.muted{color:#657687;font-size:12px;margin:0 0 12px}.label{display:block;margin-bottom:6px;font-weight:600}textarea{display:block;width:100%;height:130px;padding:10px;border:1px solid #ccd7e0;border-radius:6px;resize:vertical;font:12px/1.45 ui-monospace,monospace}.toolbar{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.message{font-size:12px;padding:10px;background:#f0f5f4;border-radius:5px}.card{border:1px solid #d2dce4;border-radius:7px;padding:12px;margin-top:12px}.card strong{display:block}.path{font:11px/1.5 ui-monospace,monospace;color:#687888}.reason{font-size:12px;margin:8px 0}.comparison-label{font-weight:600;font-size:12px;margin:12px 0 6px}.context{font-size:12px;color:#657687;margin:14px 0}.context summary{cursor:pointer;padding:8px;border:1px solid #e0e6ec;border-radius:6px}.card{border:0;padding:0}.path{margin-top:4px}.reason{line-height:1.6}.session-toolbar{flex-wrap:wrap}.source{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 ui-monospace,monospace;margin:6px 0 10px;padding:8px;overflow:auto;border-radius:4px}.old,.new{background:#f6f8fa;color:#586673}.actions{display:flex;gap:8px}.history{padding:8px 0;border-bottom:1px solid #e3e9ed;font-size:12px}.history b{color:#176347}.unknown{color:#9a452c}.session-toolbar{display:flex;justify-content:space-between;gap:8px;margin-bottom:12px}.history-details{margin-top:14px;font-size:12px;color:#657687}.footer{margin-top:14px;font-size:11px;color:#6b7b88}[hidden]{display:none!important}
-.drawer{container-type:size}.source{max-height:max(100px,calc((100cqh - 240px)/2))}.combined{max-height:max(120px,calc(100cqh - 340px))}.search-label{display:block;font-size:12px;margin:12px 0 6px}.suggestion-search{width:100%;padding:7px 9px;border:1px solid #cdd6df;border-radius:6px;background:#fff;color:inherit}.search-status{font-size:11px;color:#657687;margin:4px 0 0}.search-navigation{border-color:#b8ccc5}
-${Floating.css}${Keyboard.css}${Diff.css}</style><section class="drawer" hidden><div class="head"><strong>导入修改建议</strong><select class="language" aria-label="语言"><option value="zh-CN">中文</option><option value="en">English</option></select><button class="close" aria-label="收起">×</button></div><div class="body"><div class="session-toolbar" hidden><button class="compact">返回精简 ↙</button><button class="back">审阅管理</button><button class="continue" hidden>继续审阅</button><button class="stop" hidden>停止</button></div><div class="setup-view"><p class="muted">先导入建议包，再逐项确认。每次接受都会搜索当前原文；过时或不唯一的项自动跳过。</p><label class="label" for="pack">建议包 JSON</label><textarea id="pack" spellcheck="false" placeholder="粘贴 Agent 生成的建议包"></textarea><input type="file" accept=".json,application/json" hidden><div class="toolbar"><button class="connect">连接 Agent</button><button class="disconnect">断开</button></div><div class="bridge-status" role="status"></div><input class="bridge-token" type="password" placeholder="本地连接配对令牌" autocomplete="off"><div class="toolbar"><button class="file">选择 JSON 文件</button><button class="primary start">开始审阅</button><button class="resume">恢复上次审阅</button><button class="reset">清除进度</button></div><label class="label" for="review-scope">审阅范围</label><select id="review-scope"><option value="current">当前文件（多标签页）</option><option value="all">全部文件（单标签页）</option></select><p class="shared-summary muted" hidden></p><div class="setup-message message" role="status" aria-live="polite">等待导入建议包</div></div><div class="review-view" hidden><div class="message review-message" role="status" aria-live="polite">等待导入建议包</div><button class="repair" hidden>重新建立定位（保留决定）</button><div class="pending"></div><details class="history-details"><summary>最近处理记录</summary><div class="history-list"></div></details><p class="footer">已写入表示编辑器内容已核验，服务器保存需在 Overleaf 检查。可使用 Overleaf 的撤销按钮。</p></div></div><button class="resize" aria-label="拖动右下角调整大小；方向键微调" title="拖动右下角调整大小；方向键微调"></button></section><button class="launch">导入修改建议</button>`;
+  shadow.innerHTML = `<style>${PanelStyles.css}${Floating.css}${Keyboard.css}${Diff.css}</style>
+<section class="drawer" data-screen="setup" hidden>
+ <div class="head"><strong>审阅管理</strong><div class="session-toolbar" hidden><button class="compact">精简 ↙</button><button class="back">管理</button><button class="continue" hidden>继续审阅</button><button class="stop" hidden>停止</button></div><select class="language" aria-label="语言"><option value="zh-CN">中文</option><option value="en">English</option></select><button class="close" aria-label="收起">×</button></div>
+ <div class="body"><div class="setup-view">
+  <section class="setup-section"><div class="section-heading"><h2>Agent 连接</h2><span class="bridge-status" role="status">未连接</span></div><div class="connection-row"><input class="bridge-token" aria-label="本地连接配对令牌" type="password" placeholder="本地连接配对令牌" autocomplete="off"><button class="connect">连接</button><button class="disconnect" hidden>断开</button></div></section>
+  <section class="setup-section"><div class="section-heading"><h2>建议包</h2></div><div class="setup-message message" role="status" aria-live="polite">等待导入建议包</div><p class="shared-summary muted" hidden></p><label class="label" for="review-scope">审阅范围</label><select id="review-scope"><option value="current">当前文件（多标签页）</option><option value="all">全部文件（单标签页）</option></select><div class="setup-actions"><button class="primary start">开始审阅</button><button class="resume">恢复上次审阅</button></div></section>
+  <details class="json-import"><summary>用 JSON 导入</summary><p class="muted">粘贴建议包，或选择 JSON 文件；导入后点击开始审阅。</p><label class="label" for="pack">建议包 JSON</label><textarea id="pack" spellcheck="false" placeholder="粘贴 Agent 生成的建议包"></textarea><input type="file" accept=".json,application/json" hidden><div class="toolbar"><button class="file">选择 JSON 文件</button></div></details>
+  <details class="history-details"><summary>最近处理记录</summary><div class="history-list"></div></details><button class="reset text-button">清除进度</button><p class="footer">逐项确认后写入，可在 Overleaf 撤销。</p>
+ </div><div class="review-view" hidden><div class="message review-message" role="status" aria-live="polite">等待导入建议包</div><button class="repair" hidden>重新建立定位（保留决定）</button><div class="pending"></div></div></div>
+ <button class="resize" aria-label="拖动右下角调整大小；方向键微调" title="拖动右下角调整大小；方向键微调"></button>
+</section><button class="launch">导入修改建议</button>`;
   document.body.append(host);
   PageModal.watch({document,window,onChange:blocked=>{host.hidden=blocked}});
   const $ = selector => shadow.querySelector(selector);
@@ -65,12 +73,11 @@ ${Floating.css}${Keyboard.css}${Diff.css}</style><section class="drawer" hidden>
   uiAttributes.set($('.head'),{'aria-label':$('.head').getAttribute('aria-label'),title:$('.head').title});
   const floating=Floating.attach({panel:$('.drawer'),drag:$('.head'),resize:$('.resize'),window,minimum:{width:300,height:220},defaultRect:()=>({left:window.innerWidth-406,top:Math.max(16,window.innerHeight-Math.min(600,window.innerHeight*.85)-60),width:390,height:Math.min(600,window.innerHeight*.85)})});
   floating.layout();
-  $('.setup-view').append($('.history-details'),$('.footer'));
   let screen='setup';
   function showScreen(next){
-    const changed=screen!==next;screen=next;$('.setup-view').hidden=screen!=='setup';$('.review-view').hidden=screen!=='review';
+    const changed=screen!==next;screen=next;$('.drawer').dataset.screen=screen;$('.setup-view').hidden=screen!=='setup';$('.review-view').hidden=screen!=='review';
     $('.session-toolbar').hidden=screen==='setup'&&!running;$('.back').hidden=screen!=='review';$('.compact').hidden=screen!=='review'||!running;$('.continue').hidden=screen!=='setup'||!running;
-    setUI($('.head strong'),screen==='review'?'建议详情':'导入修改建议');if(changed)$('.body').scrollTop=0;
+    setUI($('.head strong'),screen==='review'?'建议详情':'审阅管理');if(changed)$('.body').scrollTop=0;
     if(presentCurrent&&screen==='setup')presentCurrent('setup').catch(error=>status(error.message));
   }
   let startEpoch = 0, sessionActive=false, reconcileReview=null, decisionUpdates=[];
@@ -130,7 +137,7 @@ ${Floating.css}${Keyboard.css}${Diff.css}</style><section class="drawer" hidden>
         try{return await statusRequest}finally{statusRequest=null}
       }
       const card = document.createElement('section'); card.className = 'card';card.setAttribute('aria-label','建议详情');
-      card.innerHTML = '<strong></strong><p class="shared-summary muted" hidden></p><div class="path"></div><div class="comparison-label">修改理由</div><p class="reason"></p><div class="comparison-label">修改对比</div><pre class="source combined"></pre><details class="context"><summary>查看完整上下文</summary><div>原文 · 标出删除</div><pre class="source old"></pre><div>修改后 · 标出新增</div><pre class="source new"></pre></details><label class="search-label" for="suggestion-search">搜索建议</label><input id="suggestion-search" class="suggestion-search" type="search" placeholder="搜索原文或修改后" aria-label="搜索建议" spellcheck="false"><p class="search-status" role="status" aria-live="polite"></p><div class="toolbar navigation"><button class="previous">上一项</button><button class="next">下一项</button><button class="cursor-previous">光标上一处</button><button class="cursor-next">光标下一处</button><button class="search-previous search-navigation" disabled>上一个搜索项</button><button class="search-next search-navigation" disabled>下一个搜索项</button></div><div class="actions"><button class="reject">拒绝这一项</button><button class="primary accept">接受这一项</button></div>';
+      card.innerHTML = `<div class="review-content"><div class="suggestion-meta"><strong></strong><p class="shared-summary muted" hidden></p></div><div class="path"></div><div class="comparison-label">修改理由</div><p class="reason"></p><div class="perspective" role="group" aria-label="对比视角"><button class="perspective-button concise">简洁对比</button><button class="perspective-button full">完整上下文</button></div><pre class="source combined"></pre><div class="context" hidden><div class="context-panes"><section class="code-pane"><div class="pane-heading">原文 · 标出删除</div><pre class="source old"></pre></section><section class="code-pane"><div class="pane-heading">修改后 · 标出新增</div><pre class="source new"></pre></section></div></div></div><div class="search-bar"><span class="search-icon" aria-hidden="true">⌕</span><input id="suggestion-search" class="suggestion-search" type="search" placeholder="搜索原文或修改后" aria-label="搜索建议" spellcheck="false"><span class="search-status" role="status" aria-live="polite"></span><button class="search-previous search-navigation" aria-label="上一个搜索项" title="上一个搜索项" disabled>↑</button><button class="search-next search-navigation" aria-label="下一个搜索项" title="下一个搜索项" disabled>↓</button></div><div class="review-footer"><div class="footer-controls"><div class="navigation"><div class="nav-group"><button class="previous">上一项</button><button class="next">下一项</button></div><div class="nav-group cursor-group"><button class="cursor-previous">光标上一处</button><button class="cursor-next">光标下一处</button></div></div><div class="actions"><button class="reject">拒绝</button><button class="primary accept">接受 ↵</button></div></div></div>`;
       $('.pending').replaceChildren(card);
       rememberUI(card);showShared();
       const searchInput=card.querySelector('.suggestion-search'),searchStatus=card.querySelector('.search-status');
@@ -143,7 +150,9 @@ ${Floating.css}${Keyboard.css}${Diff.css}</style><section class="drawer" hidden>
         const canNavigate=matches.some(index=>index!==options.index);
         searchButtons.forEach(button=>{button.disabled=navigating||!canNavigate});
         const label=!searchQuery?'搜索原文或修改后':searchError?'搜索失败，请重新输入':searchMatches===null?'正在搜索建议…':matches.length?'搜索结果 '+(matches.indexOf(options.index)+1)+' / '+matches.length:'没有匹配的待处理建议';
-        if(searchStatus.textContent!==t(label))setUI(searchStatus,label);
+        const count=searchQuery&&searchMatches!==null&&!searchError?(matches.indexOf(options.index)+1)+' / '+matches.length:'0 / 0';
+        searchStatus.textContent=count;searchStatus.setAttribute('aria-label',t(label));searchStatus.title=t(label);
+        searchStatus.classList.toggle('search-error',Boolean(searchError));
       }
       async function findSuggestions(){
         const own=++searchEpoch,query=searchQuery;searchMatches=null;searchError=null;renderSearch();
@@ -160,9 +169,11 @@ ${Floating.css}${Keyboard.css}${Diff.css}</style><section class="drawer" hidden>
       searchButtons[0].addEventListener('click',()=>navigateSearch(-1));searchButtons[1].addEventListener('click',()=>navigateSearch(1));
       searchInput.addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.isComposing&&!event.repeat&&!event.ctrlKey&&!event.altKey&&!event.metaKey){event.preventDefault();event.stopPropagation();navigateSearch(event.shiftKey?-1:1)}});
       findSuggestions();
-      const context=card.querySelector('.context'),comparison=card.querySelector('.combined'),comparisonLabel=comparison.previousElementSibling;
-      function contextPerspective(){if(!card.isConnected)return;fullContext=context.open;comparison.hidden=fullContext;comparisonLabel.hidden=fullContext;setUI(context.querySelector('summary'),fullContext?'返回简洁对比':'查看完整上下文')}
-      context.open=fullContext;contextPerspective();context.addEventListener('toggle',contextPerspective);
+      const context=card.querySelector('.context'),comparison=card.querySelector('.combined');
+      const conciseButton=card.querySelector('.concise'),fullButton=card.querySelector('.full');
+      function contextPerspective(){if(!card.isConnected)return;context.hidden=!fullContext;comparison.hidden=fullContext;conciseButton.setAttribute('aria-pressed',String(!fullContext));fullButton.setAttribute('aria-pressed',String(fullContext))}
+      contextPerspective();
+      conciseButton.addEventListener('click',()=>{fullContext=false;contextPerspective()});fullButton.addEventListener('click',()=>{fullContext=true;contextPerspective()});
       const locate=document.createElement('button');locate.className='locate';locate.hidden=!suspended;setUI(locate,'定位当前项');card.querySelector('.navigation').prepend(locate);
       locate.addEventListener('click',()=>{if(!settled&&!navigating){assertCurrent();finish(undefined,undefined,options.index)}});
       const renderCount=()=>{const node=card.querySelector('strong'),text='建议 '+options.position+' / '+options.remaining;if(node.textContent!==t(text))setUI(node,text)};renderCount();
@@ -175,7 +186,7 @@ ${Floating.css}${Keyboard.css}${Diff.css}</style><section class="drawer" hidden>
         else {card.querySelector('.combined').textContent=displayed.item?.replacement ?? item.replacement;card.querySelector('.old').textContent=displayed.item?.original || item.original;card.querySelector('.new').textContent=displayed.item?.replacement ?? item.replacement}
       }
       renderDiff();
-      const help=document.createElement('p');help.className='muted keyboard-help';setUI(help,'↑ 上一项 · ↓ 下一项 · Enter 接受（审阅卡片内）');card.append(help);
+      const help=document.createElement('p');help.className='muted keyboard-help';setUI(help,'↑ 上一项 · ↓ 下一项 · Enter 接受（审阅卡片内）');card.querySelector('.review-footer').append(help);
       const refresh=()=>{renderDiff();renderSearch();card.setAttribute('aria-label',t('建议详情'))};reviewLanguageRefresh=refresh;
       status(prepared.inline ? '原文已在源码中高亮，等待确认' : '高亮暂不可用，请在此核对原文与建议');
       async function present(mode,focus=false){
@@ -195,7 +206,6 @@ ${Floating.css}${Keyboard.css}${Diff.css}</style><section class="drawer" hidden>
       presentCurrent=present;
       function finish(accepted, skipped, navigate) {
         if (settled) return;
-        fullContext=context.open;
         settled = true; clearTimeout(timer); clearTimeout(searchTimer); pendingAbort = null;if(presentCurrent===present)presentCurrent=null;if(reviewLanguageRefresh===refresh)reviewLanguageRefresh=null;
         card.querySelectorAll('button').forEach(button => { button.disabled = true; });
         resolve({ accepted, skipped, token, navigate });
@@ -356,7 +366,7 @@ ${Floating.css}${Keyboard.css}${Diff.css}</style><section class="drawer" hidden>
       $('.drawer').hidden=false;floating.layout();
       if(error.code==='tracking_out_of_sync'){trackingFile=error.file;$('.repair').hidden=false;status('定位记录与当前正文不一致，审阅已暂停。可重新建立定位，保留接受／拒绝决定。')}
       else if(error.code==='review_lease_lost')status('标签页审阅权限已失效，请重新开始审阅');
-      else if(error.code==='cancelled')status(stopReason==='update'?'正在载入新版本建议…':'审阅已停止，可返回导入后继续');
+      else if(error.code==='cancelled')status(stopReason==='update'?'正在载入新版本建议…':'审阅已停止，可重新开始或恢复上次审阅');
       else status(error.code === 'write_unconfirmed' ? '写入结果未确认，已停止。请检查当前正文，不要重复接受。' : '审阅已停止：' + (error.code || error.message));
     } finally {
       searchIndex?.cancel();pendingAbort?.(); pendingAbort = null;
@@ -364,7 +374,7 @@ ${Floating.css}${Keyboard.css}${Diff.css}</style><section class="drawer" hidden>
       sessionActive=false;if(reviewLease){await runtime.message({type:'reviewRelease',lease:reviewLease}).catch(()=>{});reviewLease=null}
       $('#review-scope').disabled=false;
       $('.pending').replaceChildren();reviewLanguageRefresh=null;presentCurrent=null; running = false;setUI($('.launch'),'导入修改建议');
-      $('.start').disabled = false;$('.resume').disabled=false;$('.reset').disabled=false; $('.file').disabled = false; $('#pack').disabled = false; $('.stop').hidden = true;showScreen(screen);if(contextLost)lockInvalidContext();
+      $('.start').disabled = false;$('.resume').disabled=false;$('.reset').disabled=false; $('.file').disabled = false; $('#pack').disabled = false; $('.stop').hidden = true;showScreen(stopReason==='user'?'setup':screen);if(contextLost)lockInvalidContext();
     }
   }
 
@@ -373,9 +383,9 @@ ${Floating.css}${Keyboard.css}${Diff.css}</style><section class="drawer" hidden>
     if(!persistent){status('本地连接需要在 Chrome 扩展中使用');return;}
     const result=await bridgeMessage({type:'connect',token:$('.bridge-token').value}).catch(e=>({error:e.message}));
     if(!result.ok){setUI($('.bridge-status'),result.error);return;}
-    $('.bridge-token').value=''; bridgeEnabled=true; setUI($('.bridge-status'),'已连接：Agent 请求时才读取源码；新建议等待逐项确认'); pollBridge();
+    $('.bridge-token').value=''; bridgeEnabled=true;$('.connect').hidden=true;$('.disconnect').hidden=false; setUI($('.bridge-status'),'已连接：Agent 请求时才读取源码；新建议等待逐项确认'); pollBridge();
   });
-  $('.disconnect').addEventListener('click',async()=>{bridgeEnabled=false;try{if(persistent)await bridgeMessage({type:'disconnect'});setUI($('.bridge-status'),'已断开本地连接')}catch(error){status(error.message)}});
+  $('.disconnect').addEventListener('click',async()=>{bridgeEnabled=false;$('.connect').hidden=false;$('.disconnect').hidden=true;try{if(persistent)await bridgeMessage({type:'disconnect'});setUI($('.bridge-status'),'已断开本地连接')}catch(error){status(error.message)}});
   async function pollBridge(){
     if(!bridgeEnabled||bridgeBusy)return;bridgeBusy=true;
     try {
@@ -383,7 +393,7 @@ ${Floating.css}${Keyboard.css}${Diff.css}</style><section class="drawer" hidden>
       const result=await bridgeMessage({type:'sync',revision:bridgeRevision,results:batch});
       if(!bridgeEnabled)return;
       if(result.ok)bridgeResults.splice(0,batch.length);
-      if(result.disconnected){bridgeEnabled=false;return;}
+      if(result.disconnected){bridgeEnabled=false;$('.connect').hidden=false;$('.disconnect').hidden=true;setUI($('.bridge-status'),'已断开本地连接');return;}
       if(!result.ok)throw new Error(result.error);
       if(result.snapshotRequest && document.visibilityState==='visible'){
         const snapshot=await call('snapshot',{});
@@ -415,10 +425,10 @@ ${Floating.css}${Keyboard.css}${Diff.css}</style><section class="drawer" hidden>
   $('.close').addEventListener('click', () => {if(running&&presentCurrent&&screen==='review'){presentCurrent('compact',true).catch(error=>status(error.message));return} $('.drawer').hidden = true; });
   $('.file').addEventListener('click', () => $('input[type=file]').click());
   $('input[type=file]').addEventListener('change', async event => {
-    const file = event.target.files?.[0]; if (!file) return;
+    const input = event.currentTarget;const file = input.files?.[0]; if (!file) return;
     if (file.size > Core.MAX_PACK_BYTES) { status('建议包不能超过 64 MiB'); return; }
     try { importedPack = await file.text(); setPackLabel('已载入文件：'+file.name+'（正文不在输入框展开）'); status('已读取建议包，点击开始审阅'); } catch (_) { status('无法读取文件'); }
-    event.target.value = '';
+    input.value = '';
   });
   $('#pack').addEventListener('input',()=>{importedPack=null;packLabel=null;});
   $('.resume').addEventListener('click',async()=>{
@@ -439,5 +449,5 @@ ${Floating.css}${Keyboard.css}${Diff.css}</style><section class="drawer" hidden>
     sessionActive=false;sharedSummary=null;shadow.querySelectorAll('.shared-summary').forEach(node=>{node.hidden=true});$('.history-list').replaceChildren();status('已清除当前项目的审阅进度；正文不变，可重新导入审阅');
   });
   $('.start').addEventListener('click', start);
-  $('.stop').addEventListener('click', () => { ++startEpoch; stopReason='user';pendingBridgeStart=false;cancelled = true; pendingAbort?.(); call('cancel', {}).catch(() => {}); status('正在停止；已派发的项需核验实际结果。'); });
+  $('.stop').addEventListener('click', () => { ++startEpoch; stopReason='user';pendingBridgeStart=false;cancelled = true; pendingAbort?.(); call('cancel', {}).catch(() => {}); showScreen('setup');$('.drawer').hidden=false;floating.layout();status('正在停止；已派发的项需核验实际结果。'); });
 }
