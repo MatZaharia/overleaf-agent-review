@@ -31,6 +31,8 @@ function open(file){if(view){docs[current]=view.state.doc.toString();view.destro
 window.overleaf={unstable:{store:{get(path){return {'editor.view':view,'editor.open_doc_name':current,'editor.open_doc_id':current==='main.tex'?'0123456789abcdef01234568':'0123456789abcdef01234569'}[path];}},editorView:null}};
 window._ide={project:{_id:'0123456789abcdef01234567'}};
 open(current);
+document.querySelector('#page-modal').addEventListener('click',()=>{document.querySelector('#fixture-modal').hidden=false;document.querySelector('#close-page-modal').focus()});
+document.querySelector('#close-page-modal').addEventListener('click',()=>{document.querySelector('#fixture-modal').hidden=true});
 document.querySelectorAll('[data-path]').forEach(node=>node.addEventListener('click',()=>open(node.dataset.path)));
 document.querySelector('#load-sample').addEventListener('click',()=>{
  const importer=document.querySelector('[data-suggestion-importer]').shadowRoot;

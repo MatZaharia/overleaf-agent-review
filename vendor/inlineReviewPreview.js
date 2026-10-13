@@ -2,6 +2,7 @@ const Floating = require('../src/floatingPanel');
 const Diff = require('../src/reviewDiff');
 const Keyboard = require('../src/reviewKeyboard');
 const Scroll = require('../src/reviewScroll');
+const PageModal = require('../src/pageModal');
 (function (root, factory) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
@@ -17,6 +18,8 @@ const Scroll = require('../src/reviewScroll');
     function dispose() {
       if (active?.timer) window.clearInterval(active.timer);
       active?.floating?.dispose();
+      active?.modal?.dispose();
+      active?.markHost.remove();
       active?.host.remove();
       active = null;
     }
@@ -31,6 +34,8 @@ const Scroll = require('../src/reviewScroll');
       if (isCurrent(active)) return true;
       active.failure = 'review_context_changed';
       active.floating?.dispose();
+      active.modal?.dispose();
+      active.markHost.remove();
       active.host.remove();
       if (active.timer) window.clearInterval(active.timer);
       return false;
@@ -76,6 +81,12 @@ const Scroll = require('../src/reviewScroll');
       host.dataset.codexInlineReview = '';
       host.style.cssText = 'position:fixed;z-index:2147483000;pointer-events:none;overflow:visible;';
       const shadow = host.attachShadow({ mode: 'open' });
+      // Marks have their own low layer, below webpage dialogs. Interactive
+      // cards may float above the editor, but never while a page modal is open.
+      const markHost=document.createElement('div');markHost.dataset.agentReviewMarks='';
+      markHost.style.cssText='position:fixed;z-index:10;pointer-events:none;overflow:hidden;';
+      const markShadow=markHost.attachShadow({mode:'open'});
+      const markStyle=document.createElement('style');markStyle.textContent='.mark{position:absolute;background:rgba(255,176,104,.30);border-bottom:2px solid #c76827;pointer-events:none}';
       const style = document.createElement('style');
       style.textContent = ':host{font:13px/1.45 system-ui;color:#202833}*{box-sizing:border-box}[hidden]{display:none!important}.mark{position:absolute;background:rgba(255,176,104,.30);border-bottom:2px solid #c76827;pointer-events:none}.card{position:fixed;display:flex;flex-direction:column;pointer-events:auto;background:#fff;border:1px solid #d4dce5;border-radius:9px;padding:12px;box-shadow:0 8px 28px #14233325;overflow:hidden;padding-bottom:24px}.title-row{display:flex;align-items:center;gap:8px;flex-shrink:0;margin-bottom:6px}.title-row .title{margin:0;flex:1;min-width:0}.details{border:0;color:#176347;padding:2px 4px;background:transparent}.reason{font-size:12px;line-height:1.5;margin:0 0 10px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;flex-shrink:0}.title{font-weight:650;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}.hint,.actions{flex-shrink:0}.actions{flex-wrap:wrap}.text{flex:1;min-height:24px}.text{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 ui-monospace,monospace;background:#f6f8fa;color:#586673;padding:8px;margin:0 0 10px;overflow:auto}.hint{max-height:3em;overflow:auto;font-size:11px;color:#697383;margin:0 0 8px}.actions{display:flex;gap:8px}button{font:inherit;padding:6px 10px;border:1px solid #c8d0da;border-radius:6px;background:#fff;color:#263140;cursor:pointer}button.accept{background:#16764b;border-color:#16764b;color:#fff}button:focus-visible{outline:3px solid #78a9e6}button:disabled{opacity:.5;cursor:default}' + Floating.css + Diff.css;
       const marks = document.createElement('div');
@@ -104,10 +115,11 @@ const Scroll = require('../src/reviewScroll');
         });
         actions.append(button);
       }
-      card.append(titleRow, reason, proposed, actions, hint, resize); shadow.append(style, marks, card); document.body.append(host);
-      active = { token: params.token, projectId: params.runProjectId, path: params.path, view, text, patch, highlights, host, marks, card, navigation: null, presentationRequest:null, mode:params.mode||'compact', decision: null, failure: '', timer: null };
+      card.append(titleRow, reason, proposed, actions, hint, resize); shadow.append(style, card);markShadow.append(markStyle,marks); document.body.append(markHost,host);
+      active = { token: params.token, projectId: params.runProjectId, path: params.path, view, text, patch, highlights, host, markHost, marks, card, navigation: null, presentationRequest:null, mode:params.mode||'compact', decision: null, failure: '', timer: null };
       active.floating=Floating.attach({panel:card,drag:title,resize,window,state:panelState,minimum:{width:290,height:200},defaultRect:()=>active.defaultRect || {left:8,top:8,width:370,height:220}});
       active.elements={title,hint,resize,actions,proposed,details,reason};active.diff=diff;
+      active.modal=PageModal.watch({document,window,onChange:blocked=>{host.hidden=blocked;markHost.hidden=blocked;if(!blocked&&active?.host===host)render()}});
       Keyboard.attach(card,choice=>{
         if(!validate() || active.decision!==null)return;
         if(choice==='accept'){active.decision=true;actions.querySelectorAll('button').forEach(button=>{button.disabled=true})}
@@ -117,17 +129,19 @@ const Scroll = require('../src/reviewScroll');
       // of relying only on the periodic highlight renderer.
       view.requestMeasure?.({key:host,read:()=>null,write:()=>window.requestAnimationFrame(()=>{if(active?.host===host)render()})});
       render();
-      if(params.reveal!==false&&!card.hidden)card.focus({preventScroll:true});
+      if(params.reveal!==false&&!host.hidden&&!card.hidden)card.focus({preventScroll:true});
       active.timer = window.setInterval(render, 250);
       return { ok: true, token: params.token, changedDocument: false };
     }
     function render() {
       if (!validate()) return;
+      if(active.host.hidden)return;
       const item = active, { view, patch, host, marks, card } = item;
       const raw = view.scrollDOM.getBoundingClientRect();
       const bounds = { left: Math.max(0, raw.left), top: Math.max(0, raw.top), right: Math.min(window.innerWidth, raw.right), bottom: Math.min(window.innerHeight, raw.bottom) };
       const width = Math.max(0, bounds.right - bounds.left), height = Math.max(0, bounds.bottom - bounds.top);
       Object.assign(host.style, { left: bounds.left + 'px', top: bounds.top + 'px', width: width + 'px', height: height + 'px' });
+      Object.assign(item.markHost.style,{left:bounds.left+'px',top:bounds.top+'px',width:width+'px',height:height+'px'});
       const rects = [];
       try {
         for (const changed of item.highlights) {
@@ -172,7 +186,7 @@ const Scroll = require('../src/reviewScroll');
     function present(params){
       if(!active||active.token!==params.token)return fail('review_preview_expired');
       active.mode=params.mode;render();
-      if(params.focus&&!active.card.hidden)active.card.focus({preventScroll:true});
+      if(params.focus&&!active.host.hidden&&!active.card.hidden)active.card.focus({preventScroll:true});
       return {ok:true,token:active.token};
     }
     function consumePresentation(params){if(!active||active.token!==params.token)return fail('review_preview_expired');active.presentationRequest=null;return {ok:true}}

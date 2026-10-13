@@ -2269,6 +2269,7 @@
         "\u4FEE\u6539\u7406\u7531": "Reason",
         "\u4FEE\u6539\u5BF9\u6BD4": "Changes",
         "\u67E5\u770B\u5B8C\u6574\u4E0A\u4E0B\u6587": "Show full context",
+        "\u8FD4\u56DE\u7B80\u6D01\u5BF9\u6BD4": "Back to concise changes",
         "\u62D2\u7EDD": "Reject",
         "\u63A5\u53D7": "Accept",
         "\u2191\u2193 \u5207\u6362 \xB7 Enter \u63A5\u53D7": "\u2191\u2193 Navigate \xB7 Enter Accept",
@@ -4584,6 +4585,50 @@
     }
   });
 
+  // src/pageModal.js
+  var require_pageModal = __commonJS({
+    "src/pageModal.js"(exports, module) {
+      "use strict";
+      var selector = 'dialog[open],[aria-modal="true"],[role="dialog"],[role="alertdialog"],.modal,.modal-backdrop';
+      var ownSelector = "[data-suggestion-importer],[data-codex-inline-review],[data-agent-review-marks]";
+      function visible(node, window2) {
+        if (!node.isConnected || node.hidden || node.getAttribute("aria-hidden") === "true" || !node.getClientRects().length) return false;
+        const style = window2.getComputedStyle(node);
+        return style.display !== "none" && style.visibility !== "hidden" && style.visibility !== "collapse";
+      }
+      function watch({ document: document2, window: window2, onChange }) {
+        let blocked = null, frame = null, disposed = false, ancestors = /* @__PURE__ */ new Set();
+        function check() {
+          frame = null;
+          if (disposed) return;
+          const candidates = [...document2.querySelectorAll(selector)];
+          ancestors = /* @__PURE__ */ new Set();
+          for (const candidate of candidates) for (let node = candidate; node; node = node.parentElement) ancestors.add(node);
+          const next = candidates.some((node) => !node.closest(ownSelector) && visible(node, window2));
+          if (next !== blocked) {
+            blocked = next;
+            onChange(next);
+          }
+        }
+        function relevant(node) {
+          return node?.nodeType === 1 && !node.closest(ownSelector) && (ancestors.has(node) || node.matches(selector) || Boolean(node.querySelector(selector)));
+        }
+        const observer = new window2.MutationObserver((records) => {
+          if (disposed || frame !== null) return;
+          if (records.some((record) => record.type === "attributes" ? relevant(record.target) : [...record.addedNodes, ...record.removedNodes].some(relevant))) frame = window2.requestAnimationFrame(check);
+        });
+        observer.observe(document2.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["class", "style", "hidden", "open", "role", "aria-modal", "aria-hidden"] });
+        check();
+        return { blocked: () => blocked, dispose() {
+          disposed = true;
+          observer.disconnect();
+          if (frame !== null) window2.cancelAnimationFrame(frame);
+        } };
+      }
+      module.exports = { watch, visible };
+    }
+  });
+
   // vendor/inlineReviewPreview.js
   var require_inlineReviewPreview = __commonJS({
     "vendor/inlineReviewPreview.js"(exports, module) {
@@ -4591,6 +4636,7 @@
       var Diff = require_reviewDiff();
       var Keyboard = require_reviewKeyboard();
       var Scroll = require_reviewScroll();
+      var PageModal = require_pageModal();
       (function(root, factory) {
         const api = factory();
         if (typeof module === "object" && module.exports) module.exports = api;
@@ -4606,6 +4652,8 @@
           function dispose() {
             if (active?.timer) window2.clearInterval(active.timer);
             active?.floating?.dispose();
+            active?.modal?.dispose();
+            active?.markHost.remove();
             active?.host.remove();
             active = null;
           }
@@ -4618,6 +4666,8 @@
             if (isCurrent(active)) return true;
             active.failure = "review_context_changed";
             active.floating?.dispose();
+            active.modal?.dispose();
+            active.markHost.remove();
             active.host.remove();
             if (active.timer) window2.clearInterval(active.timer);
             return false;
@@ -4662,6 +4712,12 @@
             host.dataset.codexInlineReview = "";
             host.style.cssText = "position:fixed;z-index:2147483000;pointer-events:none;overflow:visible;";
             const shadow = host.attachShadow({ mode: "open" });
+            const markHost = document2.createElement("div");
+            markHost.dataset.agentReviewMarks = "";
+            markHost.style.cssText = "position:fixed;z-index:10;pointer-events:none;overflow:hidden;";
+            const markShadow = markHost.attachShadow({ mode: "open" });
+            const markStyle = document2.createElement("style");
+            markStyle.textContent = ".mark{position:absolute;background:rgba(255,176,104,.30);border-bottom:2px solid #c76827;pointer-events:none}";
             const style = document2.createElement("style");
             style.textContent = ":host{font:13px/1.45 system-ui;color:#202833}*{box-sizing:border-box}[hidden]{display:none!important}.mark{position:absolute;background:rgba(255,176,104,.30);border-bottom:2px solid #c76827;pointer-events:none}.card{position:fixed;display:flex;flex-direction:column;pointer-events:auto;background:#fff;border:1px solid #d4dce5;border-radius:9px;padding:12px;box-shadow:0 8px 28px #14233325;overflow:hidden;padding-bottom:24px}.title-row{display:flex;align-items:center;gap:8px;flex-shrink:0;margin-bottom:6px}.title-row .title{margin:0;flex:1;min-width:0}.details{border:0;color:#176347;padding:2px 4px;background:transparent}.reason{font-size:12px;line-height:1.5;margin:0 0 10px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;flex-shrink:0}.title{font-weight:650;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}.hint,.actions{flex-shrink:0}.actions{flex-wrap:wrap}.text{flex:1;min-height:24px}.text{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 ui-monospace,monospace;background:#f6f8fa;color:#586673;padding:8px;margin:0 0 10px;overflow:auto}.hint{max-height:3em;overflow:auto;font-size:11px;color:#697383;margin:0 0 8px}.actions{display:flex;gap:8px}button{font:inherit;padding:6px 10px;border:1px solid #c8d0da;border-radius:6px;background:#fff;color:#263140;cursor:pointer}button.accept{background:#16764b;border-color:#16764b;color:#fff}button:focus-visible{outline:3px solid #78a9e6}button:disabled{opacity:.5;cursor:default}" + Floating.css + Diff.css;
             const marks = document2.createElement("div");
@@ -4728,12 +4784,18 @@
               actions.append(button);
             }
             card.append(titleRow, reason, proposed, actions, hint, resize);
-            shadow.append(style, marks, card);
-            document2.body.append(host);
-            active = { token: params.token, projectId: params.runProjectId, path: params.path, view, text, patch, highlights, host, marks, card, navigation: null, presentationRequest: null, mode: params.mode || "compact", decision: null, failure: "", timer: null };
+            shadow.append(style, card);
+            markShadow.append(markStyle, marks);
+            document2.body.append(markHost, host);
+            active = { token: params.token, projectId: params.runProjectId, path: params.path, view, text, patch, highlights, host, markHost, marks, card, navigation: null, presentationRequest: null, mode: params.mode || "compact", decision: null, failure: "", timer: null };
             active.floating = Floating.attach({ panel: card, drag: title, resize, window: window2, state: panelState, minimum: { width: 290, height: 200 }, defaultRect: () => active.defaultRect || { left: 8, top: 8, width: 370, height: 220 } });
             active.elements = { title, hint, resize, actions, proposed, details, reason };
             active.diff = diff;
+            active.modal = PageModal.watch({ document: document2, window: window2, onChange: (blocked) => {
+              host.hidden = blocked;
+              markHost.hidden = blocked;
+              if (!blocked && active?.host === host) render();
+            } });
             Keyboard.attach(card, (choice) => {
               if (!validate() || active.decision !== null) return;
               if (choice === "accept") {
@@ -4747,17 +4809,19 @@
               if (active?.host === host) render();
             }) });
             render();
-            if (params.reveal !== false && !card.hidden) card.focus({ preventScroll: true });
+            if (params.reveal !== false && !host.hidden && !card.hidden) card.focus({ preventScroll: true });
             active.timer = window2.setInterval(render, 250);
             return { ok: true, token: params.token, changedDocument: false };
           }
           function render() {
             if (!validate()) return;
+            if (active.host.hidden) return;
             const item = active, { view, patch, host, marks, card } = item;
             const raw = view.scrollDOM.getBoundingClientRect();
             const bounds = { left: Math.max(0, raw.left), top: Math.max(0, raw.top), right: Math.min(window2.innerWidth, raw.right), bottom: Math.min(window2.innerHeight, raw.bottom) };
             const width = Math.max(0, bounds.right - bounds.left), height = Math.max(0, bounds.bottom - bounds.top);
             Object.assign(host.style, { left: bounds.left + "px", top: bounds.top + "px", width: width + "px", height: height + "px" });
+            Object.assign(item.markHost.style, { left: bounds.left + "px", top: bounds.top + "px", width: width + "px", height: height + "px" });
             const rects = [];
             try {
               for (const changed of item.highlights) {
@@ -4816,7 +4880,7 @@
             if (!active || active.token !== params.token) return fail("review_preview_expired");
             active.mode = params.mode;
             render();
-            if (params.focus && !active.card.hidden) active.card.focus({ preventScroll: true });
+            if (params.focus && !active.host.hidden && !active.card.hidden) active.card.focus({ preventScroll: true });
             return { ok: true, token: active.token };
           }
           function consumePresentation(params) {
