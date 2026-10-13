@@ -58,7 +58,7 @@ const PageModal = require('../src/pageModal');
       dispose();
       if (!params.token || typeof params.base !== 'string' || !params.patch
         || params.runProjectId !== deps.getProjectId()) return fail('review_preview_invalid');
-      const opened = params.reveal===false ? {ok:true} : await deps.navigate({ path: params.path, from: 0, to: 0, runProjectId: params.runProjectId });
+      const opened = params.reveal===false||params.fileReady===true ? {ok:true} : await deps.navigate({ path: params.path, from: 0, to: 0, runProjectId: params.runProjectId });
       if (owner !== generation || cancelledTokens.has(params.token)) return fail('review_preview_expired');
       if (!opened.ok) return opened;
       const view = deps.getEditorView();

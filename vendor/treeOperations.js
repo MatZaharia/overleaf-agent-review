@@ -212,6 +212,9 @@
   }
 
   async function openFileByPath(filePath, options = {}) {
+    const waitForOpened=options.waitForActive || waitForActiveFile;
+    const cancelled=()=>options.shouldContinue && !options.shouldContinue();
+    if(cancelled())return {ok:false,reason:'Navigation cancelled'};
     const normalizedPath = normalizeSafeProjectPath(filePath);
     if (!normalizedPath) {
       return {
@@ -245,9 +248,10 @@
       diagnostics.postExpandDomNodeFound = Boolean(node);
     }
     if (node) {
+      if(cancelled())return {ok:false,reason:'Navigation cancelled'};
       dispatchFileTreeOpenClick(node);
-      await delay(250);
-      const active = await waitForActiveFile(normalizedPath, options.activeWaitMs ?? 5000);
+      if((options.settleDelayMs??250)>0)await delay(options.settleDelayMs??250);
+      const active = await waitForOpened(normalizedPath, options.activeWaitMs ?? 5000);
       diagnostics.domClickActivePath = getActiveFilePath();
       if (active) {
         return {
@@ -258,10 +262,11 @@
       // Overleaf can drop a click while the previous document is still
       // settling (e.g. right after a multi-file write). Re-resolve the row,
       // activate the row itself plus a keyboard Enter, and wait once more.
+      if(cancelled())return {ok:false,reason:'Navigation cancelled'};
       const retryNode = findFileTreeNode(normalizedPath, { invalidateCache: true }) || node;
       dispatchActivationSequence(retryNode);
       dispatchKeyboardOpen(findFileTreeOpenClickTarget(retryNode) || retryNode);
-      const retried = await waitForActiveFile(normalizedPath, options.retryWaitMs ?? 4000);
+      const retried = await waitForOpened(normalizedPath, options.retryWaitMs ?? 4000);
       diagnostics.domRetryActivePath = getActiveFilePath() || 'unknown';
       if (retried) {
         return {
@@ -272,6 +277,7 @@
     }
 
     const manager = findFileTreeManager();
+    if(cancelled())return {ok:false,reason:'Navigation cancelled'};
     const openMethods = ['openDoc', 'openFile', 'selectFile', 'selectEntity'];
     const openArgs = buildManagerOpenArgs(normalizedPath);
 
@@ -282,6 +288,7 @@
       }
 
       for (const openArg of openArgs) {
+        if(cancelled())return {ok:false,reason:'Navigation cancelled'};
         const methodDiagnostics = {
           method: methodName,
           argType: openArg.type,
@@ -290,7 +297,7 @@
         };
         try {
           await method.call(manager, openArg.value);
-          const active = await waitForActiveFile(normalizedPath, 5000);
+          const active = await waitForOpened(normalizedPath, 5000);
           methodDiagnostics.ok = active;
           methodDiagnostics.activePath = getActiveFilePath();
           diagnostics.managerMethods.push(methodDiagnostics);

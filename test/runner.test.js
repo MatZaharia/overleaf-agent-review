@@ -106,3 +106,10 @@ test('invalid tracking pauses at prepare, preview or acceptance without marking 
   assert.equal(prepared.length,1);assert.equal(recorded.length,0);
  }
 });
+
+test('switching files during acceptance waits for a fresh human choice without reopening, skipping or replaying',async()=>{
+ const calls=[],records=[],progress=[];let reviews=0,resolveChoice;
+ const running=Runner.run({suggestions:[suggestions[0]]},{assertCurrent(){},progress:p=>progress.push(p),async call(method,p){calls.push(method);if(method==='prepare')return{ok:true,token:'pending'};return{ok:false,suspended:true,changedDocument:false,code:'file_changed'}},review:async(_item,prepared)=>{reviews++;if(reviews===1)return {accepted:true,token:prepared.token};assert.equal(prepared.suspended,true);return new Promise(resolve=>{resolveChoice=resolve})},record:result=>records.push(result)});
+ await new Promise(resolve=>setImmediate(resolve));assert.deepEqual(calls,['prepare','apply']);assert.equal(records.length,0);assert.equal(progress.at(-1).pending,1);
+ resolveChoice({accepted:false});const result=await running;assert.deepEqual(result.map(r=>r.state),['rejected']);assert.equal(records.length,1);assert.equal(calls.filter(m=>m==='prepare').length,1);assert.equal(calls.filter(m=>m==='apply').length,1);
+});

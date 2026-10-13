@@ -178,7 +178,7 @@
         };
         const compact = (result) => ({ ...result, item: { id: result.item.id, file: result.item.file, reviewKey: result.item.reviewKey } });
         const total = pack.count ?? pack.suggestions.length;
-        let index = 0;
+        let index = 0, suspended = null;
         notify();
         function reconcile(updates) {
           for (const update of updates) {
@@ -221,7 +221,8 @@
             }
             let prepared;
             try {
-              prepared = await deps.call("prepare", { item, projectId: deps.projectId, presentation: deps.presentation?.({ index, total, remaining: total - finished.size, position: Counts.position(index, finished) }) });
+              prepared = suspended?.index === index ? suspended.prepared : await deps.call("prepare", { item, projectId: deps.projectId, presentation: deps.presentation?.({ index, total, remaining: total - finished.size, position: Counts.position(index, finished) }) });
+              suspended = null;
             } catch (_) {
               throw Object.assign(new Error("\u8FDE\u63A5\u4E2D\u65AD\uFF0C\u6CA1\u6709\u81EA\u52A8\u91CD\u8BD5"), { code: "bridge_timeout", results: list() });
             }
@@ -275,6 +276,10 @@
               applied = await deps.call("apply", { token: decision.token, projectId: deps.projectId });
             } catch (_) {
               throw Object.assign(new Error("\u5199\u5165\u72B6\u6001\u672A\u786E\u8BA4\uFF0C\u68C0\u67E5\u5F53\u524D\u6587\u4EF6\uFF1B\u4E0D\u8981\u91CD\u590D\u63A5\u53D7"), { code: "write_unconfirmed", results: list() });
+            }
+            if (applied.suspended === true && applied.changedDocument === false) {
+              suspended = { index, prepared: { ...prepared, token: decision.token, inline: false, suspended: true } };
+              continue;
             }
             if (applied.code === "tracking_out_of_sync") throw Object.assign(new Error("\u5B9A\u4F4D\u8BB0\u5F55\u5DF2\u5931\u6548"), { code: applied.code, file: item.file, results: list() });
             const verified = applied.ok === true && applied.verified === true;
@@ -409,6 +414,8 @@
         "\u4FEE\u6539\u5BF9\u6BD4": "Changes",
         "\u67E5\u770B\u5B8C\u6574\u4E0A\u4E0B\u6587": "Show full context",
         "\u8FD4\u56DE\u7B80\u6D01\u5BF9\u6BD4": "Back to concise changes",
+        "\u5B9A\u4F4D\u5F53\u524D\u9879": "Locate current item",
+        "\u5DF2\u5207\u6362\u6587\u4EF6\uFF0C\u5F53\u524D\u5EFA\u8BAE\u4E0E\u8FDB\u5EA6\u4FDD\u7559\u3002\u53EF\u81EA\u7531\u7F16\u8F91\uFF0C\u70B9\u51FB\u5B9A\u4F4D\u5F53\u524D\u9879\u6216\u5BA1\u9605\u5BFC\u822A\u7EE7\u7EED\u3002": "File switched; the current suggestion and progress are preserved. Edit freely, then locate this item or use review navigation to continue.",
         "\u62D2\u7EDD": "Reject",
         "\u63A5\u53D7": "Accept",
         "\u2191\u2193 \u5207\u6362 \xB7 Enter \u63A5\u53D7": "\u2191\u2193 Navigate \xB7 Enter Accept",
@@ -624,6 +631,7 @@
       function action(event) {
         if (event.defaultPrevented || event.isComposing || event.repeat || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return null;
         const path = event.composedPath?.() || [event.target];
+        if (event.key === "Enter" && path.some((node) => node?.matches?.(".locate"))) return null;
         if (path.some((node) => node?.matches?.('input,textarea,select,[contenteditable]:not([contenteditable="false"]),.panel-drag,.panel-resize'))) return null;
         return { ArrowUp: "previous", ArrowDown: "next", Enter: "accept" }[event.key] || null;
       }
@@ -949,7 +957,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
     });
     function review(item, prepared, options, itemAt, catalogId) {
       return new Promise((resolve, reject) => {
-        let token = prepared.token, settled = false, timer = null, navigating = false, staleCode = null, statusRequest = null;
+        let token = prepared.token, settled = false, timer = null, navigating = false, staleCode = null, statusRequest = null, suspended = Boolean(prepared.suspended);
         async function check() {
           if (statusRequest) return statusRequest;
           statusRequest = call("status", { token, projectId: owner });
@@ -976,6 +984,17 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
         context.open = fullContext;
         contextPerspective();
         context.addEventListener("toggle", contextPerspective);
+        const locate = document.createElement("button");
+        locate.className = "locate";
+        locate.hidden = !suspended;
+        setUI(locate, "\u5B9A\u4F4D\u5F53\u524D\u9879");
+        card.querySelector(".navigation").prepend(locate);
+        locate.addEventListener("click", () => {
+          if (!settled && !navigating) {
+            assertCurrent();
+            finish(void 0, void 0, options.index);
+          }
+        });
         const renderCount = () => {
           const node = card.querySelector("strong"), text = "\u5EFA\u8BAE " + options.position + " / " + options.remaining;
           if (node.textContent !== t(text)) setUI(node, text);
@@ -1032,7 +1051,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
             floating.layout();
             if (focus) card.focus({ preventScroll: true });
           }
-          $(".compact").disabled = !displayed.inline || Boolean(staleCode);
+          $(".compact").disabled = suspended || !displayed.inline || Boolean(staleCode);
           setUI($(".launch"), mode === "compact" ? "\u8BE6\u60C5 \u2197" : "\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE");
         }
         presentCurrent = present;
@@ -1124,7 +1143,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
             navigating = false;
             if (!settled) {
               card.querySelectorAll("button").forEach((button) => {
-                button.disabled = Boolean(staleCode && button.classList.contains("accept"));
+                button.disabled = Boolean((suspended || staleCode) && button.classList.contains("accept"));
               });
               timer = setTimeout(poll, 300);
             }
@@ -1134,12 +1153,23 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
         card.querySelector(".next").addEventListener("click", () => navigate(1, false));
         card.querySelector(".cursor-previous").addEventListener("click", () => navigate(-1, true));
         card.querySelector(".cursor-next").addEventListener("click", () => navigate(1, true));
-        card.querySelector(".accept").addEventListener("click", () => finish(true));
+        async function accept() {
+          if (settled || navigating) return;
+          try {
+            const response = await check();
+            if (settled || navigating) return;
+            update(response);
+            if (response.ok && !suspended) finish(true);
+          } catch (error) {
+            if (!settled) finish(false, error.code || "bridge_failed");
+          }
+        }
+        card.querySelector(".accept").addEventListener("click", accept);
         card.querySelector(".reject").addEventListener("click", () => finish(false, staleCode));
         Keyboard.attach(card, (choice) => {
           if (settled || navigating) return;
           if (choice === "accept") {
-            if (!staleCode) finish(true);
+            if (!staleCode && !suspended) accept();
           } else navigate(choice === "previous" ? -1 : 1, false);
         });
         if (reviewMode === "details") Scroll.panel($(".body"), card);
@@ -1153,6 +1183,14 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
         };
         function update(response) {
           renderCount();
+          suspended = response.suspended === true;
+          locate.hidden = !suspended;
+          card.querySelector(".accept").disabled = suspended || Boolean(!response.ok);
+          $(".compact").disabled = suspended || !displayed.inline || Boolean(staleCode);
+          if (suspended) {
+            status("\u5DF2\u5207\u6362\u6587\u4EF6\uFF0C\u5F53\u524D\u5EFA\u8BAE\u4E0E\u8FDB\u5EA6\u4FDD\u7559\u3002\u53EF\u81EA\u7531\u7F16\u8F91\uFF0C\u70B9\u51FB\u5B9A\u4F4D\u5F53\u524D\u9879\u6216\u5BA1\u9605\u5BFC\u822A\u7EE7\u7EED\u3002");
+            return;
+          }
           if (response.refreshed) {
             displayed = response;
             renderDiff();
@@ -1170,6 +1208,10 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
             const response = await check();
             if (settled || navigating) return;
             update(response);
+            if (response.suspended) {
+              timer = setTimeout(poll, 300);
+              return;
+            }
             if (!response.ok) {
               if (["original_missing", "already_applied", "ambiguous_match", "scope_missing", "ambiguous_scope", "overlapping_change", "position_mismatch", "no_change", "diff_too_complex"].includes(response.code)) {
                 staleCode = response.code;

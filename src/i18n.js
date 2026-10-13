@@ -3,6 +3,7 @@
 const english = {
  '建议详情':'Suggestion details','详情 ↗':'Details ↗','返回精简 ↙':'Back to compact ↙','审阅管理':'Review setup',
  '修改理由':'Reason','修改对比':'Changes','查看完整上下文':'Show full context','返回简洁对比':'Back to concise changes',
+ '定位当前项':'Locate current item','已切换文件，当前建议与进度保留。可自由编辑，点击定位当前项或审阅导航继续。':'File switched; the current suggestion and progress are preserved. Edit freely, then locate this item or use review navigation to continue.',
  '拒绝':'Reject','接受':'Accept','↑↓ 切换 · Enter 接受':'↑↓ Navigate · Enter Accept',
  '已停止，返回导入后可继续':'Stopped; return to import to resume',
  '重新建立定位（保留决定）':'Rebuild tracking (keep decisions)',

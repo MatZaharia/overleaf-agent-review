@@ -32,6 +32,13 @@ function create({ adapter, preview, crypto }) {
   const key = (owner,file) => owner+'/'+file;
   const failure = code => ({ ok: false, code, changedDocument: false });
   const current = projectId => projectId && adapter.projectId() === projectId;
+  function suspend(item,code){
+    const doc=adapter.view()?.state.doc;
+    if(adapter.path()!==item.item.file&&doc&&doc!==item.doc){item.foreignDocs??=new WeakSet();item.foreignDocs.add(doc)}
+    if(!item.suspended)preview.clear({token:item.token});
+    item.suspended=true;item.inline=false;
+    return {ok:true,suspended:true,token:item.token,file:item.item.file,activeFile:adapter.path(),code,decision:null,journal:drain()};
+  }
   function cancel() {
     generation++;
     if (pending) preview.clear({ token: pending.token });
@@ -98,7 +105,7 @@ function create({ adapter, preview, crypto }) {
     const diff=Diff.parts(match.patch,highlights);
     const token = crypto.randomUUID();
     pending = { item, reviewKey:params.item.reviewKey, projectId: owner, token, view, text, doc:view.state.doc, line:match.line };
-    const shown = await preview.show({ reveal, token, runProjectId: owner, path: item.file, base: text, patch: match.patch, highlightPatches: highlights, diff,
+    const shown = await preview.show({ reveal, fileReady:true, token, runProjectId: owner, path: item.file, base: text, patch: match.patch, highlightPatches: highlights, diff,
       mode:presentation.mode,labels: previewLabels(item,match.line) });
     if (attempt !== generation) { preview.clear({ token }); return failure('cancelled'); }
     if (!shown.ok && shown.code !== 'review_preview_unsupported') { cancel(); return failure('file_not_ready'); }
@@ -109,12 +116,12 @@ function create({ adapter, preview, crypto }) {
     const item = pending;
     if (!item || item.token !== params.token) return failure('expired');
     if (!current(item.projectId)) { cancel(); return failure('project_changed'); }
-    if (adapter.path() !== item.item.file) { cancel(); return failure('file_changed'); }
+    if (adapter.path() !== item.item.file) return suspend(item,'file_changed');
     const view = adapter.view();
-    if (!view) { cancel(); return failure('file_not_ready'); }
-    if (view !== item.view || (typeof view.state.doc.length==='number' ? view.state.doc!==item.doc : textOf(view)!==item.text)) {
+    if (!view?.dom?.isConnected||item.foreignDocs?.has(view.state.doc)) return suspend(item,'file_not_ready');
+    if (item.suspended || view !== item.view || (typeof view.state.doc.length==='number' ? view.state.doc!==item.doc : textOf(view)!==item.text)) {
       const result = await prepare({ item: {...item.item,reviewKey:item.reviewKey}, projectId: item.projectId, reveal:false });
-      if(!result.ok&&['original_missing','already_applied','ambiguous_match','scope_missing','ambiguous_scope','overlapping_change','position_mismatch','no_change','diff_too_complex'].includes(result.code))pending={...item,view,doc:view.state.doc,text:textOf(view),inline:false,stale:result.code};
+      if(!result.ok&&['original_missing','already_applied','ambiguous_match','scope_missing','ambiguous_scope','overlapping_change','position_mismatch','no_change','diff_too_complex'].includes(result.code))pending={...item,view,doc:view.state.doc,text:textOf(view),inline:false,suspended:false,stale:result.code};
       return { ...result, refreshed: result.ok };
     }
     if(item.stale)return {...failure(item.stale),journal:drain()};
@@ -129,9 +136,10 @@ function create({ adapter, preview, crypto }) {
     const item = pending;
     if (!item || item.token !== params.token) return failure('expired');
     if (!current(item.projectId)) { cancel(); return failure('project_changed'); }
-    if (adapter.path() !== item.item.file) { cancel(); return failure('file_changed'); }
+    if (adapter.path() !== item.item.file) return {...suspend(item,'file_changed'),ok:false,changedDocument:false};
+    if(item.suspended)return {...suspend(item,'file_changed'),ok:false,changedDocument:false};
     const view = adapter.view();
-    if (!view?.dom?.isConnected) { cancel(); return failure('editor_changed'); }
+    if (!view?.dom?.isConnected||item.foreignDocs?.has(view.state.doc)) return {...suspend(item,'editor_changed'),ok:false,changedDocument:false};
     // Re-resolve from CURRENT source on acceptance, with no await between the
     // search and dispatch. Original lines/offsets from Codex are never used.
     const text = textOf(view),ledger=ledgerFor(item.projectId,item.item.file,text), match = ledger.invalid?failure('tracking_out_of_sync'):Rebase.resolve(text, item.item, ledger);

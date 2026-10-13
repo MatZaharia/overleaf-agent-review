@@ -126,3 +126,37 @@ test('unsupported inline preview keeps a working details view with the original 
  assert.equal((await h.service.status({token:p.token})).ok,true);assert.equal(h.writes.length,0);
  assert.equal(h.service.apply({token:p.token}).verified,true);
 });
+
+test('manual file switches suspend the same item without opening a file, consuming decisions or writing',async()=>{
+ const h=fixture();let opens=0,clears=0,reads=0;
+ h.adapter.open=async target=>{opens++;h.file(target);return true};h.preview.clear=()=>{clears++;return {ok:true}};
+ h.preview.read=()=>{reads++;return {ok:true,decision:true,navigation:1}};
+ const p=await h.prepare();h.file('sections/other.tex');h.edit('other file manual edits');const before=clears;
+ for(let i=0;i<20;i++){const result=await h.service.status({token:p.token});assert.equal(result.ok,true);assert.equal(result.suspended,true);assert.equal(result.token,p.token);assert.equal(result.decision,null)}
+ assert.equal(opens,1);assert.equal(clears,before+1);assert.equal(reads,0);assert.equal(h.text,'other file manual edits');assert.equal(h.writes.length,0);
+ const blocked=h.service.apply({token:p.token});assert.equal(blocked.ok,false);assert.equal(blocked.suspended,true);assert.equal(blocked.changedDocument,false);assert.equal(h.writes.length,0);
+ h.file('main.tex');h.edit('prefix\nlead\nold\ntail');assert.equal(h.service.apply({token:p.token}).suspended,true);assert.equal(h.writes.length,0);let shown;h.preview.show=async params=>{shown=params;return {ok:true}};h.preview.read=()=>({ok:true,decision:null});
+ const returned=await h.service.status({token:p.token});assert.equal(returned.refreshed,true);assert.notEqual(returned.token,p.token);assert.equal(shown.reveal,false);assert.equal(opens,1);assert.equal(h.writes.length,0);
+ assert.equal(h.service.apply({token:p.token}).code,'expired');assert.equal(h.service.apply({token:returned.token}).verified,true);assert.equal(h.text,'prefix\nlead\nnew\ntail');
+});
+test('a temporarily missing editor preserves review until ready; project changes still invalidate it',async()=>{
+ const h=fixture(),p=await h.prepare();h.adapter.view=()=>null;
+ assert.equal((await h.service.status({token:p.token})).suspended,true);
+ assert.equal(h.service.apply({token:p.token}).changedDocument,false);
+ h.adapter.view=()=>h.view;const returned=await h.service.status({token:p.token});assert.equal(returned.refreshed,true);assert.equal(h.writes.length,0);
+ h.project('other');assert.equal((await h.service.status({token:returned.token})).code,'project_changed');assert.equal(h.service.apply({token:returned.token}).code,'expired');
+});
+test('stale source after a manual file round-trip stays paused without repeated preparation and recovers after undo',async()=>{
+ const h=fixture();let clears=0;h.preview.clear=()=>{clears++;return {ok:true}};
+ const p=await h.prepare();h.file('other.tex');await h.service.status({token:p.token});h.file('main.tex');h.edit('changed original');
+ assert.equal((await h.service.status({token:p.token})).code,'original_missing');const count=clears;
+ for(let i=0;i<5;i++)assert.equal((await h.service.status({token:p.token})).code,'original_missing');assert.equal(clears,count);assert.equal(h.writes.length,0);
+ h.edit('lead\nold\ntail');const restored=await h.service.status({token:p.token});assert.equal(restored.refreshed,true);assert.equal(h.service.apply({token:restored.token}).verified,true);
+});
+test('returning file labels before its editor loads cannot preview or accept identical text from another file',async()=>{
+ const h=fixture(),p=await h.prepare();let opens=0;h.adapter.open=async()=>{opens++;return true};
+ const foreign={dom:{isConnected:true},state:{doc:{toString:()=>h.text}},dispatch:()=>assert.fail('must not write the other file')};
+ h.file('other.tex');h.adapter.view=()=>foreign;assert.equal((await h.service.status({token:p.token})).suspended,true);
+ h.file('main.tex');assert.equal((await h.service.status({token:p.token})).suspended,true);assert.equal(h.service.apply({token:p.token}).suspended,true);assert.equal(opens,0);
+ h.adapter.view=()=>h.view;const ready=await h.service.status({token:p.token});assert.equal(ready.refreshed,true);assert.equal(opens,0);assert.equal(h.service.apply({token:ready.token}).verified,true);
+});

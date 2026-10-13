@@ -4,6 +4,9 @@ test('review shortcuts provide navigation and acceptance but ignore held/composi
  assert.equal(action(event('ArrowUp')),'previous');assert.equal(action(event('ArrowDown')),'next');assert.equal(action(event('Enter')),'accept');
  for(const property of ['repeat','isComposing','defaultPrevented','ctrlKey','metaKey','altKey','shiftKey'])assert.equal(action(event('Enter',{[property]:true})),null);
  assert.equal(action(event('Escape')),null);
+ const locate={matches:selector=>selector==='.locate'};
+ assert.equal(action(event('Enter',{composedPath:()=>[locate]})),null);
+ assert.equal(action(event('ArrowDown',{composedPath:()=>[locate]})),'next');
 });
 test('typing fields, the LaTeX editor and panel geometry controls retain their normal keys',()=>{
  for(const name of ['input','textarea','select','[contenteditable]:not([contenteditable="false"])','.panel-drag','.panel-resize']){

@@ -2270,6 +2270,8 @@
         "\u4FEE\u6539\u5BF9\u6BD4": "Changes",
         "\u67E5\u770B\u5B8C\u6574\u4E0A\u4E0B\u6587": "Show full context",
         "\u8FD4\u56DE\u7B80\u6D01\u5BF9\u6BD4": "Back to concise changes",
+        "\u5B9A\u4F4D\u5F53\u524D\u9879": "Locate current item",
+        "\u5DF2\u5207\u6362\u6587\u4EF6\uFF0C\u5F53\u524D\u5EFA\u8BAE\u4E0E\u8FDB\u5EA6\u4FDD\u7559\u3002\u53EF\u81EA\u7531\u7F16\u8F91\uFF0C\u70B9\u51FB\u5B9A\u4F4D\u5F53\u524D\u9879\u6216\u5BA1\u9605\u5BFC\u822A\u7EE7\u7EED\u3002": "File switched; the current suggestion and progress are preserved. Edit freely, then locate this item or use review navigation to continue.",
         "\u62D2\u7EDD": "Reject",
         "\u63A5\u53D7": "Accept",
         "\u2191\u2193 \u5207\u6362 \xB7 Enter \u63A5\u53D7": "\u2191\u2193 Navigate \xB7 Enter Accept",
@@ -2571,6 +2573,17 @@
         const key = (owner, file) => owner + "/" + file;
         const failure = (code) => ({ ok: false, code, changedDocument: false });
         const current = (projectId) => projectId && adapter2.projectId() === projectId;
+        function suspend(item, code) {
+          const doc = adapter2.view()?.state.doc;
+          if (adapter2.path() !== item.item.file && doc && doc !== item.doc) {
+            item.foreignDocs ??= /* @__PURE__ */ new WeakSet();
+            item.foreignDocs.add(doc);
+          }
+          if (!item.suspended) preview2.clear({ token: item.token });
+          item.suspended = true;
+          item.inline = false;
+          return { ok: true, suspended: true, token: item.token, file: item.item.file, activeFile: adapter2.path(), code, decision: null, journal: drain() };
+        }
         function cancel() {
           generation++;
           if (pending) preview2.clear({ token: pending.token });
@@ -2653,6 +2666,7 @@
           pending = { item, reviewKey: params.item.reviewKey, projectId: owner, token, view, text, doc: view.state.doc, line: match.line };
           const shown = await preview2.show({
             reveal,
+            fileReady: true,
             token,
             runProjectId: owner,
             path: item.file,
@@ -2681,18 +2695,12 @@
             cancel();
             return failure("project_changed");
           }
-          if (adapter2.path() !== item.item.file) {
-            cancel();
-            return failure("file_changed");
-          }
+          if (adapter2.path() !== item.item.file) return suspend(item, "file_changed");
           const view = adapter2.view();
-          if (!view) {
-            cancel();
-            return failure("file_not_ready");
-          }
-          if (view !== item.view || (typeof view.state.doc.length === "number" ? view.state.doc !== item.doc : textOf(view) !== item.text)) {
+          if (!view?.dom?.isConnected || item.foreignDocs?.has(view.state.doc)) return suspend(item, "file_not_ready");
+          if (item.suspended || view !== item.view || (typeof view.state.doc.length === "number" ? view.state.doc !== item.doc : textOf(view) !== item.text)) {
             const result2 = await prepare({ item: { ...item.item, reviewKey: item.reviewKey }, projectId: item.projectId, reveal: false });
-            if (!result2.ok && ["original_missing", "already_applied", "ambiguous_match", "scope_missing", "ambiguous_scope", "overlapping_change", "position_mismatch", "no_change", "diff_too_complex"].includes(result2.code)) pending = { ...item, view, doc: view.state.doc, text: textOf(view), inline: false, stale: result2.code };
+            if (!result2.ok && ["original_missing", "already_applied", "ambiguous_match", "scope_missing", "ambiguous_scope", "overlapping_change", "position_mismatch", "no_change", "diff_too_complex"].includes(result2.code)) pending = { ...item, view, doc: view.state.doc, text: textOf(view), inline: false, suspended: false, stale: result2.code };
             return { ...result2, refreshed: result2.ok };
           }
           if (item.stale) return { ...failure(item.stale), journal: drain() };
@@ -2709,15 +2717,10 @@
             cancel();
             return failure("project_changed");
           }
-          if (adapter2.path() !== item.item.file) {
-            cancel();
-            return failure("file_changed");
-          }
+          if (adapter2.path() !== item.item.file) return { ...suspend(item, "file_changed"), ok: false, changedDocument: false };
+          if (item.suspended) return { ...suspend(item, "file_changed"), ok: false, changedDocument: false };
           const view = adapter2.view();
-          if (!view?.dom?.isConnected) {
-            cancel();
-            return failure("editor_changed");
-          }
+          if (!view?.dom?.isConnected || item.foreignDocs?.has(view.state.doc)) return { ...suspend(item, "editor_changed"), ok: false, changedDocument: false };
           const text = textOf(view), ledger = ledgerFor(item.projectId, item.item.file, text), match = ledger.invalid ? failure("tracking_out_of_sync") : Rebase.resolve(text, item.item, ledger);
           if (!match.ok) {
             cancel();
@@ -2982,6 +2985,9 @@
             return node.offsetParent != null;
           }
           async function openFileByPath(filePath, options = {}) {
+            const waitForOpened = options.waitForActive || waitForActiveFile;
+            const cancelled = () => options.shouldContinue && !options.shouldContinue();
+            if (cancelled()) return { ok: false, reason: "Navigation cancelled" };
             const normalizedPath = normalizeSafeProjectPath(filePath);
             if (!normalizedPath) {
               return {
@@ -3012,9 +3018,10 @@
               diagnostics.postExpandDomNodeFound = Boolean(node);
             }
             if (node) {
+              if (cancelled()) return { ok: false, reason: "Navigation cancelled" };
               dispatchFileTreeOpenClick(node);
-              await delay(250);
-              const active = await waitForActiveFile(normalizedPath, options.activeWaitMs ?? 5e3);
+              if ((options.settleDelayMs ?? 250) > 0) await delay(options.settleDelayMs ?? 250);
+              const active = await waitForOpened(normalizedPath, options.activeWaitMs ?? 5e3);
               diagnostics.domClickActivePath = getActiveFilePath();
               if (active) {
                 return {
@@ -3022,10 +3029,11 @@
                   method: "dom-click"
                 };
               }
+              if (cancelled()) return { ok: false, reason: "Navigation cancelled" };
               const retryNode = findFileTreeNode(normalizedPath, { invalidateCache: true }) || node;
               dispatchActivationSequence(retryNode);
               dispatchKeyboardOpen(findFileTreeOpenClickTarget(retryNode) || retryNode);
-              const retried = await waitForActiveFile(normalizedPath, options.retryWaitMs ?? 4e3);
+              const retried = await waitForOpened(normalizedPath, options.retryWaitMs ?? 4e3);
               diagnostics.domRetryActivePath = getActiveFilePath() || "unknown";
               if (retried) {
                 return {
@@ -3035,6 +3043,7 @@
               }
             }
             const manager = findFileTreeManager();
+            if (cancelled()) return { ok: false, reason: "Navigation cancelled" };
             const openMethods = ["openDoc", "openFile", "selectFile", "selectEntity"];
             const openArgs = buildManagerOpenArgs(normalizedPath);
             for (const methodName of openMethods) {
@@ -3043,6 +3052,7 @@
                 continue;
               }
               for (const openArg of openArgs) {
+                if (cancelled()) return { ok: false, reason: "Navigation cancelled" };
                 const methodDiagnostics = {
                   method: methodName,
                   argType: openArg.type,
@@ -3051,7 +3061,7 @@
                 };
                 try {
                   await method.call(manager, openArg.value);
-                  const active = await waitForActiveFile(normalizedPath, 5e3);
+                  const active = await waitForOpened(normalizedPath, 5e3);
                   methodDiagnostics.ok = active;
                   methodDiagnostics.activePath = getActiveFilePath();
                   diagnostics.managerMethods.push(methodDiagnostics);
@@ -4376,6 +4386,40 @@
     }
   });
 
+  // src/editorReady.js
+  var require_editorReady = __commonJS({
+    "src/editorReady.js"(exports, module) {
+      "use strict";
+      function wait({ window: window2, document: document2, check, alive = () => true, timeoutMs }) {
+        if (!alive()) return Promise.resolve(false);
+        if (check()) return Promise.resolve(true);
+        return new Promise((resolve) => {
+          let done = false, observer, interval, timeout;
+          function finish(value) {
+            if (done) return;
+            done = true;
+            observer?.disconnect();
+            window2.clearInterval(interval);
+            window2.clearTimeout(timeout);
+            resolve(value);
+          }
+          function inspect() {
+            if (!alive()) finish(false);
+            else if (check()) finish(true);
+          }
+          if (window2.MutationObserver && document2.body) {
+            observer = new window2.MutationObserver(inspect);
+            observer.observe(document2.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["class", "aria-selected", "data-file-id", "data-path"] });
+          }
+          interval = window2.setInterval(inspect, 50);
+          timeout = window2.setTimeout(() => finish(alive() && check()), timeoutMs);
+          inspect();
+        });
+      }
+      module.exports = { wait };
+    }
+  });
+
   // src/overleafAdapter.js
   var require_overleafAdapter = __commonJS({
     "src/overleafAdapter.js"(exports, module) {
@@ -4383,6 +4427,7 @@
       var Core = require_suggestions();
       var Tree = require_treeOperations();
       var ProjectFiles = require_projectFiles();
+      var Ready = require_editorReady();
       function create(window2, document2) {
         const store = () => window2.overleaf?.unstable?.store || window2.Overleaf?.unstable?.store;
         function read(path2) {
@@ -4434,16 +4479,19 @@
           if (projectId() !== owner) return false;
           const previous = view(), navigating = path() !== file;
           if (navigating) {
-            const opened = await tree.openFileByPath(file, { activeWaitMs: 1200, retryWaitMs: 1200 });
+            const opened = await tree.openFileByPath(file, {
+              activeWaitMs: 1200,
+              retryWaitMs: 1200,
+              settleDelayMs: 0,
+              shouldContinue: () => projectId() === owner,
+              waitForActive: (target, timeoutMs) => Ready.wait({ window: window2, document: document2, timeoutMs, alive: () => projectId() === owner, check: () => path() === target })
+            });
             if (!opened.ok) return false;
           }
-          const until = Date.now() + 4e3;
-          while (Date.now() < until && projectId() === owner) {
+          return Ready.wait({ window: window2, document: document2, timeoutMs: 4e3, alive: () => projectId() === owner, check: () => {
             const active = view();
-            if (path() === file && active && (!navigating || active !== previous)) return true;
-            await new Promise((resolve) => window2.setTimeout(resolve, 100));
-          }
-          return false;
+            return path() === file && Boolean(active) && (!navigating || active !== previous);
+          } });
         }
         return { projectId, path, view, open };
       }
@@ -4536,6 +4584,7 @@
       function action(event) {
         if (event.defaultPrevented || event.isComposing || event.repeat || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return null;
         const path = event.composedPath?.() || [event.target];
+        if (event.key === "Enter" && path.some((node) => node?.matches?.(".locate"))) return null;
         if (path.some((node) => node?.matches?.('input,textarea,select,[contenteditable]:not([contenteditable="false"]),.panel-drag,.panel-resize'))) return null;
         return { ArrowUp: "previous", ArrowDown: "next", Enter: "accept" }[event.key] || null;
       }
@@ -4692,7 +4741,7 @@
             const owner = ++generation;
             dispose();
             if (!params.token || typeof params.base !== "string" || !params.patch || params.runProjectId !== deps.getProjectId()) return fail("review_preview_invalid");
-            const opened = params.reveal === false ? { ok: true } : await deps.navigate({ path: params.path, from: 0, to: 0, runProjectId: params.runProjectId });
+            const opened = params.reveal === false || params.fileReady === true ? { ok: true } : await deps.navigate({ path: params.path, from: 0, to: 0, runProjectId: params.runProjectId });
             if (owner !== generation || cancelledTokens.has(params.token)) return fail("review_preview_expired");
             if (!opened.ok) return opened;
             const view = deps.getEditorView();

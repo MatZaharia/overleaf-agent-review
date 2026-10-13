@@ -2,6 +2,7 @@
 const Core = require('./suggestions');
 const Tree = require('../vendor/treeOperations');
 const ProjectFiles = require('../vendor/projectFiles');
+const Ready = require('./editorReady');
 function create(window, document) {
   const store = () => window.overleaf?.unstable?.store || window.Overleaf?.unstable?.store;
   function read(path) { try { return store()?.get(path); } catch (_) { return undefined; } }
@@ -25,18 +26,15 @@ function create(window, document) {
     if (projectId() !== owner) return false;
     const previous = view(), navigating = path() !== file;
     if (navigating) {
-      const opened = await tree.openFileByPath(file, { activeWaitMs: 1200, retryWaitMs: 1200 });
+      const opened = await tree.openFileByPath(file, { activeWaitMs: 1200, retryWaitMs: 1200,settleDelayMs:0,shouldContinue:()=>projectId()===owner,
+        waitForActive:(target,timeoutMs)=>Ready.wait({window,document,timeoutMs,alive:()=>projectId()===owner,check:()=>path()===target}) });
       if (!opened.ok) return false;
     }
     // On file switches, wait for a new source EditorView. If Overleaf starts
     // reusing views without a readable document identity, fail closed.
-    const until = Date.now() + 4000;
-    while (Date.now() < until && projectId() === owner) {
-      const active = view();
-      if (path() === file && active && (!navigating || active !== previous)) return true;
-      await new Promise(resolve => window.setTimeout(resolve, 100));
-    }
-    return false;
+    return Ready.wait({window,document,timeoutMs:4000,alive:()=>projectId()===owner,check:()=>{
+      const active=view();return path()===file&&Boolean(active)&&(!navigating||active!==previous);
+    }});
   }
   return { projectId, path, view, open };
 }

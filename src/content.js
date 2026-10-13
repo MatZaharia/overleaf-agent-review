@@ -107,7 +107,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
   if(persistent)runtime.storage('get','reviewLanguage').then(saved=>{if(!languageTouched)changeLanguage(saved.reviewLanguage || 'zh-CN')}).catch(()=>{});
   function review(item, prepared, options, itemAt, catalogId) {
     return new Promise((resolve, reject) => {
-      let token = prepared.token, settled = false, timer = null, navigating=false,staleCode=null,statusRequest=null;
+      let token = prepared.token, settled = false, timer = null, navigating=false,staleCode=null,statusRequest=null,suspended=Boolean(prepared.suspended);
       async function check(){
         if(statusRequest)return statusRequest;
         statusRequest=call('status',{token,projectId:owner});
@@ -120,6 +120,8 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
       const context=card.querySelector('.context'),comparison=card.querySelector('.combined'),comparisonLabel=comparison.previousElementSibling;
       function contextPerspective(){if(!card.isConnected)return;fullContext=context.open;comparison.hidden=fullContext;comparisonLabel.hidden=fullContext;setUI(context.querySelector('summary'),fullContext?'返回简洁对比':'查看完整上下文')}
       context.open=fullContext;contextPerspective();context.addEventListener('toggle',contextPerspective);
+      const locate=document.createElement('button');locate.className='locate';locate.hidden=!suspended;setUI(locate,'定位当前项');card.querySelector('.navigation').prepend(locate);
+      locate.addEventListener('click',()=>{if(!settled&&!navigating){assertCurrent();finish(undefined,undefined,options.index)}});
       const renderCount=()=>{const node=card.querySelector('strong'),text='建议 '+options.position+' / '+options.remaining;if(node.textContent!==t(text))setUI(node,text)};renderCount();
       card.querySelector('.path').textContent = item.file + ' · L' + prepared.line+' · #'+(options.index+1);
       card.querySelector('.reason').textContent = item.reason;
@@ -144,7 +146,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
         lastPresentation=JSON.stringify({...state,token});
         $('.drawer').hidden=mode==='compact';
         if(mode==='details'){floating.layout();if(focus)card.focus({preventScroll:true})}
-        $('.compact').disabled=!displayed.inline||Boolean(staleCode);
+        $('.compact').disabled=suspended||!displayed.inline||Boolean(staleCode);
         setUI($('.launch'),mode==='compact'?'详情 ↗':'导入修改建议');
       }
       presentCurrent=present;
@@ -205,19 +207,28 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
           if(target!==null){finish(undefined,staleCode,target);return}
           status(fromCursor?'当前文件的光标这一侧没有可定位的待处理建议':'没有其他待处理建议；当前项仍等待确认');
         }catch(error){if(!settled)status(error.message==='navigation_changed'?'正文、文件或光标有变化，请重新点击导航':'导航未完成：'+error.message)}
-        finally{navigating=false;if(!settled){card.querySelectorAll('button').forEach(button=>{button.disabled=Boolean(staleCode && button.classList.contains('accept'))});timer=setTimeout(poll,300)}}
+        finally{navigating=false;if(!settled){card.querySelectorAll('button').forEach(button=>{button.disabled=Boolean((suspended||staleCode) && button.classList.contains('accept'))});timer=setTimeout(poll,300)}}
       }
       card.querySelector('.previous').addEventListener('click',()=>navigate(-1,false));
       card.querySelector('.next').addEventListener('click',()=>navigate(1,false));
       card.querySelector('.cursor-previous').addEventListener('click',()=>navigate(-1,true));
       card.querySelector('.cursor-next').addEventListener('click',()=>navigate(1,true));
-      card.querySelector('.accept').addEventListener('click', () => finish(true));
+      async function accept(){
+        if(settled||navigating)return;
+        try{const response=await check();if(settled||navigating)return;update(response);if(response.ok&&!suspended)finish(true)}
+        catch(error){if(!settled)finish(false,error.code||'bridge_failed')}
+      }
+      card.querySelector('.accept').addEventListener('click',accept);
       card.querySelector('.reject').addEventListener('click', () => finish(false,staleCode));
-      Keyboard.attach(card,choice=>{if(settled || navigating)return;if(choice==='accept'){if(!staleCode)finish(true)}else navigate(choice==='previous'?-1:1,false)});
+      Keyboard.attach(card,choice=>{if(settled || navigating)return;if(choice==='accept'){if(!staleCode&&!suspended)accept()}else navigate(choice==='previous'?-1:1,false)});
       if(reviewMode==='details')Scroll.panel($('.body'),card);
       pendingAbort = () => { if (!settled) { settled = true; clearTimeout(timer);if(presentCurrent===present)presentCurrent=null; reject(Object.assign(new Error('已停止'), { code: 'cancelled' })); } };
       function update(response){
         renderCount();
+        suspended=response.suspended===true;locate.hidden=!suspended;
+        card.querySelector('.accept').disabled=suspended||Boolean(!response.ok);
+        $('.compact').disabled=suspended||!displayed.inline||Boolean(staleCode);
+        if(suspended){status('已切换文件，当前建议与进度保留。可自由编辑，点击定位当前项或审阅导航继续。');return}
         if(response.refreshed){displayed=response;renderDiff();token=response.token;staleCode=null;card.querySelector('.accept').disabled=false;card.querySelector('.path').textContent=item.file+' · L'+response.line+' · #'+(options.index+1);status('正文有变化，已重新定位这一项，等待确认')}
         else if(!response.ok)staleCode=response.code;
       }
@@ -228,6 +239,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
           const response = await check();
           if (settled || navigating) return;
           update(response);
+          if(response.suspended){timer=setTimeout(poll,300);return;}
           if (!response.ok) {
             if(['original_missing','already_applied','ambiguous_match','scope_missing','ambiguous_scope','overlapping_change','position_mismatch','no_change','diff_too_complex'].includes(response.code)){
               staleCode=response.code;card.querySelector('.accept').disabled=true;await present('details');status('当前原文已变化，此项已失效；可继续编辑，点击导航后跳过');timer=setTimeout(poll,300);return;
