@@ -1,7 +1,15 @@
 'use strict';
 const Core=require('./suggestions');
 function create(crypto){const packs=new Map(),uploads=new Map();
- function put(project,pack){const ref=crypto.randomUUID();packs.set(ref,{project,pack});const previous=[...packs].filter(([id,p])=>p.project===project&&id!==ref);for(const [id] of previous.slice(0,-1))packs.delete(id);return{ref,count:pack.suggestions.length,projectId:pack.projectId}}
+ const pins=new Map();
+ function prune(project){const unused=[...packs].filter(([id,p])=>p.project===project&&!pins.get(id)?.size);for(const [id] of unused.slice(0,-2))packs.delete(id)}
+ function put(project,pack,cacheKey){
+  const cached=cacheKey&&[...packs].find(([,p])=>p.project===project&&p.cacheKey===cacheKey);
+  const ref=cached?.[0]||crypto.randomUUID();if(cached)packs.delete(ref);packs.set(ref,{project,pack,cacheKey});prune(project);
+  return{ref,count:pack.suggestions.length,projectId:pack.projectId};
+ }
+ function pin(project,ref,client){get(project,ref);if(!pins.has(ref))pins.set(ref,new Set());pins.get(ref).add(client)}
+ function release(client){for(const [id,owners] of pins){owners.delete(client);if(!owners.size)pins.delete(id)}for(const project of new Set([...packs.values()].map(p=>p.project)))prune(project)}
  function get(project,ref){const entry=packs.get(ref);if(!entry||entry.project!==project)throw new Error('建议会话已更新，请重新载入');return entry.pack}
  function parse(project,input){return put(project,Core.parsePack(input))}
  function chunk(project,message){
@@ -18,6 +26,6 @@ function create(crypto){const packs=new Map(),uploads=new Map();
   if(!Number.isInteger(index)||index<0||index>=pack.suggestions.length)throw new Error('建议索引无效');
   for(const item of pack.suggestions.slice(index,index+32)){const size=JSON.stringify(item).length;if(values.length&&bytes+size>131072)break;values.push(item);bytes+=size}return values;
  }
- return{put,get,parse,chunk,items};
+ return{put,get,parse,chunk,items,pin,release};
 }
 module.exports={create};

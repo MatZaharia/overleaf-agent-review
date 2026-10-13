@@ -157,7 +157,7 @@
       "use strict";
       var Counts = require_reviewCounts();
       function halt(code) {
-        return ["project_changed", "cancelled", "write_unconfirmed", "bridge_failed", "bridge_timeout", "tracking_out_of_sync"].includes(code);
+        return ["project_changed", "cancelled", "write_unconfirmed", "bridge_failed", "bridge_timeout", "tracking_out_of_sync", "review_lease_lost", "review_file_mismatch"].includes(code);
       }
       async function run(pack, deps) {
         const results = /* @__PURE__ */ new Map(), settled = /* @__PURE__ */ new Set();
@@ -223,7 +223,8 @@
             try {
               prepared = suspended?.index === index ? suspended.prepared : await deps.call("prepare", { item, projectId: deps.projectId, presentation: deps.presentation?.({ index, total, remaining: total - finished.size, position: Counts.position(index, finished) }) });
               suspended = null;
-            } catch (_) {
+            } catch (error) {
+              if (error.code === "review_lease_lost") throw error;
               throw Object.assign(new Error("\u8FDE\u63A5\u4E2D\u65AD\uFF0C\u6CA1\u6709\u81EA\u52A8\u91CD\u8BD5"), { code: "bridge_timeout", results: list() });
             }
             deps.assertCurrent();
@@ -274,13 +275,15 @@
             let applied;
             try {
               applied = await deps.call("apply", { token: decision.token, projectId: deps.projectId });
-            } catch (_) {
+            } catch (error) {
+              if (error.code === "review_lease_lost") throw error;
               throw Object.assign(new Error("\u5199\u5165\u72B6\u6001\u672A\u786E\u8BA4\uFF0C\u68C0\u67E5\u5F53\u524D\u6587\u4EF6\uFF1B\u4E0D\u8981\u91CD\u590D\u63A5\u53D7"), { code: "write_unconfirmed", results: list() });
             }
             if (applied.suspended === true && applied.changedDocument === false) {
               suspended = { index, prepared: { ...prepared, token: decision.token, inline: false, suspended: true } };
               continue;
             }
+            if (applied.code === "review_lease_lost") throw Object.assign(new Error("\u6807\u7B7E\u9875\u5BA1\u9605\u6743\u9650\u5DF2\u5931\u6548\uFF0C\u8BF7\u91CD\u65B0\u5F00\u59CB\u5BA1\u9605"), { code: applied.code, results: list() });
             if (applied.code === "tracking_out_of_sync") throw Object.assign(new Error("\u5B9A\u4F4D\u8BB0\u5F55\u5DF2\u5931\u6548"), { code: applied.code, file: item.file, results: list() });
             const verified = applied.ok === true && applied.verified === true;
             const code = applied.code || (verified ? "" : "write_unconfirmed");
@@ -406,6 +409,15 @@
     "src/i18n.js"(exports, module) {
       "use strict";
       var english = {
+        "\u5BA1\u9605\u8303\u56F4": "Review scope",
+        "\u5F53\u524D\u6587\u4EF6\uFF08\u591A\u6807\u7B7E\u9875\uFF09": "Current file (multiple tabs)",
+        "\u5168\u90E8\u6587\u4EF6\uFF08\u5355\u6807\u7B7E\u9875\uFF09": "All files (one tab)",
+        "\u672C\u9875\u53EA\u5BA1\u9605\u5F00\u59CB\u65F6\u7684\u6587\u4EF6\uFF1B\u8BF7\u5B9A\u4F4D\u5F53\u524D\u9879\uFF0C\u6216\u505C\u6B62\u540E\u5728\u65B0\u6587\u4EF6\u5F00\u59CB\u5BA1\u9605": "This tab reviews its starting file. Locate the current item, or stop and start review in the new file.",
+        "\u6807\u7B7E\u9875\u5BA1\u9605\u6743\u9650\u5DF2\u5931\u6548\uFF0C\u8BF7\u91CD\u65B0\u5F00\u59CB\u5BA1\u9605": "This tab\u2019s review permission is no longer valid. Start review again.",
+        "\u5176\u4ED6\u6807\u7B7E\u9875\u6B63\u5728\u5BA1\u9605\uFF0C\u8BF7\u5148\u505C\u6B62\u540E\u518D\u66F4\u6362\u5EFA\u8BAE\u5305": "Stop review in the other tabs before replacing the suggestion pack.",
+        "\u6B64\u6587\u4EF6\u5DF2\u5728\u5176\u4ED6\u6807\u7B7E\u9875\u5BA1\u9605\uFF1B\u8BF7\u4F7F\u7528\u4E0D\u540C\u6587\u4EF6\uFF0C\u6216\u5148\u505C\u6B62\u53E6\u4E00\u9875": "This file is being reviewed in another tab. Use a different file or stop the other tab first.",
+        "\u5F53\u524D\u6587\u4EF6\u6CA1\u6709\u5BA1\u9605\u5EFA\u8BAE\uFF0C\u8BF7\u5207\u6362\u6587\u4EF6\u6216\u9009\u62E9\u5168\u90E8\u6587\u4EF6": "No suggestions for this file. Switch files or select all files.",
+        "\u8BF7\u5148\u505C\u6B62\u76F8\u5173\u6807\u7B7E\u9875\u7684\u5BA1\u9605\uFF0C\u518D\u6E05\u9664\u8FDB\u5EA6\u6216\u91CD\u5EFA\u5B9A\u4F4D": "Stop review in the affected tabs before clearing progress or rebuilding tracking.",
         "\u5EFA\u8BAE\u8BE6\u60C5": "Suggestion details",
         "\u8BE6\u60C5 \u2197": "Details \u2197",
         "\u8FD4\u56DE\u7CBE\u7B80 \u2199": "Back to compact \u2199",
@@ -529,6 +541,7 @@
         "\u6BCF\u9879 id \u5FC5\u987B\u552F\u4E00": "Each item id must be unique"
       };
       var templates = [
+        [/^项目已确认 (\d+) \/ (\d+)$/, (_, done, total) => `Project decisions ${done} / ${total}`],
         [/^建议 (\d+) \/ (\d+)$/, (_, position, remaining) => `Suggestion ${position} / ${remaining}`],
         [/^修改 (.*)$/, (_, id) => "Change " + id],
         [/^Agent 建议版本 (\d+)，共 (\d+) 项$/, (_, revision, count) => `Agent pack revision ${revision}, ${count} items`],
@@ -788,7 +801,7 @@
     const shadow = host.attachShadow({ mode: "open" });
     shadow.innerHTML = `<style>
 :host{font:13px/1.5 system-ui;color:#273342}*{box-sizing:border-box}button,textarea,input{font:inherit}button{border:1px solid #cdd6df;border-radius:6px;background:#fff;color:#273342;padding:7px 11px;cursor:pointer}button:disabled{opacity:.45;cursor:default}button:focus-visible,textarea:focus-visible{outline:3px solid #8aafe3;outline-offset:2px}.primary,.launch{background:#176347;color:#fff;border-color:#176347}.launch{box-shadow:0 4px 18px #18352925}.drawer{position:fixed;display:flex;flex-direction:column;overflow:hidden;background:#fff;border:1px solid #cbd5de;border-radius:10px;box-shadow:0 10px 40px #14253630;margin-bottom:10px}.head{padding:14px 16px;border-bottom:1px solid #e0e6ec;display:flex;align-items:center;justify-content:space-between}.head strong{font-size:15px}.head button{padding:3px 8px}.body{padding:16px 16px 26px;overflow:auto;min-height:0;flex:1}.head{flex-shrink:0;gap:12px}.head strong{flex:1}.language{font:inherit;border:1px solid #cdd6df;border-radius:5px;background:white;padding:3px}.muted{color:#657687;font-size:12px;margin:0 0 12px}.label{display:block;margin-bottom:6px;font-weight:600}textarea{display:block;width:100%;height:130px;padding:10px;border:1px solid #ccd7e0;border-radius:6px;resize:vertical;font:12px/1.45 ui-monospace,monospace}.toolbar{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.message{font-size:12px;padding:10px;background:#f0f5f4;border-radius:5px}.card{border:1px solid #d2dce4;border-radius:7px;padding:12px;margin-top:12px}.card strong{display:block}.path{font:11px/1.5 ui-monospace,monospace;color:#687888}.reason{font-size:12px;margin:8px 0}.comparison-label{font-weight:600;font-size:12px;margin:12px 0 6px}.context{font-size:12px;color:#657687;margin:14px 0}.context summary{cursor:pointer;padding:8px;border:1px solid #e0e6ec;border-radius:6px}.card{border:0;padding:0}.path{margin-top:4px}.reason{line-height:1.6}.session-toolbar{flex-wrap:wrap}.source{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 ui-monospace,monospace;margin:6px 0 10px;padding:8px;max-height:180px;overflow:auto;border-radius:4px}.old,.new{background:#f6f8fa;color:#586673}.actions{display:flex;gap:8px}.history{padding:8px 0;border-bottom:1px solid #e3e9ed;font-size:12px}.history b{color:#176347}.unknown{color:#9a452c}.session-toolbar{display:flex;justify-content:space-between;gap:8px;margin-bottom:12px}.history-details{margin-top:14px;font-size:12px;color:#657687}.footer{margin-top:14px;font-size:11px;color:#6b7b88}[hidden]{display:none!important}
-${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="head"><strong>\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE</strong><select class="language" aria-label="\u8BED\u8A00"><option value="zh-CN">\u4E2D\u6587</option><option value="en">English</option></select><button class="close" aria-label="\u6536\u8D77">\xD7</button></div><div class="body"><div class="session-toolbar" hidden><button class="compact">\u8FD4\u56DE\u7CBE\u7B80 \u2199</button><button class="back">\u5BA1\u9605\u7BA1\u7406</button><button class="continue" hidden>\u7EE7\u7EED\u5BA1\u9605</button><button class="stop" hidden>\u505C\u6B62</button></div><div class="setup-view"><p class="muted">\u5148\u5BFC\u5165\u5EFA\u8BAE\u5305\uFF0C\u518D\u9010\u9879\u786E\u8BA4\u3002\u6BCF\u6B21\u63A5\u53D7\u90FD\u4F1A\u641C\u7D22\u5F53\u524D\u539F\u6587\uFF1B\u8FC7\u65F6\u6216\u4E0D\u552F\u4E00\u7684\u9879\u81EA\u52A8\u8DF3\u8FC7\u3002</p><label class="label" for="pack">\u5EFA\u8BAE\u5305 JSON</label><textarea id="pack" spellcheck="false" placeholder="\u7C98\u8D34 Agent \u751F\u6210\u7684\u5EFA\u8BAE\u5305"></textarea><input type="file" accept=".json,application/json" hidden><div class="toolbar"><button class="connect">\u8FDE\u63A5 Agent</button><button class="disconnect">\u65AD\u5F00</button></div><div class="bridge-status" role="status"></div><input class="bridge-token" type="password" placeholder="\u672C\u5730\u8FDE\u63A5\u914D\u5BF9\u4EE4\u724C" autocomplete="off"><div class="toolbar"><button class="file">\u9009\u62E9 JSON \u6587\u4EF6</button><button class="primary start">\u5F00\u59CB\u5BA1\u9605</button><button class="resume">\u6062\u590D\u4E0A\u6B21\u5BA1\u9605</button><button class="reset">\u6E05\u9664\u8FDB\u5EA6</button></div><div class="setup-message message" role="status" aria-live="polite">\u7B49\u5F85\u5BFC\u5165\u5EFA\u8BAE\u5305</div></div><div class="review-view" hidden><div class="message review-message" role="status" aria-live="polite">\u7B49\u5F85\u5BFC\u5165\u5EFA\u8BAE\u5305</div><button class="repair" hidden>\u91CD\u65B0\u5EFA\u7ACB\u5B9A\u4F4D\uFF08\u4FDD\u7559\u51B3\u5B9A\uFF09</button><div class="pending"></div><details class="history-details"><summary>\u6700\u8FD1\u5904\u7406\u8BB0\u5F55</summary><div class="history-list"></div></details><p class="footer">\u5DF2\u5199\u5165\u8868\u793A\u7F16\u8F91\u5668\u5185\u5BB9\u5DF2\u6838\u9A8C\uFF0C\u670D\u52A1\u5668\u4FDD\u5B58\u9700\u5728 Overleaf \u68C0\u67E5\u3002\u53EF\u4F7F\u7528 Overleaf \u7684\u64A4\u9500\u6309\u94AE\u3002</p></div></div><button class="resize" aria-label="\u62D6\u52A8\u53F3\u4E0B\u89D2\u8C03\u6574\u5927\u5C0F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03" title="\u62D6\u52A8\u53F3\u4E0B\u89D2\u8C03\u6574\u5927\u5C0F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03"></button></section><button class="launch">\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE</button>`;
+${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="head"><strong>\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE</strong><select class="language" aria-label="\u8BED\u8A00"><option value="zh-CN">\u4E2D\u6587</option><option value="en">English</option></select><button class="close" aria-label="\u6536\u8D77">\xD7</button></div><div class="body"><div class="session-toolbar" hidden><button class="compact">\u8FD4\u56DE\u7CBE\u7B80 \u2199</button><button class="back">\u5BA1\u9605\u7BA1\u7406</button><button class="continue" hidden>\u7EE7\u7EED\u5BA1\u9605</button><button class="stop" hidden>\u505C\u6B62</button></div><div class="setup-view"><p class="muted">\u5148\u5BFC\u5165\u5EFA\u8BAE\u5305\uFF0C\u518D\u9010\u9879\u786E\u8BA4\u3002\u6BCF\u6B21\u63A5\u53D7\u90FD\u4F1A\u641C\u7D22\u5F53\u524D\u539F\u6587\uFF1B\u8FC7\u65F6\u6216\u4E0D\u552F\u4E00\u7684\u9879\u81EA\u52A8\u8DF3\u8FC7\u3002</p><label class="label" for="pack">\u5EFA\u8BAE\u5305 JSON</label><textarea id="pack" spellcheck="false" placeholder="\u7C98\u8D34 Agent \u751F\u6210\u7684\u5EFA\u8BAE\u5305"></textarea><input type="file" accept=".json,application/json" hidden><div class="toolbar"><button class="connect">\u8FDE\u63A5 Agent</button><button class="disconnect">\u65AD\u5F00</button></div><div class="bridge-status" role="status"></div><input class="bridge-token" type="password" placeholder="\u672C\u5730\u8FDE\u63A5\u914D\u5BF9\u4EE4\u724C" autocomplete="off"><div class="toolbar"><button class="file">\u9009\u62E9 JSON \u6587\u4EF6</button><button class="primary start">\u5F00\u59CB\u5BA1\u9605</button><button class="resume">\u6062\u590D\u4E0A\u6B21\u5BA1\u9605</button><button class="reset">\u6E05\u9664\u8FDB\u5EA6</button></div><label class="label" for="review-scope">\u5BA1\u9605\u8303\u56F4</label><select id="review-scope"><option value="current">\u5F53\u524D\u6587\u4EF6\uFF08\u591A\u6807\u7B7E\u9875\uFF09</option><option value="all">\u5168\u90E8\u6587\u4EF6\uFF08\u5355\u6807\u7B7E\u9875\uFF09</option></select><p class="shared-summary muted" hidden></p><div class="setup-message message" role="status" aria-live="polite">\u7B49\u5F85\u5BFC\u5165\u5EFA\u8BAE\u5305</div></div><div class="review-view" hidden><div class="message review-message" role="status" aria-live="polite">\u7B49\u5F85\u5BFC\u5165\u5EFA\u8BAE\u5305</div><button class="repair" hidden>\u91CD\u65B0\u5EFA\u7ACB\u5B9A\u4F4D\uFF08\u4FDD\u7559\u51B3\u5B9A\uFF09</button><div class="pending"></div><details class="history-details"><summary>\u6700\u8FD1\u5904\u7406\u8BB0\u5F55</summary><div class="history-list"></div></details><p class="footer">\u5DF2\u5199\u5165\u8868\u793A\u7F16\u8F91\u5668\u5185\u5BB9\u5DF2\u6838\u9A8C\uFF0C\u670D\u52A1\u5668\u4FDD\u5B58\u9700\u5728 Overleaf \u68C0\u67E5\u3002\u53EF\u4F7F\u7528 Overleaf \u7684\u64A4\u9500\u6309\u94AE\u3002</p></div></div><button class="resize" aria-label="\u62D6\u52A8\u53F3\u4E0B\u89D2\u8C03\u6574\u5927\u5C0F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03" title="\u62D6\u52A8\u53F3\u4E0B\u89D2\u8C03\u6574\u5927\u5C0F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03"></button></section><button class="launch">\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE</button>`;
     document.body.append(host);
     PageModal.watch({ document, window, onChange: (blocked) => {
       host.hidden = blocked;
@@ -797,7 +810,30 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
     const capability = Array.from(crypto.getRandomValues(new Uint8Array(32)), (b) => b.toString(16).padStart(2, "0")).join("");
     const persistent = typeof chrome !== "undefined" && !!chrome.runtime?.id;
     let contextLost = false, trackingFile = null, stopReason = null, reviewMode = "compact", presentCurrent = null, fullContext = false;
-    const runtime = ExtensionRuntime.create(() => typeof chrome === "undefined" ? null : chrome, onContextInvalidated);
+    const extension = ExtensionRuntime.create(() => typeof chrome === "undefined" ? null : chrome, onContextInvalidated);
+    const runtime = { check: extension.check, storage: extension.storage, message: (body) => extension.message({ ...body, clientId: capability }) };
+    let reviewLease = null, reviewFile = "", lastRenew = 0, sharedSummary = null, pendingBridgeStart = false;
+    function showShared(value) {
+      if (value) sharedSummary = value;
+      if (!sharedSummary) return;
+      for (const node of shadow.querySelectorAll(".shared-summary")) {
+        node.hidden = false;
+        setUI(node, "\u9879\u76EE\u5DF2\u786E\u8BA4 " + sharedSummary.confirmed + " / " + sharedSummary.total);
+      }
+    }
+    async function renew(force = false) {
+      if (!persistent || !reviewLease) return null;
+      if (!force && Date.now() - lastRenew < 5e3) return null;
+      const response = await runtime.message({ type: "reviewRenew", lease: reviewLease });
+      if (!response.ok) throw Object.assign(new Error(response.error), { code: response.code || "review_lease_lost" });
+      lastRenew = Date.now();
+      showShared(response.summary);
+      return response;
+    }
+    if (persistent) chrome.runtime.onMessage.addListener((event, sender) => {
+      if (sender.id !== chrome.runtime.id || event.type !== "reviewShared" || event.clientId !== capability || event.projectId !== location.pathname.match(/^\/project\/([a-f\d]{24})(?:\/|$)/i)?.[1]) return;
+      showShared(event.summary);
+    });
     let language = "zh-CN", languageTouched = false, packLabel = null, reviewLanguageRefresh = null;
     function setPackLabel(text) {
       packLabel = text;
@@ -885,6 +921,10 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
     async function call(method, params) {
       if (persistent && method !== "cancel") {
         runtime.check();
+        if (sessionActive) {
+          const ready = await renew(method === "apply");
+          if (method === "apply") params = { ...params, notAfter: ready?.notAfter };
+        }
         if (method === "apply") {
           const ready = await runtime.message({ type: "ping" });
           if (!ready?.ok) throw new Error("\u65E0\u6CD5\u8FDE\u63A5\u6269\u5C55");
@@ -897,8 +937,9 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
       if (persistent && method !== "cancel") runtime.check();
       const result = await send(method, params);
       if (persistent && sessionActive && result.journal?.length) {
-        const saved = await runtime.message({ type: "progress", journal: result.journal });
-        if (!saved.ok) throw new Error("\u4FDD\u5B58\u5B9A\u4F4D\u8BB0\u5F55\u5931\u8D25\uFF1A" + saved.error);
+        const saved = await runtime.message({ type: "progress", journal: result.journal, lease: reviewLease });
+        if (!saved.ok) throw Object.assign(new Error("\u4FDD\u5B58\u5B9A\u4F4D\u8BB0\u5F55\u5931\u8D25\uFF1A" + saved.error), { code: saved.code || "review_lease_lost" });
+        showShared(saved.summary);
       }
       const updates = (result.journal || []).flatMap((entry) => entry.decisions || []);
       if (updates.length) {
@@ -970,9 +1011,10 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
         const card = document.createElement("section");
         card.className = "card";
         card.setAttribute("aria-label", "\u5EFA\u8BAE\u8BE6\u60C5");
-        card.innerHTML = '<strong></strong><div class="path"></div><div class="comparison-label">\u4FEE\u6539\u7406\u7531</div><p class="reason"></p><div class="comparison-label">\u4FEE\u6539\u5BF9\u6BD4</div><pre class="source combined"></pre><details class="context"><summary>\u67E5\u770B\u5B8C\u6574\u4E0A\u4E0B\u6587</summary><div>\u539F\u6587 \xB7 \u6807\u51FA\u5220\u9664</div><pre class="source old"></pre><div>\u4FEE\u6539\u540E \xB7 \u6807\u51FA\u65B0\u589E</div><pre class="source new"></pre></details><div class="toolbar navigation"><button class="previous">\u4E0A\u4E00\u9879</button><button class="next">\u4E0B\u4E00\u9879</button><button class="cursor-previous">\u5149\u6807\u4E0A\u4E00\u5904</button><button class="cursor-next">\u5149\u6807\u4E0B\u4E00\u5904</button></div><div class="actions"><button class="reject">\u62D2\u7EDD\u8FD9\u4E00\u9879</button><button class="primary accept">\u63A5\u53D7\u8FD9\u4E00\u9879</button></div>';
+        card.innerHTML = '<strong></strong><p class="shared-summary muted" hidden></p><div class="path"></div><div class="comparison-label">\u4FEE\u6539\u7406\u7531</div><p class="reason"></p><div class="comparison-label">\u4FEE\u6539\u5BF9\u6BD4</div><pre class="source combined"></pre><details class="context"><summary>\u67E5\u770B\u5B8C\u6574\u4E0A\u4E0B\u6587</summary><div>\u539F\u6587 \xB7 \u6807\u51FA\u5220\u9664</div><pre class="source old"></pre><div>\u4FEE\u6539\u540E \xB7 \u6807\u51FA\u65B0\u589E</div><pre class="source new"></pre></details><div class="toolbar navigation"><button class="previous">\u4E0A\u4E00\u9879</button><button class="next">\u4E0B\u4E00\u9879</button><button class="cursor-previous">\u5149\u6807\u4E0A\u4E00\u5904</button><button class="cursor-next">\u5149\u6807\u4E0B\u4E00\u5904</button></div><div class="actions"><button class="reject">\u62D2\u7EDD\u8FD9\u4E00\u9879</button><button class="primary accept">\u63A5\u53D7\u8FD9\u4E00\u9879</button></div>';
         $(".pending").replaceChildren(card);
         rememberUI(card);
+        showShared();
         const context = card.querySelector(".context"), comparison = card.querySelector(".combined"), comparisonLabel = comparison.previousElementSibling;
         function contextPerspective() {
           if (!card.isConnected) return;
@@ -1000,7 +1042,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
           if (node.textContent !== t(text)) setUI(node, text);
         };
         renderCount();
-        card.querySelector(".path").textContent = item.file + " \xB7 L" + prepared.line + " \xB7 #" + (options.index + 1);
+        card.querySelector(".path").textContent = item.file + " \xB7 L" + prepared.line + " \xB7 #" + ((item.sourceIndex ?? options.index) + 1);
         card.querySelector(".reason").textContent = item.reason;
         let displayed = prepared, lastPresentation = null;
         function renderDiff() {
@@ -1138,7 +1180,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
             }
             status(fromCursor ? "\u5F53\u524D\u6587\u4EF6\u7684\u5149\u6807\u8FD9\u4E00\u4FA7\u6CA1\u6709\u53EF\u5B9A\u4F4D\u7684\u5F85\u5904\u7406\u5EFA\u8BAE" : "\u6CA1\u6709\u5176\u4ED6\u5F85\u5904\u7406\u5EFA\u8BAE\uFF1B\u5F53\u524D\u9879\u4ECD\u7B49\u5F85\u786E\u8BA4");
           } catch (error) {
-            if (!settled) status(error.message === "navigation_changed" ? "\u6B63\u6587\u3001\u6587\u4EF6\u6216\u5149\u6807\u6709\u53D8\u5316\uFF0C\u8BF7\u91CD\u65B0\u70B9\u51FB\u5BFC\u822A" : "\u5BFC\u822A\u672A\u5B8C\u6210\uFF1A" + error.message);
+            if (!settled) status(error.message === "review_file_mismatch" ? "\u672C\u9875\u53EA\u5BA1\u9605\u5F00\u59CB\u65F6\u7684\u6587\u4EF6\uFF1B\u8BF7\u5B9A\u4F4D\u5F53\u524D\u9879\uFF0C\u6216\u505C\u6B62\u540E\u5728\u65B0\u6587\u4EF6\u5F00\u59CB\u5BA1\u9605" : error.message === "navigation_changed" ? "\u6B63\u6587\u3001\u6587\u4EF6\u6216\u5149\u6807\u6709\u53D8\u5316\uFF0C\u8BF7\u91CD\u65B0\u70B9\u51FB\u5BFC\u822A" : "\u5BFC\u822A\u672A\u5B8C\u6210\uFF1A" + error.message);
           } finally {
             navigating = false;
             if (!settled) {
@@ -1197,7 +1239,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
             token = response.token;
             staleCode = null;
             card.querySelector(".accept").disabled = false;
-            card.querySelector(".path").textContent = item.file + " \xB7 L" + response.line + " \xB7 #" + (options.index + 1);
+            card.querySelector(".path").textContent = item.file + " \xB7 L" + response.line + " \xB7 #" + ((item.sourceIndex ?? options.index) + 1);
             status("\u6B63\u6587\u6709\u53D8\u5316\uFF0C\u5DF2\u91CD\u65B0\u5B9A\u4F4D\u8FD9\u4E00\u9879\uFF0C\u7B49\u5F85\u786E\u8BA4");
           } else if (!response.ok) staleCode = response.code;
         }
@@ -1260,8 +1302,9 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
     }
     async function record(result) {
       if (persistent && ["written", "rejected", "unknown"].includes(result.state)) {
-        const saved = await runtime.message({ type: "progress", decision: { reviewKey: result.item.reviewKey, state: result.state, code: result.code } });
-        if (!saved.ok) throw new Error("\u4FDD\u5B58\u5BA1\u9605\u51B3\u5B9A\u5931\u8D25\uFF1A" + saved.error);
+        const saved = await runtime.message({ type: "progress", lease: reviewLease, decision: { reviewKey: result.item.reviewKey, state: result.state, code: result.code } });
+        if (!saved.ok) throw Object.assign(new Error("\u4FDD\u5B58\u5BA1\u9605\u51B3\u5B9A\u5931\u8D25\uFF1A" + saved.error), { code: saved.code || "review_lease_lost" });
+        showShared(saved.summary);
       }
       if (bridgeRevision) bridgeResults.push({ revision: bridgeRevision, id: result.item.id, state: result.state, code: result.code });
       if ($(".pending").firstChild) $(".pending").replaceChildren();
@@ -1301,15 +1344,29 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
         if (!current.ok || !current.projectId) throw new Error("\u8BF7\u5148\u6253\u5F00 Overleaf \u9879\u76EE");
         if (pack.projectId && pack.projectId !== current.projectId) throw new Error("\u5EFA\u8BAE\u5305\u5C5E\u4E8E\u5176\u4ED6\u9879\u76EE\uFF0C\u6CA1\u6709\u5199\u5165");
         if (epoch !== startEpoch) throw new Error("\u5EFA\u8BAE\u5DF2\u66F4\u65B0\u6216\u5BA1\u9605\u5DF2\u505C\u6B62");
+        reviewFile = $("#review-scope").value === "current" ? current.file : "";
+        if ($("#review-scope").value === "current" && !reviewFile) throw new Error("\u6E90\u7801\u7F16\u8F91\u5668\u672A\u5C31\u7EEA");
         if (persistent) {
-          session = await runtime.message({ type: "session", pack });
-          if (!session.ok) throw new Error(session.error);
-          pack = session.pack;
+          session = await runtime.message({ type: "session", pack, acquire: true, file: reviewFile });
+          if (!session.ok) throw Object.assign(new Error(session.error), { code: session.code });
+          reviewLease = session.lease;
+          lastRenew = Date.now();
+          showShared(session.summary);
+          pack = session.reviewPack || session.pack;
+        } else if (reviewFile) {
+          pack = { ...pack, suggestions: pack.suggestions.flatMap((item, index) => item.file === reviewFile ? [{ ...item, sourceIndex: index }] : []) };
+          if (!pack.suggestions.length) throw new Error("\u5F53\u524D\u6587\u4EF6\u6CA1\u6709\u5BA1\u9605\u5EFA\u8BAE\uFF0C\u8BF7\u5207\u6362\u6587\u4EF6\u6216\u9009\u62E9\u5168\u90E8\u6587\u4EF6");
         }
         if (epoch !== startEpoch) throw new Error("\u5EFA\u8BAE\u5DF2\u66F4\u65B0\u6216\u5BA1\u9605\u5DF2\u505C\u6B62");
         owner = current.projectId;
         sessionActive = true;
       } catch (error) {
+        if (error.code === "review_pack_busy" && bridgeEnabled) pendingBridgeStart = true;
+        if (reviewLease) {
+          await runtime.message({ type: "reviewRelease", lease: reviewLease }).catch(() => {
+          });
+          reviewLease = null;
+        }
         status(error.message);
         starting = false;
         $(".start").disabled = contextLost;
@@ -1319,6 +1376,8 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
       starting = false;
       cancelled = false;
       stopReason = null;
+      pendingBridgeStart = false;
+      $("#review-scope").disabled = true;
       $(".start").disabled = true;
       $(".resume").disabled = true;
       $(".reset").disabled = true;
@@ -1332,7 +1391,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
       $(".drawer").hidden = reviewMode === "compact";
       try {
         decisionUpdates = [];
-        await call("begin", { ledgers: session.ledgers, mode: reviewMode });
+        await call("begin", { ledgers: session.ledgers, mode: reviewMode, file: reviewFile });
         const catalogId = crypto.randomUUID();
         let itemBuffer = [], bufferStart = -1;
         const itemAt = persistent ? async (index) => {
@@ -1365,13 +1424,21 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
           trackingFile = error.file;
           $(".repair").hidden = false;
           status("\u5B9A\u4F4D\u8BB0\u5F55\u4E0E\u5F53\u524D\u6B63\u6587\u4E0D\u4E00\u81F4\uFF0C\u5BA1\u9605\u5DF2\u6682\u505C\u3002\u53EF\u91CD\u65B0\u5EFA\u7ACB\u5B9A\u4F4D\uFF0C\u4FDD\u7559\u63A5\u53D7\uFF0F\u62D2\u7EDD\u51B3\u5B9A\u3002");
-        } else if (error.code === "cancelled") status(stopReason === "update" ? "\u6B63\u5728\u8F7D\u5165\u65B0\u7248\u672C\u5EFA\u8BAE\u2026" : "\u5BA1\u9605\u5DF2\u505C\u6B62\uFF0C\u53EF\u8FD4\u56DE\u5BFC\u5165\u540E\u7EE7\u7EED");
+        } else if (error.code === "review_lease_lost") status("\u6807\u7B7E\u9875\u5BA1\u9605\u6743\u9650\u5DF2\u5931\u6548\uFF0C\u8BF7\u91CD\u65B0\u5F00\u59CB\u5BA1\u9605");
+        else if (error.code === "cancelled") status(stopReason === "update" ? "\u6B63\u5728\u8F7D\u5165\u65B0\u7248\u672C\u5EFA\u8BAE\u2026" : "\u5BA1\u9605\u5DF2\u505C\u6B62\uFF0C\u53EF\u8FD4\u56DE\u5BFC\u5165\u540E\u7EE7\u7EED");
         else status(error.code === "write_unconfirmed" ? "\u5199\u5165\u7ED3\u679C\u672A\u786E\u8BA4\uFF0C\u5DF2\u505C\u6B62\u3002\u8BF7\u68C0\u67E5\u5F53\u524D\u6B63\u6587\uFF0C\u4E0D\u8981\u91CD\u590D\u63A5\u53D7\u3002" : "\u5BA1\u9605\u5DF2\u505C\u6B62\uFF1A" + (error.code || error.message));
       } finally {
         pendingAbort?.();
         pendingAbort = null;
         await call("cancel", {}).catch(() => {
         });
+        sessionActive = false;
+        if (reviewLease) {
+          await runtime.message({ type: "reviewRelease", lease: reviewLease }).catch(() => {
+          });
+          reviewLease = null;
+        }
+        $("#review-scope").disabled = false;
         $(".pending").replaceChildren();
         reviewLanguageRefresh = null;
         presentCurrent = null;
@@ -1425,7 +1492,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
           return;
         }
         if (!result.ok) throw new Error(result.error);
-        if (result.snapshotRequest) {
+        if (result.snapshotRequest && document.visibilityState === "visible") {
           const snapshot = await call("snapshot", {});
           if (!snapshot.ok) throw new Error("\u6E90\u7801\u7F16\u8F91\u5668\u672A\u5C31\u7EEA");
           if (!bridgeEnabled) return;
@@ -1446,6 +1513,10 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
           setPackLabel("Agent \u5EFA\u8BAE\u7248\u672C " + bridgeRevision + "\uFF0C\u5171 " + (result.pack.count ?? result.pack.suggestions.length) + " \u9879");
           $(".drawer").hidden = false;
           floating.layout();
+          start();
+        }
+        if (pendingBridgeStart && !running && !starting) {
+          pendingBridgeStart = false;
           start();
         }
         setUI($(".bridge-status"), "\u5DF2\u8FDE\u63A5 \xB7 \u6E90\u7801\u6309\u9700\u8BFB\u53D6 \xB7 \u5EFA\u8BAE\u7248\u672C " + bridgeRevision);
@@ -1542,6 +1613,10 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
         return;
       }
       sessionActive = false;
+      sharedSummary = null;
+      shadow.querySelectorAll(".shared-summary").forEach((node) => {
+        node.hidden = true;
+      });
       $(".history-list").replaceChildren();
       status("\u5DF2\u6E05\u9664\u5F53\u524D\u9879\u76EE\u7684\u5BA1\u9605\u8FDB\u5EA6\uFF1B\u6B63\u6587\u4E0D\u53D8\uFF0C\u53EF\u91CD\u65B0\u5BFC\u5165\u5BA1\u9605");
     });
@@ -1549,6 +1624,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
     $(".stop").addEventListener("click", () => {
       ++startEpoch;
       stopReason = "user";
+      pendingBridgeStart = false;
       cancelled = true;
       pendingAbort?.();
       call("cancel", {}).catch(() => {

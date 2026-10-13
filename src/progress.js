@@ -25,11 +25,20 @@ function create(indexedDB,crypto){
   const legacy=new Map();for(const [file,ledger] of Object.entries(ledgers)){const edits=ledger.edits.filter(p=>!p.external&&!p.reviewKey);if(edits.length)legacy.set(file,new Map(edits.map(p=>[JSON.stringify([p.from,p.to,p.insert]),p])))}
   const written=new Set(records.filter(r=>r.state==='written').map(r=>r.key[1]));
   for(const item of packs[0]?.pack?.suggestions||[]){const edits=legacy.get(item.file);if(!edits||!written.has(item.reviewKey))continue;const match=Core.locate(ledgers[item.file].base,item);if(!match.ok)continue;for(const p of characterEdits(match.patch,ledgers[item.file].base)||[]){const saved=edits.get(JSON.stringify([p.from,p.to,p.insert]));if(saved){saved.reviewKey=item.reviewKey;edits.delete(JSON.stringify([p.from,p.to,p.insert]))}}if(!edits.size)legacy.delete(item.file)}
-  return {pack:packs[0]?.pack||null,decisions:Object.fromEntries(records.map(r=>[r.key[1],{state:r.state,code:r.code}])),ledgers};
+  return {pack:packs[0]?.pack||null,signature:packs[0]?.signature,decisions:Object.fromEntries(records.map(r=>[r.key[1],{state:r.state,code:r.code}])),ledgers};
  }
- async function savePack(project,pack){
-  const prepared=await keys(pack),database=await db(),tx=database.transaction('packs','readwrite'),done=complete(tx);
-  tx.objectStore('packs').put({key:project,project,pack:prepared});await done;
+ async function fingerprint(pack){
+  const raw=JSON.stringify(Core.parsePack(pack));
+  const hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(raw));
+  return Array.from(new Uint8Array(hash),b=>b.toString(16).padStart(2,'0')).join('');
+ }
+ async function savePack(project,pack,signature){
+  signature ||= await fingerprint(pack);
+  const database=await db(),read=database.transaction('packs','readonly'),readDone=complete(read);
+  const existing=await request(read.objectStore('packs').get(project));await readDone;
+  if(existing && (existing.signature || await fingerprint(existing.pack))===signature)return {changed:false,signature};
+  const prepared=await keys(pack),tx=database.transaction('packs','readwrite'),done=complete(tx);
+  tx.objectStore('packs').put({key:project,project,pack:prepared,signature});await done;return {changed:true,signature};
  }
  async function save(project,{decision,journal=[]}){
   const database=await db(),tx=database.transaction(['decisions','bases','edits'],'readwrite'),done=complete(tx);
@@ -63,6 +72,6 @@ function create(indexedDB,crypto){
   for(const name of ['bases','edits']){const store=tx.objectStore(name),rows=await request(store.index('project').getAll(project));for(const row of rows)if(row.file===file)store.delete(row.key)}
   await done;
  }
- return {load,savePack,save,clear,clearTracking,keys};
+ return {load,savePack,save,clear,clearTracking,keys,fingerprint};
 }
 module.exports={create};

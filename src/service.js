@@ -7,12 +7,12 @@ const Navigation = require('./navigation');
 
 const { characterEdits } = require('./characterEdits');
 function create({ adapter, preview, crypto }) {
-  let pending = null, generation = 0, scan = null, language='zh-CN',presentation={mode:'compact'};
+  let pending = null, generation = 0, scan = null, language='zh-CN',presentation={mode:'compact'},reviewFile='';
   const receipts = new Map(), ledgers = new Map();
   let journals=[];const textCache=new WeakMap(), navigationCache=new WeakMap();
   function textOf(view){const doc=view.state.doc;if(typeof doc.length!=='number')return doc.toString();if(!textCache.has(doc))textCache.set(doc,doc.toString());return textCache.get(doc)}
   const drain=()=>{const value=journals.map(entry=>({...entry,id:crypto.randomUUID()}));journals=[];return value};
-  function begin(saved={}) { presentation={mode:saved.mode==='details'?'details':'compact'};cancel(); ledgers.clear();journals=[];
+  function begin(saved={}) { reviewFile=saved.file||'';presentation={mode:saved.mode==='details'?'details':'compact'};cancel(); ledgers.clear();journals=[];
     for(const [file,data] of Object.entries(saved.ledgers||{})){
       if(typeof data.base!=='string'||!Array.isArray(data.edits))continue;
       const edits=data.edits.map(p=>({...p})).sort((a,b)=>a.from-b.from||a.to-b.to);
@@ -20,7 +20,7 @@ function create({ adapter, preview, crypto }) {
       const ledger={base:data.base,current,edits,history:(data.history||[]).map(p=>({...p})),version:0};Rebase.remember(ledger,edits);
       ledgers.set(key(adapter.projectId(),file),ledger);
     }
-    const view=adapter.view();if(view&&adapter.path())ledgerFor(adapter.projectId(),adapter.path(),textOf(view));
+    const view=adapter.view();if(view&&adapter.path()&&(!reviewFile||adapter.path()===reviewFile))ledgerFor(adapter.projectId(),adapter.path(),textOf(view));
     return {ok:true,journal:drain()}; }
   function ledgerFor(owner,file,text){
     const id=key(owner,file);let ledger=ledgers.get(id);
@@ -48,6 +48,7 @@ function create({ adapter, preview, crypto }) {
   function navigation(params){
     if(!current(params.projectId))return failure('project_changed');
     const view=adapter.view(),file=adapter.path();
+    if(reviewFile&&file!==reviewFile)return failure('review_file_mismatch');
     if(!view || !view.state.selection?.main)return failure('file_not_ready');
     if(!params.scanId){
       const text=textOf(view),ledger=ledgerFor(params.projectId,file,text);
@@ -86,6 +87,7 @@ function create({ adapter, preview, crypto }) {
   }
   async function prepare(params) {
     const item = Core.normalizeItem(params.item), owner = params.projectId;
+    if(reviewFile&&item.file!==reviewFile)return failure('review_file_mismatch');
     if(params.presentation)presentation={...presentation,...params.presentation};
     cancel(); const attempt = generation;
     if (!current(owner)) return failure('project_changed');
@@ -131,6 +133,7 @@ function create({ adapter, preview, crypto }) {
     return result;
   }
   function apply(params) {
+    if(params.notAfter!==undefined&&(!Number.isFinite(params.notAfter)||Date.now()>params.notAfter))return failure('review_lease_lost');
     // A settled token returns its existing receipt, never replays an edit.
     if (receipts.has(params.token)) return receipts.get(params.token);
     const item = pending;

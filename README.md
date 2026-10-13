@@ -8,7 +8,7 @@
 
 Review one change at a time, directly inside Overleaf.
 
-[![Release](https://img.shields.io/github/v/release/MatZaharia/overleaf-agent-review?include_prereleases&style=flat-square&color=6752c7)](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.6.2)
+[![Release](https://img.shields.io/github/v/release/MatZaharia/overleaf-agent-review?include_prereleases&style=flat-square&color=6752c7)](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.7.0)
 [![CI](https://github.com/MatZaharia/overleaf-agent-review/actions/workflows/ci.yml/badge.svg)](https://github.com/MatZaharia/overleaf-agent-review/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-278262?style=flat-square)](LICENSE)
 [![Chrome](https://img.shields.io/badge/Chrome-Manifest_V3-456cb3?style=flat-square)](#install)
@@ -16,7 +16,7 @@ Review one change at a time, directly inside Overleaf.
 
 **English** · [简体中文](README.zh-CN.md)
 
-[Download extension](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.6.2) · [Connect your Agent](#local-agent-connection) · [Agent guide](docs/agent-guide.md) · [Report an issue](https://github.com/MatZaharia/overleaf-agent-review/issues)
+[Download extension](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.7.0) · [Connect your Agent](#local-agent-connection) · [Agent guide](docs/agent-guide.md) · [Report an issue](https://github.com/MatZaharia/overleaf-agent-review/issues)
 
 </div>
 
@@ -36,7 +36,7 @@ Your Agent sends a suggestion pack. Overleaf highlights the changed characters. 
 
 ![Real CodeMirror demo showing a highlighted author suggestion and previous/next navigation](docs/assets/review-demo.jpg)
 
-*Actual browser demo with the extension code and a real CodeMirror editor. Test manuscript; this is not a live Overleaf screenshot. The extension interface is currently Chinese.*
+*Actual browser demo with the extension code and a real CodeMirror editor. Test manuscript; this is not a live Overleaf screenshot. The extension supports English and Simplified Chinese.*
 
 > **Have your review notes ready?** If they contain exact originals, replacements and file paths, your Agent can convert and publish them without reading the online manuscript first.
 
@@ -58,7 +58,7 @@ Your Agent sends a suggestion pack. Overleaf highlights the changed characters. 
 
 ## Install
 
-1. Download the extension ZIP from [Releases](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.6.2) and extract it. Use the extension asset, rather than GitHub's automatically generated source ZIP.
+1. Download the extension ZIP from [Releases](https://github.com/MatZaharia/overleaf-agent-review/releases/tag/v1.7.0) and extract it. Use the extension asset, rather than GitHub's automatically generated source ZIP.
 2. Open `chrome://extensions` in Chrome and enable **Developer mode**.
 3. Click **Load unpacked** and select the extracted `overleaf-agent-review` folder containing `manifest.json`.
 4. Open your Overleaf project and refresh the page. Select **Code** mode.
@@ -168,15 +168,25 @@ Both views use one inline comparison: removed characters are red and struck thro
 
 With a review card focused (click its text), **↑ / ↓** select the previous/next pending item and **Enter** accepts the current item. These keys keep their usual behavior in the LaTeX editor, text inputs and panel move/resize controls. Holding Enter never accepts a sequence of items.
 
-Manually opening another file suspends the current suggestion without marking it skipped or opening another file automatically. You can edit freely; acceptance is disabled while away. **Locate current item** returns to the same suggestion; ordinary previous/next can navigate across files, while cursor navigation searches the file you have open. Manually returning refreshes the preview without moving your cursor or scroll. File opening waits for readiness instead of a fixed 250 ms delay, and still requires the target file and a new editor identity on file switches.
+Manually opening another file suspends the current suggestion without marking it skipped or opening another file automatically. You can edit freely; acceptance is disabled while away. **Locate current item** returns to the same suggestion; in **All files** mode, previous/next can navigate across files and cursor navigation searches the file you have open. In **Current file** mode, both stay within the file selected at the start. Manually returning refreshes the preview without moving your cursor or scroll. File opening waits for readiness instead of a fixed 250 ms delay, and still requires the target file and a new editor identity on file switches.
 
 You can click elsewhere in the editor and type normally while a suggestion stays pending. Source changes refresh highlights without selecting or scrolling back. If the current original becomes stale, acceptance is disabled; undoing that manual edit refreshes the preview and enables acceptance again. Cursor search caches positions for the current source and pack; subsequent cursor moves reuse the index, while source/pack changes invalidate it. Restored edits are ordered by baseline position and mapped characters are verified before preview or acceptance. See [v1.5.2 validation](docs/validation-v1.5.2.md).
 
 Undoing an accepted change returns its suggestion to the pending queue and updates its counter and navigation. Unrelated accepted changes keep their baseline positions. If review has already ended or you undid a change while review was stopped, click **Resume last review** to reconcile the open file with saved progress. Rejections remain decided. Redo never causes an automatic editor write. See [v1.5.3 validation](docs/validation-v1.5.3.md).
 
-These interface improvements are included in the v1.6.2 Release ZIP. Reload the updated extension and refresh Overleaf.
+These interface improvements are included in the v1.7.0 Release ZIP. Reload the updated extension and refresh Overleaf.
 
 **上一项 / 下一项** cycle through undecided suggestions in pack order, wrapping from the last pending item to the first and from the first to the last. Buttons in either view and the review card’s ↑ / ↓ keys use the same loop. With two pending items, either direction reaches the other; with only one, the current item stays selected. **光标上一处 / 光标下一处** find the nearest locatable undecided suggestion before/after the editor cursor in the current file, using live character-change positions rather than JSON order or line numbers. Navigation moves the preview only; it does not reject or write an item. Deferred items remain pending and return after later items are settled. Accepted/rejected items are excluded. If source, file or cursor changes during a search, retry the navigation.
+
+## 🗂️ Review in two tabs
+
+Open the same project in two Chrome tabs and select a different source file in each. Keep **Review scope → Current file (multiple tabs)** selected (the default). Import or receive the full project pack in the first tab; in the second, choose **Resume review** to load that shared pack, or connect to the same Agent bridge.
+
+Each tab has its own pending queue, position and cursor navigation. Its `position / remaining` counts only that file. **Project decisions X / Y** shows accepted/rejected items across the complete pack and updates in other open review pages, including stopped pages. Source editing, navigation and compact/detail switching never move another tab's file, cursor or current suggestion.
+
+A file can have only one active reviewer tab. **All files (one tab)** keeps the original project-wide navigation and requires exclusive review of that project. Stop review to change the assigned file or hand it to another tab. Refreshing or closing the page releases its ownership; background browser suspension does not expire the current review. Every acceptance rechecks tab ownership and current source before writing.
+
+Clear shared progress only after all reviewer tabs stop. Rebuild tracking only after reviewers of that file stop. Replacing the full pack also waits for the other reviewers to stop; tabs connected to the same bridge stop their old revision and retry loading the new one. Optional Agent source reads use the selected browser tab, so select the requested file before asking the Agent to read. See [v1.7.0 validation](docs/validation-v1.7.0.md).
 
 ## Suggestion format
 

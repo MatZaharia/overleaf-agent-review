@@ -160,3 +160,19 @@ test('returning file labels before its editor loads cannot preview or accept ide
  h.file('main.tex');assert.equal((await h.service.status({token:p.token})).suspended,true);assert.equal(h.service.apply({token:p.token}).suspended,true);assert.equal(opens,0);
  h.adapter.view=()=>h.view;const ready=await h.service.status({token:p.token});assert.equal(ready.refreshed,true);assert.equal(opens,0);assert.equal(h.service.apply({token:ready.token}).verified,true);
 });
+
+test('file-scoped review never opens or creates tracking for another tab’s file',async()=>{
+ const h=fixture();h.file('sections/other.tex');let opens=0;h.adapter.open=async()=>{opens++;return true};
+ const begun=h.service.begin({file:'main.tex',ledgers:{}});assert.deepEqual(begun.journal,[]);
+ h.view.state.selection={main:{head:0}};
+ assert.equal(h.service.navigation({projectId:'owner'}).code,'review_file_mismatch');
+ assert.equal((await h.service.prepare({item:{...item,file:'sections/other.tex'},projectId:'owner'})).code,'review_file_mismatch');
+ assert.equal(opens,0);assert.equal(h.writes.length,0);
+ h.file('main.tex');const p=await h.prepare();assert.equal(p.ok,true);assert.equal(h.service.apply({token:p.token}).verified,true);
+});
+test('approval delayed past the cross-tab deadline cannot dispatch characters',async()=>{
+ const h=fixture(),p=await h.prepare();
+ assert.equal(h.service.apply({token:p.token,notAfter:Date.now()-1}).code,'review_lease_lost');assert.equal(h.writes.length,0);
+ assert.equal(h.service.apply({token:p.token,notAfter:NaN}).code,'review_lease_lost');assert.equal(h.writes.length,0);
+ assert.equal(h.service.apply({token:p.token,notAfter:Date.now()+5000}).verified,true);
+});

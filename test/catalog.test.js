@@ -13,3 +13,9 @@ test('large input transport validates chunk order and project ownership',()=>{
 test('a single oversized item never causes the rest of the pack to be sent',()=>{
  const catalog=Catalog.create(webcrypto),meta=catalog.parse('p',{...pack,suggestions:[{...pack.suggestions[0],original:'x'.repeat(200000)},pack.suggestions[1]]});assert.equal(catalog.items('p',meta.ref,0).length,1);
 });
+test('reusing an old saved descriptor refreshes its cache lifetime before pinning',()=>{
+ const catalog=Catalog.create(webcrypto),saved=catalog.put('p',pack,'saved');
+ catalog.put('p',{...pack,suggestions:pack.suggestions.slice(0,1)},'scope');
+ const resumed=catalog.put('p',pack,'saved');catalog.pin('p',resumed.ref,'tab');catalog.parse('p',{...pack,suggestions:pack.suggestions.slice(0,2)});
+ assert.equal(resumed.ref,saved.ref);assert.equal(catalog.items('p',resumed.ref,9999)[0].id,'9999');
+});

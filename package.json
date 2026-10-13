@@ -1,7 +1,7 @@
 {
   "name": "overleaf-agent-review",
   "private": true,
-  "version": "1.6.2",
+  "version": "1.7.0",
   "description": "Offline suggestion packs; live guarded Overleaf replacements",
   "license": "MIT",
   "scripts": {

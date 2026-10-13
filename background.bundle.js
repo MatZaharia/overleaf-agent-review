@@ -119,38 +119,6 @@
     }
   });
 
-  // src/reviewCounts.js
-  var require_reviewCounts = __commonJS({
-    "src/reviewCounts.js"(exports, module) {
-      "use strict";
-      function restore(pack, decisions = {}) {
-        const counts = { written: 0, rejected: 0, skipped: 0, unknown: 0, retained: 0 }, indexes = [], decisionIndexes = {};
-        for (const [index, item] of (pack?.suggestions || []).entries()) {
-          const state = decisions[item.reviewKey]?.state;
-          if (state === "written" || state === "rejected") {
-            counts[state]++;
-            counts.retained++;
-            indexes.push(index);
-            decisionIndexes[item.reviewKey] = index;
-          }
-        }
-        return { counts, indexes, decisionIndexes };
-      }
-      function completed(counts) {
-        return counts.written + counts.rejected + counts.skipped + counts.unknown;
-      }
-      function retained(pack, decisions) {
-        return restore(pack, decisions).counts;
-      }
-      function position(index, finished) {
-        let ordinal = 0;
-        for (let i = 0; i <= index; i++) if (!finished.has(i)) ordinal++;
-        return ordinal;
-      }
-      module.exports = { restore, retained, completed, position };
-    }
-  });
-
   // node_modules/diff/libcjs/diff/base.js
   var require_base = __commonJS({
     "node_modules/diff/libcjs/diff/base.js"(exports) {
@@ -2188,12 +2156,23 @@
             }
             if (!edits.size) legacy.delete(item.file);
           }
-          return { pack: packs[0]?.pack || null, decisions: Object.fromEntries(records.map((r) => [r.key[1], { state: r.state, code: r.code }])), ledgers };
+          return { pack: packs[0]?.pack || null, signature: packs[0]?.signature, decisions: Object.fromEntries(records.map((r) => [r.key[1], { state: r.state, code: r.code }])), ledgers };
         }
-        async function savePack(project, pack) {
-          const prepared = await keys(pack), database = await db(), tx = database.transaction("packs", "readwrite"), done = complete(tx);
-          tx.objectStore("packs").put({ key: project, project, pack: prepared });
+        async function fingerprint(pack) {
+          const raw = JSON.stringify(Core2.parsePack(pack));
+          const hash = await crypto2.subtle.digest("SHA-256", new TextEncoder().encode(raw));
+          return Array.from(new Uint8Array(hash), (b) => b.toString(16).padStart(2, "0")).join("");
+        }
+        async function savePack(project, pack, signature) {
+          signature ||= await fingerprint(pack);
+          const database = await db(), read = database.transaction("packs", "readonly"), readDone = complete(read);
+          const existing = await request2(read.objectStore("packs").get(project));
+          await readDone;
+          if (existing && (existing.signature || await fingerprint(existing.pack)) === signature) return { changed: false, signature };
+          const prepared = await keys(pack), tx = database.transaction("packs", "readwrite"), done = complete(tx);
+          tx.objectStore("packs").put({ key: project, project, pack: prepared, signature });
           await done;
+          return { changed: true, signature };
         }
         async function save(project, { decision, journal = [] }) {
           const database = await db(), tx = database.transaction(["decisions", "bases", "edits"], "readwrite"), done = complete(tx);
@@ -2249,7 +2228,7 @@
           }
           await done;
         }
-        return { load, savePack, save, clear, clearTracking, keys };
+        return { load, savePack, save, clear, clearTracking, keys, fingerprint };
       }
       module.exports = { create };
     }
@@ -2262,12 +2241,30 @@
       var Core2 = require_suggestions();
       function create(crypto2) {
         const packs = /* @__PURE__ */ new Map(), uploads = /* @__PURE__ */ new Map();
-        function put(project, pack) {
-          const ref = crypto2.randomUUID();
-          packs.set(ref, { project, pack });
-          const previous = [...packs].filter(([id, p]) => p.project === project && id !== ref);
-          for (const [id] of previous.slice(0, -1)) packs.delete(id);
+        const pins = /* @__PURE__ */ new Map();
+        function prune(project) {
+          const unused = [...packs].filter(([id, p]) => p.project === project && !pins.get(id)?.size);
+          for (const [id] of unused.slice(0, -2)) packs.delete(id);
+        }
+        function put(project, pack, cacheKey) {
+          const cached = cacheKey && [...packs].find(([, p]) => p.project === project && p.cacheKey === cacheKey);
+          const ref = cached?.[0] || crypto2.randomUUID();
+          if (cached) packs.delete(ref);
+          packs.set(ref, { project, pack, cacheKey });
+          prune(project);
           return { ref, count: pack.suggestions.length, projectId: pack.projectId };
+        }
+        function pin(project, ref, client) {
+          get(project, ref);
+          if (!pins.has(ref)) pins.set(ref, /* @__PURE__ */ new Set());
+          pins.get(ref).add(client);
+        }
+        function release(client) {
+          for (const [id, owners] of pins) {
+            owners.delete(client);
+            if (!owners.size) pins.delete(id);
+          }
+          for (const project of new Set([...packs.values()].map((p) => p.project))) prune(project);
         }
         function get(project, ref) {
           const entry = packs.get(ref);
@@ -2311,7 +2308,224 @@
           }
           return values;
         }
-        return { put, get, parse, chunk, items };
+        return { put, get, parse, chunk, items, pin, release };
+      }
+      module.exports = { create };
+    }
+  });
+
+  // src/reviewCounts.js
+  var require_reviewCounts = __commonJS({
+    "src/reviewCounts.js"(exports, module) {
+      "use strict";
+      function restore(pack, decisions = {}) {
+        const counts = { written: 0, rejected: 0, skipped: 0, unknown: 0, retained: 0 }, indexes = [], decisionIndexes = {};
+        for (const [index, item] of (pack?.suggestions || []).entries()) {
+          const state = decisions[item.reviewKey]?.state;
+          if (state === "written" || state === "rejected") {
+            counts[state]++;
+            counts.retained++;
+            indexes.push(index);
+            decisionIndexes[item.reviewKey] = index;
+          }
+        }
+        return { counts, indexes, decisionIndexes };
+      }
+      function completed(counts) {
+        return counts.written + counts.rejected + counts.skipped + counts.unknown;
+      }
+      function retained(pack, decisions) {
+        return restore(pack, decisions).counts;
+      }
+      function position(index, finished) {
+        let ordinal = 0;
+        for (let i = 0; i <= index; i++) if (!finished.has(i)) ordinal++;
+        return ordinal;
+      }
+      module.exports = { restore, retained, completed, position };
+    }
+  });
+
+  // src/tabReview.js
+  var require_tabReview = __commonJS({
+    "src/tabReview.js"(exports, module) {
+      "use strict";
+      var Core2 = require_suggestions();
+      var Counts = require_reviewCounts();
+      function create({ progress: progress2, catalog: catalog2, storage, crypto: crypto2, broadcast = () => {
+      }, now = Date.now }) {
+        let tail = Promise.resolve();
+        const states = /* @__PURE__ */ new Map();
+        function serial(fn) {
+          const next = tail.then(fn);
+          tail = next.catch(() => {
+          });
+          return next;
+        }
+        const identity = (project, who) => project + ":" + who.tabId + ":" + who.clientId;
+        function validWho(who) {
+          if (!Number.isInteger(who.tabId) || typeof who.clientId !== "string" || !who.clientId) throw new Error("Tab identity required");
+        }
+        async function leases() {
+          return (await storage.get("reviewLeases")).reviewLeases || {};
+        }
+        async function store(value) {
+          await storage.set({ reviewLeases: value });
+        }
+        function active(rows, project) {
+          return Object.values(rows).filter((l) => l.project === project);
+        }
+        const conflict = (a, b) => !a || !b || a === b;
+        async function state(project) {
+          if (!states.has(project)) {
+            const s = await progress2.load(project);
+            s.signature ||= s.pack ? await progress2.fingerprint(s.pack) : null;
+            index(s);
+            states.set(project, s);
+          }
+          return states.get(project);
+        }
+        function index(s) {
+          s.items = new Map((s.pack?.suggestions || []).map((i) => [i.reviewKey, i]));
+          s.confirmed = 0;
+          for (const key of s.items.keys()) if (["written", "rejected"].includes(s.decisions[key]?.state)) s.confirmed++;
+        }
+        const summary = (s) => ({ total: s.items.size, confirmed: s.confirmed, pending: s.items.size - s.confirmed });
+        async function subscribers() {
+          return (await storage.get("reviewSubscribers")).reviewSubscribers || {};
+        }
+        async function subscribe(project, who) {
+          const rows = await subscribers();
+          for (const [id, p] of Object.entries(rows)) if (p.tabId === who.tabId) delete rows[id];
+          rows[identity(project, who)] = { project, ...who };
+          await storage.set({ reviewSubscribers: rows });
+        }
+        async function emit(project, rows, s, updates = []) {
+          await broadcast(Object.values(await subscribers()).filter((p) => p.project === project), { type: "reviewShared", projectId: project, summary: summary(s), updates });
+        }
+        function requireLease(rows, project, who, token) {
+          const l = rows[identity(project, who)];
+          if (!l || l.token !== token) throw Object.assign(new Error("\u6807\u7B7E\u9875\u5BA1\u9605\u6743\u9650\u5DF2\u5931\u6548\uFF0C\u8BF7\u91CD\u65B0\u5F00\u59CB\u5BA1\u9605"), { code: "review_lease_lost" });
+          return l;
+        }
+        function owned(l, file) {
+          if (l.file && l.file !== file) throw new Error("Review file mismatch");
+        }
+        function update(s, changes) {
+          for (const change of changes) {
+            if (!s.items.has(change.reviewKey)) continue;
+            const old = s.decisions[change.reviewKey]?.state;
+            if (["written", "rejected"].includes(old)) s.confirmed--;
+            if (change.state === "pending") delete s.decisions[change.reviewKey];
+            else s.decisions[change.reviewKey] = { state: change.state, code: change.code };
+            if (["written", "rejected"].includes(change.state)) s.confirmed++;
+          }
+        }
+        async function handle(project, who, message) {
+          validWho(who);
+          return serial(async () => {
+            const rows = await leases(), id = identity(project, who);
+            if (message.type === "reviewRelease") {
+              if (rows[id]?.token === message.lease) {
+                delete rows[id];
+                await store(rows);
+                catalog2.release(id);
+              }
+              return { ok: true };
+            }
+            if (message.type === "reviewRenew") {
+              requireLease(rows, project, who, message.lease);
+              const s = await state(project);
+              return { ok: true, summary: summary(s), notAfter: now() + 5e3 };
+            }
+            if (message.type === "session") {
+              await subscribe(project, who);
+              let s = await state(project);
+              if (message.pack) {
+                const pack2 = message.pack.ref ? catalog2.get(project, message.pack.ref) : Core2.parsePack(message.pack);
+                if (pack2.projectId && pack2.projectId !== project) throw new Error("Project mismatch");
+                const signature = await progress2.fingerprint(pack2);
+                if (signature !== s.signature) {
+                  if (active(rows, project).some((l) => l.tabId !== who.tabId)) throw Object.assign(new Error("\u5176\u4ED6\u6807\u7B7E\u9875\u6B63\u5728\u5BA1\u9605\uFF0C\u8BF7\u5148\u505C\u6B62\u540E\u518D\u66F4\u6362\u5EFA\u8BAE\u5305"), { code: "review_pack_busy" });
+                  await progress2.savePack(project, pack2, signature);
+                  states.delete(project);
+                  s = await state(project);
+                  await emit(project, rows, s);
+                }
+              }
+              const saved = await progress2.load(project);
+              const full = s.pack ? catalog2.put(project, s.pack, s.signature) : null;
+              if (!message.acquire) {
+                const restored2 = Counts.restore(s.pack, saved.decisions);
+                return { ok: true, ...saved, initialCounts: restored2.counts, decidedIndexes: restored2.indexes, decisionIndexes: restored2.decisionIndexes, pack: full, summary: summary(s) };
+              }
+              if (!s.pack) throw new Error("\u5F53\u524D\u9879\u76EE\u6CA1\u6709\u4FDD\u5B58\u7684\u5EFA\u8BAE\u5305");
+              const file = message.file ? Core2.normalizePath(message.file) : "";
+              if (active(rows, project).some((l) => l.tabId !== who.tabId && conflict(l.file, file))) throw new Error("\u6B64\u6587\u4EF6\u5DF2\u5728\u5176\u4ED6\u6807\u7B7E\u9875\u5BA1\u9605\uFF1B\u8BF7\u4F7F\u7528\u4E0D\u540C\u6587\u4EF6\uFF0C\u6216\u5148\u505C\u6B62\u53E6\u4E00\u9875");
+              const pack = file ? { ...s.pack, suggestions: s.pack.suggestions.flatMap((i, index2) => i.file === file ? [{ ...i, sourceIndex: index2 }] : []) } : s.pack;
+              if (!pack.suggestions.length) throw new Error("\u5F53\u524D\u6587\u4EF6\u6CA1\u6709\u5BA1\u9605\u5EFA\u8BAE\uFF0C\u8BF7\u5207\u6362\u6587\u4EF6\u6216\u9009\u62E9\u5168\u90E8\u6587\u4EF6");
+              catalog2.pin(project, full.ref, id);
+              const reviewPack = file ? catalog2.put(project, pack, s.signature + ":" + file) : full;
+              catalog2.pin(project, reviewPack.ref, id);
+              for (const [key, l] of Object.entries(rows)) if (l.tabId === who.tabId && key !== id) {
+                delete rows[key];
+                catalog2.release(key);
+              }
+              const lease = crypto2.randomUUID();
+              rows[id] = { project, tabId: who.tabId, clientId: who.clientId, file, token: lease };
+              await store(rows);
+              const restored = Counts.restore(pack, saved.decisions);
+              return { ok: true, ...saved, ledgers: file ? saved.ledgers[file] ? { [file]: saved.ledgers[file] } : {} : saved.ledgers, pack: full, reviewPack, lease, file, summary: summary(s), initialCounts: restored.counts, decidedIndexes: restored.indexes, decisionIndexes: restored.decisionIndexes };
+            }
+            if (message.type === "progress") {
+              const l = requireLease(rows, project, who, message.lease), s = await state(project), updates = [];
+              for (const entry of message.journal || []) {
+                owned(l, entry.file);
+                for (const change of entry.decisions || []) {
+                  const item = s.items.get(change.reviewKey);
+                  if (item) owned(l, item.file);
+                  if (change.state === "pending" && s.decisions[change.reviewKey]?.state === "written") updates.push({ ...change, file: item?.file });
+                }
+              }
+              if (message.decision) {
+                const item = s.items.get(message.decision.reviewKey);
+                if (!item) throw new Error("Suggestion no longer belongs to this pack");
+                owned(l, item.file);
+                updates.push({ ...message.decision, file: item.file });
+              }
+              await progress2.save(project, message);
+              update(s, updates);
+              await emit(project, rows, s, updates);
+              return { ok: true, summary: summary(s) };
+            }
+            if (message.type === "clearProgress" || message.type === "clearTracking") {
+              const file = message.type === "clearTracking" ? message.file : "";
+              if (active(rows, project).some((l) => conflict(l.file, file))) throw new Error("\u8BF7\u5148\u505C\u6B62\u76F8\u5173\u6807\u7B7E\u9875\u7684\u5BA1\u9605\uFF0C\u518D\u6E05\u9664\u8FDB\u5EA6\u6216\u91CD\u5EFA\u5B9A\u4F4D");
+              if (file) await progress2.clearTracking(project, file);
+              else {
+                await progress2.clear(project);
+                states.delete(project);
+                await emit(project, rows, await state(project));
+              }
+              return { ok: true };
+            }
+            throw new Error("Unknown review operation");
+          });
+        }
+        async function forget(tabId) {
+          return serial(async () => {
+            const rows = await leases();
+            for (const [id, l] of Object.entries(rows)) if (l.tabId === tabId) {
+              delete rows[id];
+              catalog2.release(id);
+            }
+            await store(rows);
+            const listeners = await subscribers();
+            for (const [id, p] of Object.entries(listeners)) if (p.tabId === tabId) delete listeners[id];
+            await storage.set({ reviewSubscribers: listeners });
+          });
+        }
+        return { handle, forget };
       }
       module.exports = { create };
     }
@@ -2319,10 +2533,24 @@
 
   // src/background.js
   var Core = require_suggestions();
-  var Counts = require_reviewCounts();
   var Progress = require_progress();
   var progress = Progress.create(indexedDB, crypto);
   var catalog = require_catalog().create(crypto);
+  var review = require_tabReview().create({
+    progress,
+    catalog,
+    storage: chrome.storage.session,
+    crypto,
+    broadcast: async (owners, event) => {
+      await Promise.allSettled(owners.map((owner) => chrome.tabs.sendMessage(owner.tabId, { ...event, clientId: owner.clientId })));
+    }
+  });
+  chrome.tabs.onRemoved.addListener((tabId) => review.forget(tabId).catch(() => {
+  }));
+  chrome.tabs.onUpdated.addListener((tabId, change) => {
+    if (change.status === "loading") review.forget(tabId).catch(() => {
+    });
+  });
   chrome.runtime.onMessage.addListener((message, sender, reply) => {
     if (sender.id !== chrome.runtime.id) return;
     (async () => {
@@ -2333,27 +2561,9 @@
       if (message.type === "parse") return { ok: true, pack: catalog.parse(projectId, message.input) };
       if (message.type === "parseChunk") return { ok: true, pack: catalog.chunk(projectId, message) };
       if (message.type === "items") return { ok: true, items: catalog.items(projectId, message.ref, message.index) };
-      if (message.type === "session") {
-        if (message.pack) {
-          const pack = message.pack.ref ? catalog.get(projectId, message.pack.ref) : Core.parsePack(message.pack);
-          if (pack.projectId && pack.projectId !== projectId) throw new Error("Project mismatch");
-          await progress.savePack(projectId, pack);
-        }
-        const state = await progress.load(projectId), restored = Counts.restore(state.pack, state.decisions);
-        return { ok: true, ...state, initialCounts: restored.counts, decidedIndexes: restored.indexes, decisionIndexes: restored.decisionIndexes, pack: state.pack ? catalog.put(projectId, state.pack) : null };
-      }
-      if (message.type === "progress") {
-        await progress.save(projectId, message);
-        return { ok: true };
-      }
-      if (message.type === "clearTracking") {
-        if (message.projectId !== projectId) throw new Error("Project mismatch");
-        await progress.clearTracking(projectId, message.file);
-        return { ok: true };
-      }
-      if (message.type === "clearProgress") {
-        await progress.clear(projectId);
-        return { ok: true };
+      if (["session", "progress", "reviewRenew", "reviewRelease", "clearTracking", "clearProgress"].includes(message.type)) {
+        if (message.type === "clearTracking" && message.projectId !== projectId) throw new Error("Project mismatch");
+        return review.handle(projectId, { tabId: sender.tab?.id, clientId: message.clientId }, message);
       }
       if (message.type === "disconnect") {
         await chrome.storage.local.remove(name);
@@ -2376,7 +2586,7 @@
         return { ok: true, ...data };
       }
       throw new Error("Unknown bridge operation");
-    })().then(reply, (error) => reply({ ok: false, error: error.message }));
+    })().then(reply, (error) => reply({ ok: false, error: error.message, code: error.code }));
     return true;
   });
   async function request(endpoint, projectId, token, body) {

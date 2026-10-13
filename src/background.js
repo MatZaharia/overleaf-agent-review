@@ -1,9 +1,12 @@
 'use strict';
 const Core=require('./suggestions');
-const Counts=require('./reviewCounts');
 const Progress=require('./progress');
 const progress=Progress.create(indexedDB,crypto);
 const catalog=require('./catalog').create(crypto);
+const review=require('./tabReview').create({progress,catalog,storage:chrome.storage.session,crypto,
+ broadcast:async(owners,event)=>{await Promise.allSettled(owners.map(owner=>chrome.tabs.sendMessage(owner.tabId,{...event,clientId:owner.clientId})))}});
+chrome.tabs.onRemoved.addListener(tabId=>review.forget(tabId).catch(()=>{}));
+chrome.tabs.onUpdated.addListener((tabId,change)=>{if(change.status==='loading')review.forget(tabId).catch(()=>{})});
 chrome.runtime.onMessage.addListener((message,sender,reply)=>{
  if(sender.id!==chrome.runtime.id)return;
  (async()=>{
@@ -14,10 +17,10 @@ chrome.runtime.onMessage.addListener((message,sender,reply)=>{
   if(message.type==='parse')return {ok:true,pack:catalog.parse(projectId,message.input)};
   if(message.type==='parseChunk')return {ok:true,pack:catalog.chunk(projectId,message)};
   if(message.type==='items')return {ok:true,items:catalog.items(projectId,message.ref,message.index)};
-  if(message.type==='session'){if(message.pack){const pack=message.pack.ref?catalog.get(projectId,message.pack.ref):Core.parsePack(message.pack);if(pack.projectId&&pack.projectId!==projectId)throw new Error('Project mismatch');await progress.savePack(projectId,pack)}const state=await progress.load(projectId),restored=Counts.restore(state.pack,state.decisions);return {ok:true,...state,initialCounts:restored.counts,decidedIndexes:restored.indexes,decisionIndexes:restored.decisionIndexes,pack:state.pack?catalog.put(projectId,state.pack):null}}
-  if(message.type==='progress'){await progress.save(projectId,message);return {ok:true}}
- if(message.type==='clearTracking'){if(message.projectId!==projectId)throw new Error('Project mismatch');await progress.clearTracking(projectId,message.file);return {ok:true}}
-  if(message.type==='clearProgress'){await progress.clear(projectId);return {ok:true}}
+  if(['session','progress','reviewRenew','reviewRelease','clearTracking','clearProgress'].includes(message.type)){
+   if(message.type==='clearTracking'&&message.projectId!==projectId)throw new Error('Project mismatch');
+   return review.handle(projectId,{tabId:sender.tab?.id,clientId:message.clientId},message);
+  }
   if(message.type==='disconnect'){await chrome.storage.local.remove(name);return{ok:true}}
   if(message.type==='connect'){
    if(!/^[a-f\d]{64}$/i.test(message.token||''))throw new Error('配对令牌格式不正确');
@@ -30,7 +33,7 @@ chrome.runtime.onMessage.addListener((message,sender,reply)=>{
    return {ok:true,...data};
   }
   throw new Error('Unknown bridge operation');
- })().then(reply,error=>reply({ok:false,error:error.message}));return true;
+ })().then(reply,error=>reply({ok:false,error:error.message,code:error.code}));return true;
 });
 async function request(endpoint,projectId,token,body){
  const response=await fetch('http://127.0.0.1:43127/'+endpoint+'?projectId='+projectId,{method:body?'POST':'GET',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(10000)});

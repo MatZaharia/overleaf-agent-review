@@ -1,6 +1,14 @@
 'use strict';
 // UI text only. Manuscript source, replacements and Agent reasons are never passed here.
 const english = {
+ '审阅范围':'Review scope','当前文件（多标签页）':'Current file (multiple tabs)','全部文件（单标签页）':'All files (one tab)',
+ '本页只审阅开始时的文件；请定位当前项，或停止后在新文件开始审阅':'This tab reviews its starting file. Locate the current item, or stop and start review in the new file.',
+ '标签页审阅权限已失效，请重新开始审阅':'This tab’s review permission is no longer valid. Start review again.',
+ '其他标签页正在审阅，请先停止后再更换建议包':'Stop review in the other tabs before replacing the suggestion pack.',
+ '此文件已在其他标签页审阅；请使用不同文件，或先停止另一页':'This file is being reviewed in another tab. Use a different file or stop the other tab first.',
+ '当前文件没有审阅建议，请切换文件或选择全部文件':'No suggestions for this file. Switch files or select all files.',
+ '请先停止相关标签页的审阅，再清除进度或重建定位':'Stop review in the affected tabs before clearing progress or rebuilding tracking.',
+
  '建议详情':'Suggestion details','详情 ↗':'Details ↗','返回精简 ↙':'Back to compact ↙','审阅管理':'Review setup',
  '修改理由':'Reason','修改对比':'Changes','查看完整上下文':'Show full context','返回简洁对比':'Back to concise changes',
  '定位当前项':'Locate current item','已切换文件，当前建议与进度保留。可自由编辑，点击定位当前项或审阅导航继续。':'File switched; the current suggestion and progress are preserved. Edit freely, then locate this item or use review navigation to continue.',
@@ -38,6 +46,7 @@ const english = {
  '文件路径必须是项目内的相对路径':'File paths must be relative to the project','只支持项目内的文本文件':'Only project text files are supported','每项必须包含非空 original 和字符串 replacement':'Each item needs a nonempty original and a string replacement','单项修改过长':'Suggestion text is too long','上下文必须是文本且不超过 10000 字符':'Context must be text with at most 10,000 characters','scope 必须包含 start，可选 end，均为原文标记':'scope requires start and an optional end, both exact source markers','需要 codex-overleaf-suggestions v1 建议包，含 1–10000 项':'Use a codex-overleaf-suggestions v1 pack with 1–10,000 items','projectId 必须是 Overleaf 项目 ID':'projectId must be an Overleaf project ID','每项 id 必须唯一':'Each item id must be unique'
 };
 const templates=[
+ [/^项目已确认 (\d+) \/ (\d+)$/,(_,done,total)=>`Project decisions ${done} / ${total}`],
  [/^建议 (\d+) \/ (\d+)$/,(_,position,remaining)=>`Suggestion ${position} / ${remaining}`],
  [/^修改 (.*)$/, (_,id)=>'Change '+id],
  [/^Agent 建议版本 (\d+)，共 (\d+) 项$/,(_,revision,count)=>`Agent pack revision ${revision}, ${count} items`],

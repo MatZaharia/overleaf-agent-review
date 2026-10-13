@@ -2262,6 +2262,15 @@
     "src/i18n.js"(exports, module) {
       "use strict";
       var english = {
+        "\u5BA1\u9605\u8303\u56F4": "Review scope",
+        "\u5F53\u524D\u6587\u4EF6\uFF08\u591A\u6807\u7B7E\u9875\uFF09": "Current file (multiple tabs)",
+        "\u5168\u90E8\u6587\u4EF6\uFF08\u5355\u6807\u7B7E\u9875\uFF09": "All files (one tab)",
+        "\u672C\u9875\u53EA\u5BA1\u9605\u5F00\u59CB\u65F6\u7684\u6587\u4EF6\uFF1B\u8BF7\u5B9A\u4F4D\u5F53\u524D\u9879\uFF0C\u6216\u505C\u6B62\u540E\u5728\u65B0\u6587\u4EF6\u5F00\u59CB\u5BA1\u9605": "This tab reviews its starting file. Locate the current item, or stop and start review in the new file.",
+        "\u6807\u7B7E\u9875\u5BA1\u9605\u6743\u9650\u5DF2\u5931\u6548\uFF0C\u8BF7\u91CD\u65B0\u5F00\u59CB\u5BA1\u9605": "This tab\u2019s review permission is no longer valid. Start review again.",
+        "\u5176\u4ED6\u6807\u7B7E\u9875\u6B63\u5728\u5BA1\u9605\uFF0C\u8BF7\u5148\u505C\u6B62\u540E\u518D\u66F4\u6362\u5EFA\u8BAE\u5305": "Stop review in the other tabs before replacing the suggestion pack.",
+        "\u6B64\u6587\u4EF6\u5DF2\u5728\u5176\u4ED6\u6807\u7B7E\u9875\u5BA1\u9605\uFF1B\u8BF7\u4F7F\u7528\u4E0D\u540C\u6587\u4EF6\uFF0C\u6216\u5148\u505C\u6B62\u53E6\u4E00\u9875": "This file is being reviewed in another tab. Use a different file or stop the other tab first.",
+        "\u5F53\u524D\u6587\u4EF6\u6CA1\u6709\u5BA1\u9605\u5EFA\u8BAE\uFF0C\u8BF7\u5207\u6362\u6587\u4EF6\u6216\u9009\u62E9\u5168\u90E8\u6587\u4EF6": "No suggestions for this file. Switch files or select all files.",
+        "\u8BF7\u5148\u505C\u6B62\u76F8\u5173\u6807\u7B7E\u9875\u7684\u5BA1\u9605\uFF0C\u518D\u6E05\u9664\u8FDB\u5EA6\u6216\u91CD\u5EFA\u5B9A\u4F4D": "Stop review in the affected tabs before clearing progress or rebuilding tracking.",
         "\u5EFA\u8BAE\u8BE6\u60C5": "Suggestion details",
         "\u8BE6\u60C5 \u2197": "Details \u2197",
         "\u8FD4\u56DE\u7CBE\u7B80 \u2199": "Back to compact \u2199",
@@ -2385,6 +2394,7 @@
         "\u6BCF\u9879 id \u5FC5\u987B\u552F\u4E00": "Each item id must be unique"
       };
       var templates = [
+        [/^项目已确认 (\d+) \/ (\d+)$/, (_, done, total) => `Project decisions ${done} / ${total}`],
         [/^建议 (\d+) \/ (\d+)$/, (_, position, remaining) => `Suggestion ${position} / ${remaining}`],
         [/^修改 (.*)$/, (_, id) => "Change " + id],
         [/^Agent 建议版本 (\d+)，共 (\d+) 项$/, (_, revision, count) => `Agent pack revision ${revision}, ${count} items`],
@@ -2515,7 +2525,7 @@
       var Navigation = require_navigation();
       var { characterEdits } = require_characterEdits();
       function create({ adapter: adapter2, preview: preview2, crypto }) {
-        let pending = null, generation = 0, scan = null, language = "zh-CN", presentation = { mode: "compact" };
+        let pending = null, generation = 0, scan = null, language = "zh-CN", presentation = { mode: "compact" }, reviewFile = "";
         const receipts = /* @__PURE__ */ new Map(), ledgers = /* @__PURE__ */ new Map();
         let journals = [];
         const textCache = /* @__PURE__ */ new WeakMap(), navigationCache = /* @__PURE__ */ new WeakMap();
@@ -2531,6 +2541,7 @@
           return value;
         };
         function begin(saved = {}) {
+          reviewFile = saved.file || "";
           presentation = { mode: saved.mode === "details" ? "details" : "compact" };
           cancel();
           ledgers.clear();
@@ -2544,7 +2555,7 @@
             ledgers.set(key(adapter2.projectId(), file), ledger);
           }
           const view = adapter2.view();
-          if (view && adapter2.path()) ledgerFor(adapter2.projectId(), adapter2.path(), textOf(view));
+          if (view && adapter2.path() && (!reviewFile || adapter2.path() === reviewFile)) ledgerFor(adapter2.projectId(), adapter2.path(), textOf(view));
           return { ok: true, journal: drain() };
         }
         function ledgerFor(owner, file, text) {
@@ -2594,6 +2605,7 @@
         function navigation(params) {
           if (!current(params.projectId)) return failure("project_changed");
           const view = adapter2.view(), file = adapter2.path();
+          if (reviewFile && file !== reviewFile) return failure("review_file_mismatch");
           if (!view || !view.state.selection?.main) return failure("file_not_ready");
           if (!params.scanId) {
             const text = textOf(view), ledger = ledgerFor(params.projectId, file, text);
@@ -2644,6 +2656,7 @@
         }
         async function prepare(params) {
           const item = Core.normalizeItem(params.item), owner = params.projectId;
+          if (reviewFile && item.file !== reviewFile) return failure("review_file_mismatch");
           if (params.presentation) presentation = { ...presentation, ...params.presentation };
           cancel();
           const attempt = generation;
@@ -2710,6 +2723,7 @@
           return result;
         }
         function apply(params) {
+          if (params.notAfter !== void 0 && (!Number.isFinite(params.notAfter) || Date.now() > params.notAfter)) return failure("review_lease_lost");
           if (receipts.has(params.token)) return receipts.get(params.token);
           const item = pending;
           if (!item || item.token !== params.token) return failure("expired");

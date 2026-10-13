@@ -113,3 +113,14 @@ test('switching files during acceptance waits for a fresh human choice without r
  await new Promise(resolve=>setImmediate(resolve));assert.deepEqual(calls,['prepare','apply']);assert.equal(records.length,0);assert.equal(progress.at(-1).pending,1);
  resolveChoice({accepted:false});const result=await running;assert.deepEqual(result.map(r=>r.state),['rejected']);assert.equal(records.length,1);assert.equal(calls.filter(m=>m==='prepare').length,1);assert.equal(calls.filter(m=>m==='apply').length,1);
 });
+test('lost cross-tab permission or an expired approval stops with the item pending, without a write or decision record',async()=>{
+ for(const phase of ['prepare','preflight','deadline']){
+  const records=[],counts=[];
+  await assert.rejects(Runner.run({suggestions:[suggestions[0]]},{assertCurrent(){},progress:p=>counts.push(p),async call(method){
+   if((phase==='prepare'&&method==='prepare')||(phase==='preflight'&&method==='apply'))throw Object.assign(new Error('permission lost'),{code:'review_lease_lost'});
+   if(phase==='deadline'&&method==='apply')return {ok:false,changedDocument:false,code:'review_lease_lost'};
+   return {ok:true,token:'one'};
+  },async review(){return {accepted:true,token:'one'}},record:r=>records.push(r)}),{code:'review_lease_lost'});
+  assert.equal(records.length,0);assert.equal(counts.at(-1).pending,1);
+ }
+});

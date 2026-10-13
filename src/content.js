@@ -16,14 +16,28 @@ function mount() {
   const shadow = host.attachShadow({ mode: 'open' });
   shadow.innerHTML = `<style>
 :host{font:13px/1.5 system-ui;color:#273342}*{box-sizing:border-box}button,textarea,input{font:inherit}button{border:1px solid #cdd6df;border-radius:6px;background:#fff;color:#273342;padding:7px 11px;cursor:pointer}button:disabled{opacity:.45;cursor:default}button:focus-visible,textarea:focus-visible{outline:3px solid #8aafe3;outline-offset:2px}.primary,.launch{background:#176347;color:#fff;border-color:#176347}.launch{box-shadow:0 4px 18px #18352925}.drawer{position:fixed;display:flex;flex-direction:column;overflow:hidden;background:#fff;border:1px solid #cbd5de;border-radius:10px;box-shadow:0 10px 40px #14253630;margin-bottom:10px}.head{padding:14px 16px;border-bottom:1px solid #e0e6ec;display:flex;align-items:center;justify-content:space-between}.head strong{font-size:15px}.head button{padding:3px 8px}.body{padding:16px 16px 26px;overflow:auto;min-height:0;flex:1}.head{flex-shrink:0;gap:12px}.head strong{flex:1}.language{font:inherit;border:1px solid #cdd6df;border-radius:5px;background:white;padding:3px}.muted{color:#657687;font-size:12px;margin:0 0 12px}.label{display:block;margin-bottom:6px;font-weight:600}textarea{display:block;width:100%;height:130px;padding:10px;border:1px solid #ccd7e0;border-radius:6px;resize:vertical;font:12px/1.45 ui-monospace,monospace}.toolbar{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.message{font-size:12px;padding:10px;background:#f0f5f4;border-radius:5px}.card{border:1px solid #d2dce4;border-radius:7px;padding:12px;margin-top:12px}.card strong{display:block}.path{font:11px/1.5 ui-monospace,monospace;color:#687888}.reason{font-size:12px;margin:8px 0}.comparison-label{font-weight:600;font-size:12px;margin:12px 0 6px}.context{font-size:12px;color:#657687;margin:14px 0}.context summary{cursor:pointer;padding:8px;border:1px solid #e0e6ec;border-radius:6px}.card{border:0;padding:0}.path{margin-top:4px}.reason{line-height:1.6}.session-toolbar{flex-wrap:wrap}.source{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 ui-monospace,monospace;margin:6px 0 10px;padding:8px;max-height:180px;overflow:auto;border-radius:4px}.old,.new{background:#f6f8fa;color:#586673}.actions{display:flex;gap:8px}.history{padding:8px 0;border-bottom:1px solid #e3e9ed;font-size:12px}.history b{color:#176347}.unknown{color:#9a452c}.session-toolbar{display:flex;justify-content:space-between;gap:8px;margin-bottom:12px}.history-details{margin-top:14px;font-size:12px;color:#657687}.footer{margin-top:14px;font-size:11px;color:#6b7b88}[hidden]{display:none!important}
-${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="head"><strong>导入修改建议</strong><select class="language" aria-label="语言"><option value="zh-CN">中文</option><option value="en">English</option></select><button class="close" aria-label="收起">×</button></div><div class="body"><div class="session-toolbar" hidden><button class="compact">返回精简 ↙</button><button class="back">审阅管理</button><button class="continue" hidden>继续审阅</button><button class="stop" hidden>停止</button></div><div class="setup-view"><p class="muted">先导入建议包，再逐项确认。每次接受都会搜索当前原文；过时或不唯一的项自动跳过。</p><label class="label" for="pack">建议包 JSON</label><textarea id="pack" spellcheck="false" placeholder="粘贴 Agent 生成的建议包"></textarea><input type="file" accept=".json,application/json" hidden><div class="toolbar"><button class="connect">连接 Agent</button><button class="disconnect">断开</button></div><div class="bridge-status" role="status"></div><input class="bridge-token" type="password" placeholder="本地连接配对令牌" autocomplete="off"><div class="toolbar"><button class="file">选择 JSON 文件</button><button class="primary start">开始审阅</button><button class="resume">恢复上次审阅</button><button class="reset">清除进度</button></div><div class="setup-message message" role="status" aria-live="polite">等待导入建议包</div></div><div class="review-view" hidden><div class="message review-message" role="status" aria-live="polite">等待导入建议包</div><button class="repair" hidden>重新建立定位（保留决定）</button><div class="pending"></div><details class="history-details"><summary>最近处理记录</summary><div class="history-list"></div></details><p class="footer">已写入表示编辑器内容已核验，服务器保存需在 Overleaf 检查。可使用 Overleaf 的撤销按钮。</p></div></div><button class="resize" aria-label="拖动右下角调整大小；方向键微调" title="拖动右下角调整大小；方向键微调"></button></section><button class="launch">导入修改建议</button>`;
+${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="head"><strong>导入修改建议</strong><select class="language" aria-label="语言"><option value="zh-CN">中文</option><option value="en">English</option></select><button class="close" aria-label="收起">×</button></div><div class="body"><div class="session-toolbar" hidden><button class="compact">返回精简 ↙</button><button class="back">审阅管理</button><button class="continue" hidden>继续审阅</button><button class="stop" hidden>停止</button></div><div class="setup-view"><p class="muted">先导入建议包，再逐项确认。每次接受都会搜索当前原文；过时或不唯一的项自动跳过。</p><label class="label" for="pack">建议包 JSON</label><textarea id="pack" spellcheck="false" placeholder="粘贴 Agent 生成的建议包"></textarea><input type="file" accept=".json,application/json" hidden><div class="toolbar"><button class="connect">连接 Agent</button><button class="disconnect">断开</button></div><div class="bridge-status" role="status"></div><input class="bridge-token" type="password" placeholder="本地连接配对令牌" autocomplete="off"><div class="toolbar"><button class="file">选择 JSON 文件</button><button class="primary start">开始审阅</button><button class="resume">恢复上次审阅</button><button class="reset">清除进度</button></div><label class="label" for="review-scope">审阅范围</label><select id="review-scope"><option value="current">当前文件（多标签页）</option><option value="all">全部文件（单标签页）</option></select><p class="shared-summary muted" hidden></p><div class="setup-message message" role="status" aria-live="polite">等待导入建议包</div></div><div class="review-view" hidden><div class="message review-message" role="status" aria-live="polite">等待导入建议包</div><button class="repair" hidden>重新建立定位（保留决定）</button><div class="pending"></div><details class="history-details"><summary>最近处理记录</summary><div class="history-list"></div></details><p class="footer">已写入表示编辑器内容已核验，服务器保存需在 Overleaf 检查。可使用 Overleaf 的撤销按钮。</p></div></div><button class="resize" aria-label="拖动右下角调整大小；方向键微调" title="拖动右下角调整大小；方向键微调"></button></section><button class="launch">导入修改建议</button>`;
   document.body.append(host);
   PageModal.watch({document,window,onChange:blocked=>{host.hidden=blocked}});
   const $ = selector => shadow.querySelector(selector);
   const capability = Array.from(crypto.getRandomValues(new Uint8Array(32)), b => b.toString(16).padStart(2, '0')).join('');
   const persistent=typeof chrome!=='undefined' && !!chrome.runtime?.id;
   let contextLost=false, trackingFile=null, stopReason=null, reviewMode='compact',presentCurrent=null, fullContext=false;
-  const runtime=ExtensionRuntime.create(()=>typeof chrome==='undefined'?null:chrome,onContextInvalidated);
+  const extension=ExtensionRuntime.create(()=>typeof chrome==='undefined'?null:chrome,onContextInvalidated);
+  const runtime={check:extension.check,storage:extension.storage,message:body=>extension.message({...body,clientId:capability})};
+  let reviewLease=null,reviewFile='',lastRenew=0,sharedSummary=null,pendingBridgeStart=false;
+  function showShared(value){if(value)sharedSummary=value;if(!sharedSummary)return;for(const node of shadow.querySelectorAll('.shared-summary')){node.hidden=false;setUI(node,'项目已确认 '+sharedSummary.confirmed+' / '+sharedSummary.total)}}
+  async function renew(force=false){
+    if(!persistent||!reviewLease)return null;
+    if(!force&&Date.now()-lastRenew<5000)return null;
+    const response=await runtime.message({type:'reviewRenew',lease:reviewLease});
+    if(!response.ok)throw Object.assign(new Error(response.error),{code:response.code||'review_lease_lost'});
+    lastRenew=Date.now();showShared(response.summary);return response;
+  }
+  if(persistent)chrome.runtime.onMessage.addListener((event,sender)=>{
+    if(sender.id!==chrome.runtime.id||event.type!=='reviewShared'||event.clientId!==capability||event.projectId!==location.pathname.match(/^\/project\/([a-f\d]{24})(?:\/|$)/i)?.[1])return;
+    showShared(event.summary);
+  });
   let language='zh-CN', languageTouched=false, packLabel=null, reviewLanguageRefresh=null;
   function setPackLabel(text){packLabel=text;$('#pack').value=t(text);}
   const uiText=new Map(),uiAttributes=new Map();
@@ -75,13 +89,13 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
     });
   }
   async function call(method, params) {
-    if(persistent&&method!=='cancel'){runtime.check();if(method==='apply'){const ready=await runtime.message({type:'ping'});if(!ready?.ok)throw new Error('无法连接扩展');runtime.check()}}
+    if(persistent&&method!=='cancel'){runtime.check();if(sessionActive){const ready=await renew(method==='apply');if(method==='apply')params={...params,notAfter:ready?.notAfter};}if(method==='apply'){const ready=await runtime.message({type:'ping'});if(!ready?.ok)throw new Error('无法连接扩展');runtime.check()}}
     if (!initialized) initialized = send('hello', {});
     const handshake = await initialized;
     if (!handshake.ok) throw new Error('无法连接页面');
     if(persistent&&method!=='cancel')runtime.check();
     const result=await send(method, params);
-    if(persistent && sessionActive && result.journal?.length){const saved=await runtime.message({type:'progress',journal:result.journal});if(!saved.ok)throw new Error('保存定位记录失败：'+saved.error)}
+    if(persistent && sessionActive && result.journal?.length){const saved=await runtime.message({type:'progress',journal:result.journal,lease:reviewLease});if(!saved.ok)throw Object.assign(new Error('保存定位记录失败：'+saved.error),{code:saved.code||'review_lease_lost'});showShared(saved.summary)}
     const updates=(result.journal||[]).flatMap(entry=>entry.decisions||[]);
     if(updates.length){if(reconcileReview)reconcileReview(updates);else decisionUpdates.push(...updates)}
     return result;
@@ -114,16 +128,16 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
         try{return await statusRequest}finally{statusRequest=null}
       }
       const card = document.createElement('section'); card.className = 'card';card.setAttribute('aria-label','建议详情');
-      card.innerHTML = '<strong></strong><div class="path"></div><div class="comparison-label">修改理由</div><p class="reason"></p><div class="comparison-label">修改对比</div><pre class="source combined"></pre><details class="context"><summary>查看完整上下文</summary><div>原文 · 标出删除</div><pre class="source old"></pre><div>修改后 · 标出新增</div><pre class="source new"></pre></details><div class="toolbar navigation"><button class="previous">上一项</button><button class="next">下一项</button><button class="cursor-previous">光标上一处</button><button class="cursor-next">光标下一处</button></div><div class="actions"><button class="reject">拒绝这一项</button><button class="primary accept">接受这一项</button></div>';
+      card.innerHTML = '<strong></strong><p class="shared-summary muted" hidden></p><div class="path"></div><div class="comparison-label">修改理由</div><p class="reason"></p><div class="comparison-label">修改对比</div><pre class="source combined"></pre><details class="context"><summary>查看完整上下文</summary><div>原文 · 标出删除</div><pre class="source old"></pre><div>修改后 · 标出新增</div><pre class="source new"></pre></details><div class="toolbar navigation"><button class="previous">上一项</button><button class="next">下一项</button><button class="cursor-previous">光标上一处</button><button class="cursor-next">光标下一处</button></div><div class="actions"><button class="reject">拒绝这一项</button><button class="primary accept">接受这一项</button></div>';
       $('.pending').replaceChildren(card);
-      rememberUI(card);
+      rememberUI(card);showShared();
       const context=card.querySelector('.context'),comparison=card.querySelector('.combined'),comparisonLabel=comparison.previousElementSibling;
       function contextPerspective(){if(!card.isConnected)return;fullContext=context.open;comparison.hidden=fullContext;comparisonLabel.hidden=fullContext;setUI(context.querySelector('summary'),fullContext?'返回简洁对比':'查看完整上下文')}
       context.open=fullContext;contextPerspective();context.addEventListener('toggle',contextPerspective);
       const locate=document.createElement('button');locate.className='locate';locate.hidden=!suspended;setUI(locate,'定位当前项');card.querySelector('.navigation').prepend(locate);
       locate.addEventListener('click',()=>{if(!settled&&!navigating){assertCurrent();finish(undefined,undefined,options.index)}});
       const renderCount=()=>{const node=card.querySelector('strong'),text='建议 '+options.position+' / '+options.remaining;if(node.textContent!==t(text))setUI(node,text)};renderCount();
-      card.querySelector('.path').textContent = item.file + ' · L' + prepared.line+' · #'+(options.index+1);
+      card.querySelector('.path').textContent = item.file + ' · L' + prepared.line+' · #'+((item.sourceIndex??options.index)+1);
       card.querySelector('.reason').textContent = item.reason;
       let displayed=prepared, lastPresentation=null;
       function renderDiff(){
@@ -206,7 +220,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
           if(settled)return;
           if(target!==null){finish(undefined,staleCode,target);return}
           status(fromCursor?'当前文件的光标这一侧没有可定位的待处理建议':'没有其他待处理建议；当前项仍等待确认');
-        }catch(error){if(!settled)status(error.message==='navigation_changed'?'正文、文件或光标有变化，请重新点击导航':'导航未完成：'+error.message)}
+        }catch(error){if(!settled)status(error.message==='review_file_mismatch'?'本页只审阅开始时的文件；请定位当前项，或停止后在新文件开始审阅':error.message==='navigation_changed'?'正文、文件或光标有变化，请重新点击导航':'导航未完成：'+error.message)}
         finally{navigating=false;if(!settled){card.querySelectorAll('button').forEach(button=>{button.disabled=Boolean((suspended||staleCode) && button.classList.contains('accept'))});timer=setTimeout(poll,300)}}
       }
       card.querySelector('.previous').addEventListener('click',()=>navigate(-1,false));
@@ -229,7 +243,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
         card.querySelector('.accept').disabled=suspended||Boolean(!response.ok);
         $('.compact').disabled=suspended||!displayed.inline||Boolean(staleCode);
         if(suspended){status('已切换文件，当前建议与进度保留。可自由编辑，点击定位当前项或审阅导航继续。');return}
-        if(response.refreshed){displayed=response;renderDiff();token=response.token;staleCode=null;card.querySelector('.accept').disabled=false;card.querySelector('.path').textContent=item.file+' · L'+response.line+' · #'+(options.index+1);status('正文有变化，已重新定位这一项，等待确认')}
+        if(response.refreshed){displayed=response;renderDiff();token=response.token;staleCode=null;card.querySelector('.accept').disabled=false;card.querySelector('.path').textContent=item.file+' · L'+response.line+' · #'+((item.sourceIndex??options.index)+1);status('正文有变化，已重新定位这一项，等待确认')}
         else if(!response.ok)staleCode=response.code;
       }
       async function poll() {
@@ -262,7 +276,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
   let historyMessages=[],historyFrame=null;
   function renderHistory(){if(historyFrame!==null)return;historyFrame=requestAnimationFrame(()=>{historyFrame=null;$('.history-list').replaceChildren(...historyMessages.map(text=>{const row=document.createElement('div');row.className='history';setUI(row,text);return row}));refreshUI()})}
   async function record(result) {
-    if(persistent && ['written','rejected','unknown'].includes(result.state)){const saved=await runtime.message({type:'progress',decision:{reviewKey:result.item.reviewKey,state:result.state,code:result.code}});if(!saved.ok)throw new Error('保存审阅决定失败：'+saved.error)}
+    if(persistent && ['written','rejected','unknown'].includes(result.state)){const saved=await runtime.message({type:'progress',lease:reviewLease,decision:{reviewKey:result.item.reviewKey,state:result.state,code:result.code}});if(!saved.ok)throw Object.assign(new Error('保存审阅决定失败：'+saved.error),{code:saved.code||'review_lease_lost'});showShared(saved.summary)}
     if(bridgeRevision) bridgeResults.push({revision:bridgeRevision,id:result.item.id,state:result.state,code:result.code});
     if($('.pending').firstChild)$('.pending').replaceChildren();
     const word = result.state === 'written' ? '已写入' : result.state === 'rejected' ? '已拒绝' : result.state === 'unknown' ? '写入未确认' : Core.skipped[result.code] || '已跳过：' + result.code;
@@ -289,15 +303,18 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
       if (!current.ok || !current.projectId) throw new Error('请先打开 Overleaf 项目');
       if (pack.projectId && pack.projectId !== current.projectId) throw new Error('建议包属于其他项目，没有写入');
       if (epoch !== startEpoch) throw new Error('建议已更新或审阅已停止');
-      if(persistent){session=await runtime.message({type:'session',pack});if(!session.ok)throw new Error(session.error);pack=session.pack}
+      reviewFile=$('#review-scope').value==='current'?current.file:'';
+      if($('#review-scope').value==='current'&&!reviewFile)throw new Error('源码编辑器未就绪');
+      if(persistent){session=await runtime.message({type:'session',pack,acquire:true,file:reviewFile});if(!session.ok)throw Object.assign(new Error(session.error),{code:session.code});reviewLease=session.lease;lastRenew=Date.now();showShared(session.summary);pack=session.reviewPack||session.pack}
+      else if(reviewFile){pack={...pack,suggestions:pack.suggestions.flatMap((item,index)=>item.file===reviewFile?[{...item,sourceIndex:index}]:[])};if(!pack.suggestions.length)throw new Error('当前文件没有审阅建议，请切换文件或选择全部文件')}
       if(epoch!==startEpoch)throw new Error('建议已更新或审阅已停止');
       owner = current.projectId;sessionActive=true;
-    } catch (error) { status(error.message); starting = false; $('.start').disabled = contextLost; return; }
-    running = true; starting = false; cancelled = false;stopReason=null;
-    $('.start').disabled = true; $('.resume').disabled=true;$('.reset').disabled=true; $('.file').disabled = true; $('#pack').disabled = true; $('.stop').hidden = false;
+    } catch (error) { if(error.code==='review_pack_busy'&&bridgeEnabled)pendingBridgeStart=true;if(reviewLease){await runtime.message({type:'reviewRelease',lease:reviewLease}).catch(()=>{});reviewLease=null}status(error.message); starting = false; $('.start').disabled = contextLost; return; }
+    running = true; starting = false; cancelled = false;stopReason=null;pendingBridgeStart=false;
+    $('#review-scope').disabled=true;$('.start').disabled = true; $('.resume').disabled=true;$('.reset').disabled=true; $('.file').disabled = true; $('#pack').disabled = true; $('.stop').hidden = false;
     historyMessages=[];$('.history-list').replaceChildren();$('.history-details').open=false;showScreen('review');$('.drawer').hidden=reviewMode==='compact';
     try {
-      decisionUpdates=[];await call('begin', {ledgers:session.ledgers,mode:reviewMode});
+      decisionUpdates=[];await call('begin', {ledgers:session.ledgers,mode:reviewMode,file:reviewFile});
       const catalogId=crypto.randomUUID();
       let itemBuffer=[],bufferStart=-1;
       const itemAt=persistent?async index=>{if(index<bufferStart||index>=bufferStart+itemBuffer.length){const fetched=await runtime.message({type:'items',ref:pack.ref,index});if(!fetched.ok)throw new Error(fetched.error);bufferStart=index;itemBuffer=fetched.items}return itemBuffer[index-bufferStart]}:async index=>pack.suggestions[index];
@@ -307,11 +324,14 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
     } catch (error) {
       $('.drawer').hidden=false;floating.layout();
       if(error.code==='tracking_out_of_sync'){trackingFile=error.file;$('.repair').hidden=false;status('定位记录与当前正文不一致，审阅已暂停。可重新建立定位，保留接受／拒绝决定。')}
+      else if(error.code==='review_lease_lost')status('标签页审阅权限已失效，请重新开始审阅');
       else if(error.code==='cancelled')status(stopReason==='update'?'正在载入新版本建议…':'审阅已停止，可返回导入后继续');
       else status(error.code === 'write_unconfirmed' ? '写入结果未确认，已停止。请检查当前正文，不要重复接受。' : '审阅已停止：' + (error.code || error.message));
     } finally {
       pendingAbort?.(); pendingAbort = null;
       await call('cancel', {}).catch(() => {});
+      sessionActive=false;if(reviewLease){await runtime.message({type:'reviewRelease',lease:reviewLease}).catch(()=>{});reviewLease=null}
+      $('#review-scope').disabled=false;
       $('.pending').replaceChildren();reviewLanguageRefresh=null;presentCurrent=null; running = false;setUI($('.launch'),'导入修改建议');
       $('.start').disabled = false;$('.resume').disabled=false;$('.reset').disabled=false; $('.file').disabled = false; $('#pack').disabled = false; $('.stop').hidden = true;showScreen(screen);if(contextLost)lockInvalidContext();
     }
@@ -334,7 +354,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
       if(result.ok)bridgeResults.splice(0,batch.length);
       if(result.disconnected){bridgeEnabled=false;return;}
       if(!result.ok)throw new Error(result.error);
-      if(result.snapshotRequest){
+      if(result.snapshotRequest && document.visibilityState==='visible'){
         const snapshot=await call('snapshot',{});
         if(!snapshot.ok)throw new Error('源码编辑器未就绪');
         if(!bridgeEnabled)return;
@@ -351,6 +371,7 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
         setPackLabel('Agent 建议版本 '+bridgeRevision+'，共 '+(result.pack.count ?? result.pack.suggestions.length)+' 项');
         $('.drawer').hidden=false; floating.layout(); start();
       }
+      if(pendingBridgeStart&&!running&&!starting){pendingBridgeStart=false;start();}
       setUI($('.bridge-status'),'已连接 · 源码按需读取 · 建议版本 '+bridgeRevision);
     }catch(error){setUI($('.bridge-status'),contextLost?ExtensionRuntime.message:'本地连接暂不可用：'+error.message);}
     finally{bridgeBusy=false;if(bridgeEnabled)setTimeout(pollBridge,2000);}
@@ -384,8 +405,8 @@ ${Floating.css}${Diff.css}</style><section class="drawer" hidden><div class="hea
   $('.reset').addEventListener('click',async()=>{
     if(running||starting)return;
     try{if(persistent){const saved=await runtime.message({type:'clearProgress'});if(!saved.ok){status(saved.error);return}}}catch(error){status(error.message);return}
-    sessionActive=false;$('.history-list').replaceChildren();status('已清除当前项目的审阅进度；正文不变，可重新导入审阅');
+    sessionActive=false;sharedSummary=null;shadow.querySelectorAll('.shared-summary').forEach(node=>{node.hidden=true});$('.history-list').replaceChildren();status('已清除当前项目的审阅进度；正文不变，可重新导入审阅');
   });
   $('.start').addEventListener('click', start);
-  $('.stop').addEventListener('click', () => { ++startEpoch; stopReason='user';cancelled = true; pendingAbort?.(); call('cancel', {}).catch(() => {}); status('正在停止；已派发的项需核验实际结果。'); });
+  $('.stop').addEventListener('click', () => { ++startEpoch; stopReason='user';pendingBridgeStart=false;cancelled = true; pendingAbort?.(); call('cancel', {}).catch(() => {}); status('正在停止；已派发的项需核验实际结果。'); });
 }

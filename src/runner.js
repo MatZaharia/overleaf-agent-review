@@ -1,6 +1,6 @@
 'use strict';
 const Counts = require('./reviewCounts');
-function halt(code) { return ['project_changed', 'cancelled', 'write_unconfirmed', 'bridge_failed', 'bridge_timeout', 'tracking_out_of_sync'].includes(code); }
+function halt(code) { return ['project_changed', 'cancelled', 'write_unconfirmed', 'bridge_failed', 'bridge_timeout', 'tracking_out_of_sync', 'review_lease_lost', 'review_file_mismatch'].includes(code); }
 async function run(pack, deps) {
   const results = new Map(), settled = new Set();
   const list = () => [...results.entries()].sort((a,b)=>a[0]-b[0]).map(([,result])=>result);
@@ -46,7 +46,7 @@ async function run(pack, deps) {
     if(retained && ['written','rejected'].includes(retained.state)){save(index,{item,state:'retained',previous:retained.state});await deps.retained?.({item,state:retained.state});if(index%100===0)await new Promise(resolve=>setTimeout(resolve,0));index++;continue}
     let prepared;
     try { prepared = suspended?.index===index?suspended.prepared:await deps.call('prepare', { item, projectId: deps.projectId, presentation:deps.presentation?.({index,total,remaining:total-finished.size,position:Counts.position(index,finished)}) });suspended=null; }
-    catch (_) { throw Object.assign(new Error('连接中断，没有自动重试'), { code: 'bridge_timeout', results:list() }); }
+    catch (error) { if(error.code==='review_lease_lost')throw error;throw Object.assign(new Error('连接中断，没有自动重试'), { code: 'bridge_timeout', results:list() }); }
     deps.assertCurrent();
     if (!prepared.ok) {
       if(prepared.code==='tracking_out_of_sync')throw Object.assign(new Error('定位记录已失效'),{code:prepared.code,file:item.file,results:list()});
@@ -75,11 +75,12 @@ async function run(pack, deps) {
     }
     let applied;
     try { applied = await deps.call('apply', { token: decision.token, projectId: deps.projectId }); }
-    catch (_) { throw Object.assign(new Error('写入状态未确认，检查当前文件；不要重复接受'), { code: 'write_unconfirmed', results:list() }); }
+    catch (error) { if(error.code==='review_lease_lost')throw error;throw Object.assign(new Error('写入状态未确认，检查当前文件；不要重复接受'), { code: 'write_unconfirmed', results:list() }); }
     // A manual file switch can race the acceptance RPC. Nothing was written:
     // wait for another human decision on this item, without prepare/open or
     // recording it as skipped. The previous approval is never replayed.
     if(applied.suspended===true && applied.changedDocument===false){suspended={index,prepared:{...prepared,token:decision.token,inline:false,suspended:true}};continue;}
+    if(applied.code==='review_lease_lost')throw Object.assign(new Error('标签页审阅权限已失效，请重新开始审阅'),{code:applied.code,results:list()});
     if(applied.code==='tracking_out_of_sync')throw Object.assign(new Error('定位记录已失效'),{code:applied.code,file:item.file,results:list()});
     const verified = applied.ok === true && applied.verified === true;
     const code = applied.code || (verified ? '' : 'write_unconfirmed');

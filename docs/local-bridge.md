@@ -39,3 +39,9 @@ Source is captured once only when Agent invokes `read`. The two-second idle chec
 A publish replaces the whole pack and increments its revision. When received, a new revision cancels the old preview and starts review without accepting any edits. Previously accepted document changes remain; use accurate source and account for existing decisions; request source only when needed. Results are reported in batches. Updates take effect when received, rather than atomically at local publish time. Stop review does not disconnect the on-demand read channel; use **断开** to disconnect. Reloading requires pairing again.
 
 Bridge state is in memory and resets on restart; the token remains in the config. Limits: 10,000 suggestions, 64 MiB per pack, 16 MiB per source snapshot. Only the active file is exported, not the whole project. Source is sent to this local process only; using it in Agent may transmit it to your selected model provider.
+
+## Multiple tabs / 多标签页
+
+Use **Current file (multiple tabs)** and a different file in each tab. One full project pack is shared; publishing is still a project-wide replacement. Optional `read` is answered by the selected browser tab; activate the correct tab/file first. Background tabs still review their assigned file and receive decision summaries without exporting source. Stop other reviews before manually replacing a pack or clearing shared progress.
+
+每页选择“当前文件（多标签页）”，分别打开不同文件。建议包按整个项目共享，`publish` 仍替换整包。可选的 `read` 由当前选中的浏览器标签页响应，请先选中正确文件。后台页面保留本文件审阅与数量同步，不主动导出正文。手动更换建议包或清除共享进度前，先停止其他页的审阅。
