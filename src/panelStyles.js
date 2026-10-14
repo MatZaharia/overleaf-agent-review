@@ -4,6 +4,7 @@ const css=`
 :host{font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#273342;--green:#176347;--line:#d9e1e8;--muted:#73808f;--surface:#f5f7f9}
 *{box-sizing:border-box}[hidden]{display:none!important}
 button,input,select,textarea{font:inherit;color:inherit}button{border:1px solid var(--line);border-radius:7px;background:white;padding:7px 11px;cursor:pointer;white-space:nowrap;line-height:1.4}
+.bulk{color:var(--green);border-color:#b8cec4}.bulk-confirm{width:min(420px,calc(100vw - 32px));border:1px solid var(--line);border-radius:10px;padding:22px;color:inherit;box-shadow:0 12px 48px #14253630}.bulk-confirm::backdrop{background:#14253666}.bulk-confirm h2{font-size:16px;margin:0 0 14px}.bulk-summary{margin:0 0 10px;line-height:1.7}.bulk-scope{font:12px/1.6 ui-monospace,monospace;overflow-wrap:anywhere;color:var(--muted)}.dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
 button:hover:not(:disabled){background:#f3f7f5;border-color:#b8cec4}button:disabled{opacity:.4;cursor:default}
 button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible{outline:2px solid #78a997;outline-offset:2px}
 .primary,.launch{background:var(--green);border-color:var(--green);color:white}.primary:hover:not(:disabled),.launch:hover{background:#125439;border-color:#125439}.launch{box-shadow:0 4px 18px #18352925}

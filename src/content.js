@@ -11,6 +11,7 @@ const Scroll = require('./reviewScroll');
 const ExtensionRuntime = require('./extensionRuntime');
 const PageModal = require('./pageModal');
 const PanelStyles = require('./panelStyles');
+const BulkAcceptance = require('./bulkAcceptance');
 if (!document.querySelector('[data-suggestion-importer]')) mount();
 function mount() {
   const host = document.createElement('div'); host.dataset.suggestionImporter = '';
@@ -26,7 +27,7 @@ function mount() {
   <details class="history-details"><summary>最近处理记录</summary><div class="history-list"></div></details><button class="reset text-button">清除进度</button><p class="footer">逐项确认后写入，可在 Overleaf 撤销。</p>
  </div><div class="review-view" hidden><div class="message review-message" role="status" aria-live="polite">等待导入建议包</div><button class="repair" hidden>重新建立定位（保留决定）</button><div class="pending"></div></div></div>
  <button class="resize" aria-label="拖动右下角调整大小；方向键微调" title="拖动右下角调整大小；方向键微调"></button>
-</section><button class="launch">导入修改建议</button>`;
+</section><button class="launch">导入修改建议</button><dialog class="bulk-confirm" aria-labelledby="bulk-title"><h2 id="bulk-title">全部接受剩余建议？</h2><p class="bulk-summary"></p><p class="muted">每项仍会核对最新原文；过时或不唯一的建议会跳过。执行中可以点击停止。</p><div class="dialog-actions"><button class="bulk-cancel" autofocus>取消</button><button class="primary bulk-confirm-accept">确认全部接受</button></div></dialog>`;
   document.body.append(host);
   PageModal.watch({document,window,onChange:blocked=>{host.hidden=blocked}});
   const $ = selector => shadow.querySelector(selector);
@@ -73,10 +74,12 @@ function mount() {
   uiAttributes.set($('.head'),{'aria-label':$('.head').getAttribute('aria-label'),title:$('.head').title});
   const floating=Floating.attach({panel:$('.drawer'),drag:$('.head'),resize:$('.resize'),window,minimum:{width:300,height:220},defaultRect:()=>({left:window.innerWidth-406,top:Math.max(16,window.innerHeight-Math.min(600,window.innerHeight*.85)-60),width:390,height:Math.min(600,window.innerHeight*.85)})});
   floating.layout();
+  const batch=BulkAcceptance.create();
+  let cancelBulkConfirmation=null;
   let screen='setup';
   function showScreen(next){
     const changed=screen!==next;screen=next;$('.drawer').dataset.screen=screen;$('.setup-view').hidden=screen!=='setup';$('.review-view').hidden=screen!=='review';
-    $('.session-toolbar').hidden=screen==='setup'&&!running;$('.back').hidden=screen!=='review';$('.compact').hidden=screen!=='review'||!running;$('.continue').hidden=screen!=='setup'||!running;
+    $('.session-toolbar').hidden=screen==='setup'&&!running;$('.back').hidden=screen!=='review';$('.compact').hidden=screen!=='review'||!running||batch.active;$('.continue').hidden=screen!=='setup'||!running||batch.active;$('.back').hidden=screen!=='review'||batch.active;
     setUI($('.head strong'),screen==='review'?'建议详情':'审阅管理');if(changed)$('.body').scrollTop=0;
     if(presentCurrent&&screen==='setup')presentCurrent('setup').catch(error=>status(error.message));
   }
@@ -120,7 +123,7 @@ function mount() {
     $('#pack').disabled=true;status(ExtensionRuntime.message);setUI($('.bridge-status'),ExtensionRuntime.message);
   }
   function onContextInvalidated(){
-    contextLost=true;++startEpoch;cancelled=true;bridgeEnabled=false;sessionActive=false;
+    cancelBulkConfirmation?.();batch.stop();contextLost=true;++startEpoch;cancelled=true;bridgeEnabled=false;sessionActive=false;
     pendingAbort?.();
     if(initialized)send('cancel',{}).catch(()=>{});
     lockInvalidContext();
@@ -137,7 +140,7 @@ function mount() {
         try{return await statusRequest}finally{statusRequest=null}
       }
       const card = document.createElement('section'); card.className = 'card';card.setAttribute('aria-label','建议详情');
-      card.innerHTML = `<div class="review-content"><div class="suggestion-meta"><strong></strong><p class="shared-summary muted" hidden></p></div><div class="path"></div><div class="comparison-label">修改理由</div><p class="reason"></p><div class="perspective" role="group" aria-label="对比视角"><button class="perspective-button concise">简洁对比</button><button class="perspective-button full">完整上下文</button></div><pre class="source combined"></pre><div class="context" hidden><div class="context-panes"><section class="code-pane"><div class="pane-heading">原文 · 标出删除</div><pre class="source old"></pre></section><section class="code-pane"><div class="pane-heading">修改后 · 标出新增</div><pre class="source new"></pre></section></div></div></div><div class="search-bar"><span class="search-icon" aria-hidden="true">⌕</span><input id="suggestion-search" class="suggestion-search" type="search" placeholder="搜索原文或修改后" aria-label="搜索建议" spellcheck="false"><span class="search-status" role="status" aria-live="polite"></span><button class="search-previous search-navigation" aria-label="上一个搜索项" title="上一个搜索项" disabled>↑</button><button class="search-next search-navigation" aria-label="下一个搜索项" title="下一个搜索项" disabled>↓</button></div><div class="review-footer"><div class="footer-controls"><div class="navigation"><div class="nav-group"><button class="previous">上一项</button><button class="next">下一项</button></div><div class="nav-group cursor-group"><button class="cursor-previous">光标上一处</button><button class="cursor-next">光标下一处</button></div></div><div class="actions"><button class="reject">拒绝</button><button class="primary accept">接受 ↵</button></div></div></div>`;
+      card.innerHTML = `<div class="review-content"><div class="suggestion-meta"><strong></strong><p class="shared-summary muted" hidden></p></div><div class="path"></div><div class="comparison-label">修改理由</div><p class="reason"></p><div class="perspective" role="group" aria-label="对比视角"><button class="perspective-button concise">简洁对比</button><button class="perspective-button full">完整上下文</button></div><pre class="source combined"></pre><div class="context" hidden><div class="context-panes"><section class="code-pane"><div class="pane-heading">原文 · 标出删除</div><pre class="source old"></pre></section><section class="code-pane"><div class="pane-heading">修改后 · 标出新增</div><pre class="source new"></pre></section></div></div></div><div class="search-bar"><span class="search-icon" aria-hidden="true">⌕</span><input id="suggestion-search" class="suggestion-search" type="search" placeholder="搜索原文或修改后" aria-label="搜索建议" spellcheck="false"><span class="search-status" role="status" aria-live="polite"></span><button class="search-previous search-navigation" aria-label="上一个搜索项" title="上一个搜索项" disabled>↑</button><button class="search-next search-navigation" aria-label="下一个搜索项" title="下一个搜索项" disabled>↓</button></div><div class="review-footer"><div class="footer-controls"><div class="navigation"><div class="nav-group"><button class="previous">上一项</button><button class="next">下一项</button></div><div class="nav-group cursor-group"><button class="cursor-previous">光标上一处</button><button class="cursor-next">光标下一处</button></div></div><div class="actions"><button class="bulk">全部接受</button><button class="reject">拒绝</button><button class="primary accept">接受 ↵</button></div></div></div>`;
       $('.pending').replaceChildren(card);
       rememberUI(card);showShared();
       const searchInput=card.querySelector('.suggestion-search'),searchStatus=card.querySelector('.search-status');
@@ -206,7 +209,7 @@ function mount() {
       presentCurrent=present;
       function finish(accepted, skipped, navigate) {
         if (settled) return;
-        settled = true; clearTimeout(timer); clearTimeout(searchTimer); pendingAbort = null;if(presentCurrent===present)presentCurrent=null;if(reviewLanguageRefresh===refresh)reviewLanguageRefresh=null;
+        cancelBulkConfirmation?.();settled = true; clearTimeout(timer); clearTimeout(searchTimer); pendingAbort = null;if(presentCurrent===present)presentCurrent=null;if(reviewLanguageRefresh===refresh)reviewLanguageRefresh=null;
         card.querySelectorAll('button').forEach(button => { button.disabled = true; });
         resolve({ accepted, skipped, token, navigate });
       }
@@ -272,15 +275,35 @@ function mount() {
         try{const response=await check();if(settled||navigating)return;update(response);if(response.ok&&!suspended)finish(true)}
         catch(error){if(!settled)finish(false,error.code||'bridge_failed')}
       }
+      async function acceptRemaining(){
+        if(settled||navigating||cancelBulkConfirmation)return;
+        const indexes=BulkAcceptance.plan(options.total,options.isPending),scope=reviewFile||t('全部文件（单标签页）');
+        setUI($('.bulk-summary'),'将接受 '+indexes.length+' 项剩余建议。');
+        const file=document.createElement('span');file.className='bulk-scope';file.textContent=scope;$('.bulk-summary').append(document.createElement('br'),file);
+        const confirmed=await confirmBulk();
+        if(!confirmed||settled||navigating)return;
+        navigating=true;clearTimeout(timer);card.querySelectorAll('button').forEach(button=>button.disabled=true);let rechecked=displayed;
+        try{
+          assertCurrent();const response=await check();rechecked=response;if(settled)return;update(response);
+          if(!response.ok||response.suspended)return;
+          // Remove the old interactive preview before using this approval.
+          const hidden=await call('presentation',{token,projectId:owner,mode:'setup'});
+          if(settled)return;if(!hidden.ok)throw new Error('无法连接页面');
+          assertCurrent();batch.start(indexes,options.index);$('.drawer').hidden=false;showScreen('review');floating.layout();
+          status('正在全部接受：已处理 0 / '+batch.total+' 项');finish(true);
+        }catch(error){if(!settled)status(error.message)}
+        finally{navigating=false;if(!settled){card.querySelectorAll('button').forEach(button=>button.disabled=false);update(rechecked);renderSearch();timer=setTimeout(poll,300)}}
+      }
+      card.querySelector('.bulk').addEventListener('click',acceptRemaining);
       card.querySelector('.accept').addEventListener('click',accept);
       card.querySelector('.reject').addEventListener('click', () => finish(false,staleCode));
       Keyboard.attach(card,choice=>{if(settled || navigating)return;if(choice==='accept'){if(!staleCode&&!suspended)accept()}else navigate(choice==='previous'?-1:1,false)});
       if(reviewMode==='details')Scroll.panel($('.body'),card);
-      pendingAbort = () => { if (!settled) { settled = true; clearTimeout(timer);clearTimeout(searchTimer);if(presentCurrent===present)presentCurrent=null; reject(Object.assign(new Error('已停止'), { code: 'cancelled' })); } };
+      pendingAbort = () => { if (!settled) { cancelBulkConfirmation?.();settled = true; clearTimeout(timer);clearTimeout(searchTimer);if(presentCurrent===present)presentCurrent=null; reject(Object.assign(new Error('已停止'), { code: 'cancelled' })); } };
       function update(response){
         renderCount();renderSearch();
         suspended=response.suspended===true;locate.hidden=!suspended;
-        card.querySelector('.accept').disabled=suspended||Boolean(!response.ok);
+        card.querySelector('.accept').disabled=suspended||Boolean(!response.ok);card.querySelector('.bulk').disabled=suspended||Boolean(!response.ok);
         $('.compact').disabled=suspended||!displayed.inline||Boolean(staleCode);
         if(suspended){status('已切换文件，当前建议与进度保留。可自由编辑，点击定位当前项或审阅导航继续。');return}
         if(response.refreshed){displayed=response;renderDiff();token=response.token;staleCode=null;card.querySelector('.accept').disabled=false;card.querySelector('.path').textContent=item.file+' · L'+response.line+' · #'+((item.sourceIndex??options.index)+1);status('正文有变化，已重新定位这一项，等待确认')}
@@ -296,7 +319,7 @@ function mount() {
           if(response.suspended){timer=setTimeout(poll,300);return;}
           if (!response.ok) {
             if(['original_missing','already_applied','ambiguous_match','scope_missing','ambiguous_scope','overlapping_change','position_mismatch','no_change','diff_too_complex'].includes(response.code)){
-              staleCode=response.code;card.querySelector('.accept').disabled=true;await present('details');status('当前原文已变化，此项已失效；可继续编辑，点击导航后跳过');timer=setTimeout(poll,300);return;
+              staleCode=response.code;card.querySelector('.accept').disabled=true;card.querySelector('.bulk').disabled=true;await present('details');status('当前原文已变化，此项已失效；可继续编辑，点击导航后跳过');timer=setTimeout(poll,300);return;
             }
             finish(false,response.code);return;
           }
@@ -322,7 +345,8 @@ function mount() {
     const word = result.state === 'written' ? '已写入' : result.state === 'rejected' ? '已拒绝' : result.state === 'unknown' ? '写入未确认' : Core.skipped[result.code] || '已跳过：' + result.code;
     historyMessages.push(result.item.file + ' · 修改 ' + result.item.id + '：' + word);
     if(historyMessages.length>100)historyMessages.shift();renderHistory();
-    if (result.state === 'written') status('当前项已写入编辑器，继续核对下一项');
+    if(batch.active){batch.record();status('正在全部接受：已处理 '+batch.processed+' / '+batch.total+' 项')}
+    else if (result.state === 'written') status('当前项已写入编辑器，继续核对下一项');
   }
   async function parseInput(input){
     if(!persistent)return Core.parsePack(input);
@@ -336,7 +360,7 @@ function mount() {
     if (contextLost || running || starting) return;
     const epoch = ++startEpoch;
     starting = true; $('.start').disabled = true;trackingFile=null;$('.repair').hidden=true;status('正在准备审阅…');
-    let pack, searchIndex, session={decisions:{},ledgers:{}};
+    let pack, searchIndex, batchCompleted=false, session={decisions:{},ledgers:{}};
     try {
       pack = await parseInput(importedPack || $('#pack').value);
       const current = await call('project', {});
@@ -359,25 +383,34 @@ function mount() {
       let itemBuffer=[],bufferStart=-1;
       const itemAt=persistent?async index=>{if(index<bufferStart||index>=bufferStart+itemBuffer.length){const fetched=await runtime.message({type:'items',ref:pack.ref,index});if(!fetched.ok)throw new Error(fetched.error);bufferStart=index;itemBuffer=fetched.items}return itemBuffer[index-bufferStart]}:async index=>pack.suggestions[index];
       searchIndex=SuggestionSearch.create({total:pack.count??pack.suggestions.length,readPage:persistent?async index=>{const fetched=await runtime.message({type:'items',ref:pack.ref,index});if(!fetched.ok)throw new Error(fetched.error);return fetched.items}:async index=>pack.suggestions.slice(index,index+32)});
-      const results = await Runner.run(pack, { projectId: owner, assertCurrent, call, presentation:state=>({mode:reviewMode,...state}), observe:fn=>{reconcileReview=fn;if(fn&&decisionUpdates.length){const updates=decisionUpdates;decisionUpdates=[];fn(updates)}}, review:(item,prepared,options)=>review(item,prepared,options,itemAt,catalogId,searchIndex), record, initialCounts:session.initialCounts, decidedIndexes:session.decidedIndexes, decisionIndexes:session.decisionIndexes, decisions:session.decisions, itemAt, retained:result=>{if(bridgeRevision)bridgeResults.push({revision:bridgeRevision,id:result.item.id,state:result.state,code:'retained_decision'})} });
-      const count = state => results.filter(result => result.state === state).length;
+      const results = await Runner.run(pack, { projectId: owner, assertCurrent, call, presentation:state=>({mode:batch.active?'setup':reviewMode,...state}), observe:fn=>{reconcileReview=fn;if(fn&&decisionUpdates.length){const updates=decisionUpdates;decisionUpdates=[];fn(updates)}}, review:(item,prepared,options)=>{const approval=batch.decision(options.index,prepared);if(approval)return Promise.resolve(approval);showScreen(screen);return review(item,prepared,options,itemAt,catalogId,searchIndex)}, record, initialCounts:session.initialCounts, decidedIndexes:session.decidedIndexes, decisionIndexes:session.decisionIndexes, decisions:session.decisions, itemAt, retained:result=>{if(bridgeRevision)bridgeResults.push({revision:bridgeRevision,id:result.item.id,state:result.state,code:'retained_decision'})} });
+      batchCompleted=batch.active;const count = state => results.filter(result => result.state === state).length;
       $('.drawer').hidden=false;floating.layout();status('审阅结束：写入 ' + count('written') + ' 项，拒绝 ' + count('rejected') + ' 项，跳过 ' + count('skipped') + ' 项，保留先前决定 ' + count('retained') + ' 项。');
     } catch (error) {
       $('.drawer').hidden=false;floating.layout();
       if(error.code==='tracking_out_of_sync'){trackingFile=error.file;$('.repair').hidden=false;status('定位记录与当前正文不一致，审阅已暂停。可重新建立定位，保留接受／拒绝决定。')}
+      else if(error.code==='review_file_mismatch')status('文件已切换，全部接受已停止；剩余建议保留');
       else if(error.code==='review_lease_lost')status('标签页审阅权限已失效，请重新开始审阅');
       else if(error.code==='cancelled')status(stopReason==='update'?'正在载入新版本建议…':'审阅已停止，可重新开始或恢复上次审阅');
       else status(error.code === 'write_unconfirmed' ? '写入结果未确认，已停止。请检查当前正文，不要重复接受。' : '审阅已停止：' + (error.code || error.message));
     } finally {
-      searchIndex?.cancel();pendingAbort?.(); pendingAbort = null;
+      cancelBulkConfirmation?.();batch.stop();searchIndex?.cancel();pendingAbort?.(); pendingAbort = null;
       await call('cancel', {}).catch(() => {});
       sessionActive=false;if(reviewLease){await runtime.message({type:'reviewRelease',lease:reviewLease}).catch(()=>{});reviewLease=null}
       $('#review-scope').disabled=false;
       $('.pending').replaceChildren();reviewLanguageRefresh=null;presentCurrent=null; running = false;setUI($('.launch'),'导入修改建议');
-      $('.start').disabled = false;$('.resume').disabled=false;$('.reset').disabled=false; $('.file').disabled = false; $('#pack').disabled = false; $('.stop').hidden = true;showScreen(stopReason==='user'?'setup':screen);if(contextLost)lockInvalidContext();
+      $('.start').disabled = false;$('.resume').disabled=false;$('.reset').disabled=false; $('.file').disabled = false; $('#pack').disabled = false; $('.stop').hidden = true;showScreen(stopReason==='user'||batchCompleted?'setup':screen);if(contextLost)lockInvalidContext();
     }
   }
 
+  function confirmBulk(){
+    const dialog=$('.bulk-confirm');
+    return new Promise(resolve=>{
+      function finish(value){dialog.close();dialog.removeEventListener('cancel',cancel);$('.bulk-cancel').removeEventListener('click',cancel);$('.bulk-confirm-accept').removeEventListener('click',accept);cancelBulkConfirmation=null;resolve(value)}
+      function cancel(event){event?.preventDefault();finish(false)}function accept(){finish(true)}
+      cancelBulkConfirmation=cancel;dialog.addEventListener('cancel',cancel);$('.bulk-cancel').addEventListener('click',cancel);$('.bulk-confirm-accept').addEventListener('click',accept);dialog.showModal();
+    });
+  }
   const bridgeMessage=message=>runtime.message(message);
   $('.connect').addEventListener('click',async()=>{
     if(!persistent){status('本地连接需要在 Chrome 扩展中使用');return;}
@@ -449,5 +482,5 @@ function mount() {
     sessionActive=false;sharedSummary=null;shadow.querySelectorAll('.shared-summary').forEach(node=>{node.hidden=true});$('.history-list').replaceChildren();status('已清除当前项目的审阅进度；正文不变，可重新导入审阅');
   });
   $('.start').addEventListener('click', start);
-  $('.stop').addEventListener('click', () => { ++startEpoch; stopReason='user';pendingBridgeStart=false;cancelled = true; pendingAbort?.(); call('cancel', {}).catch(() => {}); showScreen('setup');$('.drawer').hidden=false;floating.layout();status('正在停止；已派发的项需核验实际结果。'); });
+  $('.stop').addEventListener('click', () => { cancelBulkConfirmation?.();batch.stop();++startEpoch; stopReason='user';pendingBridgeStart=false;cancelled = true; pendingAbort?.(); call('cancel', {}).catch(() => {}); showScreen('setup');$('.drawer').hidden=false;floating.layout();status('正在停止；已派发的项需核验实际结果。'); });
 }

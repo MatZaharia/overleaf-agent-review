@@ -33,3 +33,10 @@ test('manual import and stop recovery instructions translate in both modes',()=>
 test('compact toolbar and comparison perspectives have English labels',()=>{
  for(const label of ['Agent 连接','未连接','连接','建议包','对比视角','简洁对比','完整上下文','精简 ↙','管理','接受 ↵','逐项确认后写入，可在 Overleaf 撤销。'])assert.doesNotMatch(I18n.translate(label,'en'),/[\u3400-\u9fff]/,label);
 });
+
+test('bulk approval confirmation and progress translate without changing counts',()=>{
+ for(const text of ['全部接受','全部接受剩余建议？','确认全部接受','取消','每项仍会核对最新原文；过时或不唯一的建议会跳过。执行中可以点击停止。'])assert.doesNotMatch(I18n.translate(text,'en'),/[\u3400-\u9fff]/);
+ assert.equal(I18n.translate('将接受 12 项剩余建议。','en'),'Accept 12 remaining suggestions.');
+ assert.equal(I18n.translate('将接受 1 项剩余建议。','en'),'Accept 1 remaining suggestion.');
+ assert.equal(I18n.translate('正在全部接受：已处理 2 / 12 项','en'),'Accepting all: 2 / 12 processed');
+});

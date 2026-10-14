@@ -77,3 +77,8 @@ test('Enter activates the comparison perspective control without accepting the s
  assert.equal(action(event('Enter',{composedPath:()=>[viewButton]})),null);
  assert.equal(action(event('ArrowDown',{composedPath:()=>[viewButton]})),'next');
 });
+
+test('Enter on Accept all opens its confirmation rather than accepting a single item',()=>{
+ const bulk={matches:selector=>selector==='.bulk'};
+ assert.equal(action(event('Enter',{composedPath:()=>[bulk]})),null);
+});

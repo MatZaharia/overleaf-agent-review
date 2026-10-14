@@ -462,6 +462,12 @@
     "src/i18n.js"(exports, module) {
       "use strict";
       var english = {
+        "\u6587\u4EF6\u5DF2\u5207\u6362\uFF0C\u5168\u90E8\u63A5\u53D7\u5DF2\u505C\u6B62\uFF1B\u5269\u4F59\u5EFA\u8BAE\u4FDD\u7559": "The file changed. Bulk acceptance stopped; remaining suggestions are kept.",
+        "\u5168\u90E8\u63A5\u53D7": "Accept all",
+        "\u5168\u90E8\u63A5\u53D7\u5269\u4F59\u5EFA\u8BAE\uFF1F": "Accept all remaining suggestions?",
+        "\u786E\u8BA4\u5168\u90E8\u63A5\u53D7": "Confirm accept all",
+        "\u53D6\u6D88": "Cancel",
+        "\u6BCF\u9879\u4ECD\u4F1A\u6838\u5BF9\u6700\u65B0\u539F\u6587\uFF1B\u8FC7\u65F6\u6216\u4E0D\u552F\u4E00\u7684\u5EFA\u8BAE\u4F1A\u8DF3\u8FC7\u3002\u6267\u884C\u4E2D\u53EF\u4EE5\u70B9\u51FB\u505C\u6B62\u3002": "Each item is checked against the current source; stale or ambiguous suggestions are skipped. You can stop during execution.",
         "Agent \u8FDE\u63A5": "Agent connection",
         "\u672A\u8FDE\u63A5": "Disconnected",
         "\u8FDE\u63A5": "Connect",
@@ -615,6 +621,8 @@
         "\u6BCF\u9879 id \u5FC5\u987B\u552F\u4E00": "Each item id must be unique"
       };
       var templates = [
+        [/^将接受 (\d+) 项剩余建议。$/, (_, count) => `Accept ${count} remaining ${count === "1" ? "suggestion" : "suggestions"}.`],
+        [/^正在全部接受：已处理 (\d+) \/ (\d+) 项$/, (_, done, total) => `Accepting all: ${done} / ${total} processed`],
         [/^搜索结果 (\d+) \/ (\d+)$/, (_, position, total) => `Search matches ${position} / ${total}`],
         [/^项目已确认 (\d+) \/ (\d+)$/, (_, done, total) => `Project decisions ${done} / ${total}`],
         [/^建议 (\d+) \/ (\d+)$/, (_, position, remaining) => `Suggestion ${position} / ${remaining}`],
@@ -719,7 +727,7 @@
       function action(event) {
         if (event.defaultPrevented || event.isComposing || event.repeat || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return null;
         const path = event.composedPath?.() || [event.target];
-        if (event.key === "Enter" && path.some((node) => node?.matches?.(".locate") || node?.matches?.(".search-navigation") || node?.matches?.(".perspective-button"))) return null;
+        if (event.key === "Enter" && path.some((node) => node?.matches?.(".locate") || node?.matches?.(".search-navigation") || node?.matches?.(".perspective-button") || node?.matches?.(".bulk"))) return null;
         if (path.some((node) => node?.matches?.('input,textarea,select,[contenteditable]:not([contenteditable="false"]),.panel-drag,.panel-resize'))) return null;
         return { ArrowUp: "previous", ArrowDown: "next", Enter: "accept" }[event.key] || null;
       }
@@ -898,6 +906,7 @@
 :host{font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#273342;--green:#176347;--line:#d9e1e8;--muted:#73808f;--surface:#f5f7f9}
 *{box-sizing:border-box}[hidden]{display:none!important}
 button,input,select,textarea{font:inherit;color:inherit}button{border:1px solid var(--line);border-radius:7px;background:white;padding:7px 11px;cursor:pointer;white-space:nowrap;line-height:1.4}
+.bulk{color:var(--green);border-color:#b8cec4}.bulk-confirm{width:min(420px,calc(100vw - 32px));border:1px solid var(--line);border-radius:10px;padding:22px;color:inherit;box-shadow:0 12px 48px #14253630}.bulk-confirm::backdrop{background:#14253666}.bulk-confirm h2{font-size:16px;margin:0 0 14px}.bulk-summary{margin:0 0 10px;line-height:1.7}.bulk-scope{font:12px/1.6 ui-monospace,monospace;overflow-wrap:anywhere;color:var(--muted)}.dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
 button:hover:not(:disabled){background:#f3f7f5;border-color:#b8cec4}button:disabled{opacity:.4;cursor:default}
 button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible{outline:2px solid #78a997;outline-offset:2px}
 .primary,.launch{background:var(--green);border-color:var(--green);color:white}.primary:hover:not(:disabled),.launch:hover{background:#125439;border-color:#125439}.launch{box-shadow:0 4px 18px #18352925}
@@ -923,6 +932,60 @@ details.json-import,details.history-details{margin:14px 0}summary{cursor:pointer
     }
   });
 
+  // src/bulkAcceptance.js
+  var require_bulkAcceptance = __commonJS({
+    "src/bulkAcceptance.js"(exports, module) {
+      "use strict";
+      function plan(total, isPending) {
+        const indexes = [];
+        for (let i = 0; i < total; i++) if (isPending(i)) indexes.push(i);
+        return indexes;
+      }
+      function create() {
+        let active = false, approved = /* @__PURE__ */ new Set(), total = 0, processed = 0;
+        return {
+          get active() {
+            return active;
+          },
+          get total() {
+            return total;
+          },
+          get processed() {
+            return processed;
+          },
+          start(indexes, current) {
+            approved = new Set(indexes);
+            approved.delete(current);
+            total = indexes.length;
+            processed = 0;
+            active = true;
+          },
+          stop() {
+            active = false;
+            approved.clear();
+          },
+          record() {
+            if (active) processed++;
+          },
+          decision(index, prepared) {
+            if (!active) return null;
+            if (!approved.has(index)) {
+              this.stop();
+              return null;
+            }
+            if (prepared.suspended) {
+              this.stop();
+              throw Object.assign(new Error("review_file_mismatch"), { code: "review_file_mismatch" });
+            }
+            approved.delete(index);
+            return { accepted: true, token: prepared.token };
+          }
+        };
+      }
+      module.exports = { plan, create };
+    }
+  });
+
   // src/content.js
   var Core = require_suggestions();
   var Runner = require_runner();
@@ -936,6 +999,7 @@ details.json-import,details.history-details{margin:14px 0}summary{cursor:pointer
   var ExtensionRuntime = require_extensionRuntime();
   var PageModal = require_pageModal();
   var PanelStyles = require_panelStyles();
+  var BulkAcceptance = require_bulkAcceptance();
   if (!document.querySelector("[data-suggestion-importer]")) mount();
   function mount() {
     const host = document.createElement("div");
@@ -952,7 +1016,7 @@ details.json-import,details.history-details{margin:14px 0}summary{cursor:pointer
   <details class="history-details"><summary>\u6700\u8FD1\u5904\u7406\u8BB0\u5F55</summary><div class="history-list"></div></details><button class="reset text-button">\u6E05\u9664\u8FDB\u5EA6</button><p class="footer">\u9010\u9879\u786E\u8BA4\u540E\u5199\u5165\uFF0C\u53EF\u5728 Overleaf \u64A4\u9500\u3002</p>
  </div><div class="review-view" hidden><div class="message review-message" role="status" aria-live="polite">\u7B49\u5F85\u5BFC\u5165\u5EFA\u8BAE\u5305</div><button class="repair" hidden>\u91CD\u65B0\u5EFA\u7ACB\u5B9A\u4F4D\uFF08\u4FDD\u7559\u51B3\u5B9A\uFF09</button><div class="pending"></div></div></div>
  <button class="resize" aria-label="\u62D6\u52A8\u53F3\u4E0B\u89D2\u8C03\u6574\u5927\u5C0F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03" title="\u62D6\u52A8\u53F3\u4E0B\u89D2\u8C03\u6574\u5927\u5C0F\uFF1B\u65B9\u5411\u952E\u5FAE\u8C03"></button>
-</section><button class="launch">\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE</button>`;
+</section><button class="launch">\u5BFC\u5165\u4FEE\u6539\u5EFA\u8BAE</button><dialog class="bulk-confirm" aria-labelledby="bulk-title"><h2 id="bulk-title">\u5168\u90E8\u63A5\u53D7\u5269\u4F59\u5EFA\u8BAE\uFF1F</h2><p class="bulk-summary"></p><p class="muted">\u6BCF\u9879\u4ECD\u4F1A\u6838\u5BF9\u6700\u65B0\u539F\u6587\uFF1B\u8FC7\u65F6\u6216\u4E0D\u552F\u4E00\u7684\u5EFA\u8BAE\u4F1A\u8DF3\u8FC7\u3002\u6267\u884C\u4E2D\u53EF\u4EE5\u70B9\u51FB\u505C\u6B62\u3002</p><div class="dialog-actions"><button class="bulk-cancel" autofocus>\u53D6\u6D88</button><button class="primary bulk-confirm-accept">\u786E\u8BA4\u5168\u90E8\u63A5\u53D7</button></div></dialog>`;
     document.body.append(host);
     PageModal.watch({ document, window, onChange: (blocked) => {
       host.hidden = blocked;
@@ -1031,6 +1095,8 @@ details.json-import,details.history-details{margin:14px 0}summary{cursor:pointer
     uiAttributes.set($(".head"), { "aria-label": $(".head").getAttribute("aria-label"), title: $(".head").title });
     const floating = Floating.attach({ panel: $(".drawer"), drag: $(".head"), resize: $(".resize"), window, minimum: { width: 300, height: 220 }, defaultRect: () => ({ left: window.innerWidth - 406, top: Math.max(16, window.innerHeight - Math.min(600, window.innerHeight * 0.85) - 60), width: 390, height: Math.min(600, window.innerHeight * 0.85) }) });
     floating.layout();
+    const batch = BulkAcceptance.create();
+    let cancelBulkConfirmation = null;
     let screen = "setup";
     function showScreen(next) {
       const changed = screen !== next;
@@ -1040,8 +1106,9 @@ details.json-import,details.history-details{margin:14px 0}summary{cursor:pointer
       $(".review-view").hidden = screen !== "review";
       $(".session-toolbar").hidden = screen === "setup" && !running;
       $(".back").hidden = screen !== "review";
-      $(".compact").hidden = screen !== "review" || !running;
-      $(".continue").hidden = screen !== "setup" || !running;
+      $(".compact").hidden = screen !== "review" || !running || batch.active;
+      $(".continue").hidden = screen !== "setup" || !running || batch.active;
+      $(".back").hidden = screen !== "review" || batch.active;
       setUI($(".head strong"), screen === "review" ? "\u5EFA\u8BAE\u8BE6\u60C5" : "\u5BA1\u9605\u7BA1\u7406");
       if (changed) $(".body").scrollTop = 0;
       if (presentCurrent && screen === "setup") presentCurrent("setup").catch((error) => status(error.message));
@@ -1120,6 +1187,8 @@ details.json-import,details.history-details{margin:14px 0}summary{cursor:pointer
       setUI($(".bridge-status"), ExtensionRuntime.message);
     }
     function onContextInvalidated() {
+      cancelBulkConfirmation?.();
+      batch.stop();
       contextLost = true;
       ++startEpoch;
       cancelled = true;
@@ -1162,7 +1231,7 @@ details.json-import,details.history-details{margin:14px 0}summary{cursor:pointer
         const card = document.createElement("section");
         card.className = "card";
         card.setAttribute("aria-label", "\u5EFA\u8BAE\u8BE6\u60C5");
-        card.innerHTML = `<div class="review-content"><div class="suggestion-meta"><strong></strong><p class="shared-summary muted" hidden></p></div><div class="path"></div><div class="comparison-label">\u4FEE\u6539\u7406\u7531</div><p class="reason"></p><div class="perspective" role="group" aria-label="\u5BF9\u6BD4\u89C6\u89D2"><button class="perspective-button concise">\u7B80\u6D01\u5BF9\u6BD4</button><button class="perspective-button full">\u5B8C\u6574\u4E0A\u4E0B\u6587</button></div><pre class="source combined"></pre><div class="context" hidden><div class="context-panes"><section class="code-pane"><div class="pane-heading">\u539F\u6587 \xB7 \u6807\u51FA\u5220\u9664</div><pre class="source old"></pre></section><section class="code-pane"><div class="pane-heading">\u4FEE\u6539\u540E \xB7 \u6807\u51FA\u65B0\u589E</div><pre class="source new"></pre></section></div></div></div><div class="search-bar"><span class="search-icon" aria-hidden="true">\u2315</span><input id="suggestion-search" class="suggestion-search" type="search" placeholder="\u641C\u7D22\u539F\u6587\u6216\u4FEE\u6539\u540E" aria-label="\u641C\u7D22\u5EFA\u8BAE" spellcheck="false"><span class="search-status" role="status" aria-live="polite"></span><button class="search-previous search-navigation" aria-label="\u4E0A\u4E00\u4E2A\u641C\u7D22\u9879" title="\u4E0A\u4E00\u4E2A\u641C\u7D22\u9879" disabled>\u2191</button><button class="search-next search-navigation" aria-label="\u4E0B\u4E00\u4E2A\u641C\u7D22\u9879" title="\u4E0B\u4E00\u4E2A\u641C\u7D22\u9879" disabled>\u2193</button></div><div class="review-footer"><div class="footer-controls"><div class="navigation"><div class="nav-group"><button class="previous">\u4E0A\u4E00\u9879</button><button class="next">\u4E0B\u4E00\u9879</button></div><div class="nav-group cursor-group"><button class="cursor-previous">\u5149\u6807\u4E0A\u4E00\u5904</button><button class="cursor-next">\u5149\u6807\u4E0B\u4E00\u5904</button></div></div><div class="actions"><button class="reject">\u62D2\u7EDD</button><button class="primary accept">\u63A5\u53D7 \u21B5</button></div></div></div>`;
+        card.innerHTML = `<div class="review-content"><div class="suggestion-meta"><strong></strong><p class="shared-summary muted" hidden></p></div><div class="path"></div><div class="comparison-label">\u4FEE\u6539\u7406\u7531</div><p class="reason"></p><div class="perspective" role="group" aria-label="\u5BF9\u6BD4\u89C6\u89D2"><button class="perspective-button concise">\u7B80\u6D01\u5BF9\u6BD4</button><button class="perspective-button full">\u5B8C\u6574\u4E0A\u4E0B\u6587</button></div><pre class="source combined"></pre><div class="context" hidden><div class="context-panes"><section class="code-pane"><div class="pane-heading">\u539F\u6587 \xB7 \u6807\u51FA\u5220\u9664</div><pre class="source old"></pre></section><section class="code-pane"><div class="pane-heading">\u4FEE\u6539\u540E \xB7 \u6807\u51FA\u65B0\u589E</div><pre class="source new"></pre></section></div></div></div><div class="search-bar"><span class="search-icon" aria-hidden="true">\u2315</span><input id="suggestion-search" class="suggestion-search" type="search" placeholder="\u641C\u7D22\u539F\u6587\u6216\u4FEE\u6539\u540E" aria-label="\u641C\u7D22\u5EFA\u8BAE" spellcheck="false"><span class="search-status" role="status" aria-live="polite"></span><button class="search-previous search-navigation" aria-label="\u4E0A\u4E00\u4E2A\u641C\u7D22\u9879" title="\u4E0A\u4E00\u4E2A\u641C\u7D22\u9879" disabled>\u2191</button><button class="search-next search-navigation" aria-label="\u4E0B\u4E00\u4E2A\u641C\u7D22\u9879" title="\u4E0B\u4E00\u4E2A\u641C\u7D22\u9879" disabled>\u2193</button></div><div class="review-footer"><div class="footer-controls"><div class="navigation"><div class="nav-group"><button class="previous">\u4E0A\u4E00\u9879</button><button class="next">\u4E0B\u4E00\u9879</button></div><div class="nav-group cursor-group"><button class="cursor-previous">\u5149\u6807\u4E0A\u4E00\u5904</button><button class="cursor-next">\u5149\u6807\u4E0B\u4E00\u5904</button></div></div><div class="actions"><button class="bulk">\u5168\u90E8\u63A5\u53D7</button><button class="reject">\u62D2\u7EDD</button><button class="primary accept">\u63A5\u53D7 \u21B5</button></div></div></div>`;
         $(".pending").replaceChildren(card);
         rememberUI(card);
         showShared();
@@ -1318,6 +1387,7 @@ details.json-import,details.history-details{margin:14px 0}summary{cursor:pointer
         presentCurrent = present;
         function finish(accepted, skipped, navigate2) {
           if (settled) return;
+          cancelBulkConfirmation?.();
           settled = true;
           clearTimeout(timer);
           clearTimeout(searchTimer);
@@ -1428,6 +1498,50 @@ details.json-import,details.history-details{margin:14px 0}summary{cursor:pointer
             if (!settled) finish(false, error.code || "bridge_failed");
           }
         }
+        async function acceptRemaining() {
+          if (settled || navigating || cancelBulkConfirmation) return;
+          const indexes = BulkAcceptance.plan(options.total, options.isPending), scope = reviewFile || t("\u5168\u90E8\u6587\u4EF6\uFF08\u5355\u6807\u7B7E\u9875\uFF09");
+          setUI($(".bulk-summary"), "\u5C06\u63A5\u53D7 " + indexes.length + " \u9879\u5269\u4F59\u5EFA\u8BAE\u3002");
+          const file = document.createElement("span");
+          file.className = "bulk-scope";
+          file.textContent = scope;
+          $(".bulk-summary").append(document.createElement("br"), file);
+          const confirmed = await confirmBulk();
+          if (!confirmed || settled || navigating) return;
+          navigating = true;
+          clearTimeout(timer);
+          card.querySelectorAll("button").forEach((button) => button.disabled = true);
+          let rechecked = displayed;
+          try {
+            assertCurrent();
+            const response = await check();
+            rechecked = response;
+            if (settled) return;
+            update(response);
+            if (!response.ok || response.suspended) return;
+            const hidden = await call("presentation", { token, projectId: owner, mode: "setup" });
+            if (settled) return;
+            if (!hidden.ok) throw new Error("\u65E0\u6CD5\u8FDE\u63A5\u9875\u9762");
+            assertCurrent();
+            batch.start(indexes, options.index);
+            $(".drawer").hidden = false;
+            showScreen("review");
+            floating.layout();
+            status("\u6B63\u5728\u5168\u90E8\u63A5\u53D7\uFF1A\u5DF2\u5904\u7406 0 / " + batch.total + " \u9879");
+            finish(true);
+          } catch (error) {
+            if (!settled) status(error.message);
+          } finally {
+            navigating = false;
+            if (!settled) {
+              card.querySelectorAll("button").forEach((button) => button.disabled = false);
+              update(rechecked);
+              renderSearch();
+              timer = setTimeout(poll, 300);
+            }
+          }
+        }
+        card.querySelector(".bulk").addEventListener("click", acceptRemaining);
         card.querySelector(".accept").addEventListener("click", accept);
         card.querySelector(".reject").addEventListener("click", () => finish(false, staleCode));
         Keyboard.attach(card, (choice) => {
@@ -1439,6 +1553,7 @@ details.json-import,details.history-details{margin:14px 0}summary{cursor:pointer
         if (reviewMode === "details") Scroll.panel($(".body"), card);
         pendingAbort = () => {
           if (!settled) {
+            cancelBulkConfirmation?.();
             settled = true;
             clearTimeout(timer);
             clearTimeout(searchTimer);
@@ -1452,6 +1567,7 @@ details.json-import,details.history-details{margin:14px 0}summary{cursor:pointer
           suspended = response.suspended === true;
           locate.hidden = !suspended;
           card.querySelector(".accept").disabled = suspended || Boolean(!response.ok);
+          card.querySelector(".bulk").disabled = suspended || Boolean(!response.ok);
           $(".compact").disabled = suspended || !displayed.inline || Boolean(staleCode);
           if (suspended) {
             status("\u5DF2\u5207\u6362\u6587\u4EF6\uFF0C\u5F53\u524D\u5EFA\u8BAE\u4E0E\u8FDB\u5EA6\u4FDD\u7559\u3002\u53EF\u81EA\u7531\u7F16\u8F91\uFF0C\u70B9\u51FB\u5B9A\u4F4D\u5F53\u524D\u9879\u6216\u5BA1\u9605\u5BFC\u822A\u7EE7\u7EED\u3002");
@@ -1482,6 +1598,7 @@ details.json-import,details.history-details{margin:14px 0}summary{cursor:pointer
               if (["original_missing", "already_applied", "ambiguous_match", "scope_missing", "ambiguous_scope", "overlapping_change", "position_mismatch", "no_change", "diff_too_complex"].includes(response.code)) {
                 staleCode = response.code;
                 card.querySelector(".accept").disabled = true;
+                card.querySelector(".bulk").disabled = true;
                 await present("details");
                 status("\u5F53\u524D\u539F\u6587\u5DF2\u53D8\u5316\uFF0C\u6B64\u9879\u5DF2\u5931\u6548\uFF1B\u53EF\u7EE7\u7EED\u7F16\u8F91\uFF0C\u70B9\u51FB\u5BFC\u822A\u540E\u8DF3\u8FC7");
                 timer = setTimeout(poll, 300);
@@ -1536,7 +1653,10 @@ details.json-import,details.history-details{margin:14px 0}summary{cursor:pointer
       historyMessages.push(result.item.file + " \xB7 \u4FEE\u6539 " + result.item.id + "\uFF1A" + word);
       if (historyMessages.length > 100) historyMessages.shift();
       renderHistory();
-      if (result.state === "written") status("\u5F53\u524D\u9879\u5DF2\u5199\u5165\u7F16\u8F91\u5668\uFF0C\u7EE7\u7EED\u6838\u5BF9\u4E0B\u4E00\u9879");
+      if (batch.active) {
+        batch.record();
+        status("\u6B63\u5728\u5168\u90E8\u63A5\u53D7\uFF1A\u5DF2\u5904\u7406 " + batch.processed + " / " + batch.total + " \u9879");
+      } else if (result.state === "written") status("\u5F53\u524D\u9879\u5DF2\u5199\u5165\u7F16\u8F91\u5668\uFF0C\u7EE7\u7EED\u6838\u5BF9\u4E0B\u4E00\u9879");
     }
     async function parseInput(input) {
       if (!persistent) return Core.parsePack(input);
@@ -1561,7 +1681,7 @@ details.json-import,details.history-details{margin:14px 0}summary{cursor:pointer
       trackingFile = null;
       $(".repair").hidden = true;
       status("\u6B63\u5728\u51C6\u5907\u5BA1\u9605\u2026");
-      let pack, searchIndex, session = { decisions: {}, ledgers: {} };
+      let pack, searchIndex, batchCompleted = false, session = { decisions: {}, ledgers: {} };
       try {
         pack = await parseInput(importedPack || $("#pack").value);
         const current = await call("project", {});
@@ -1632,16 +1752,22 @@ details.json-import,details.history-details{margin:14px 0}summary{cursor:pointer
           if (!fetched.ok) throw new Error(fetched.error);
           return fetched.items;
         } : async (index) => pack.suggestions.slice(index, index + 32) });
-        const results = await Runner.run(pack, { projectId: owner, assertCurrent, call, presentation: (state) => ({ mode: reviewMode, ...state }), observe: (fn) => {
+        const results = await Runner.run(pack, { projectId: owner, assertCurrent, call, presentation: (state) => ({ mode: batch.active ? "setup" : reviewMode, ...state }), observe: (fn) => {
           reconcileReview = fn;
           if (fn && decisionUpdates.length) {
             const updates = decisionUpdates;
             decisionUpdates = [];
             fn(updates);
           }
-        }, review: (item, prepared, options) => review(item, prepared, options, itemAt, catalogId, searchIndex), record, initialCounts: session.initialCounts, decidedIndexes: session.decidedIndexes, decisionIndexes: session.decisionIndexes, decisions: session.decisions, itemAt, retained: (result) => {
+        }, review: (item, prepared, options) => {
+          const approval = batch.decision(options.index, prepared);
+          if (approval) return Promise.resolve(approval);
+          showScreen(screen);
+          return review(item, prepared, options, itemAt, catalogId, searchIndex);
+        }, record, initialCounts: session.initialCounts, decidedIndexes: session.decidedIndexes, decisionIndexes: session.decisionIndexes, decisions: session.decisions, itemAt, retained: (result) => {
           if (bridgeRevision) bridgeResults.push({ revision: bridgeRevision, id: result.item.id, state: result.state, code: "retained_decision" });
         } });
+        batchCompleted = batch.active;
         const count = (state) => results.filter((result) => result.state === state).length;
         $(".drawer").hidden = false;
         floating.layout();
@@ -1653,10 +1779,13 @@ details.json-import,details.history-details{margin:14px 0}summary{cursor:pointer
           trackingFile = error.file;
           $(".repair").hidden = false;
           status("\u5B9A\u4F4D\u8BB0\u5F55\u4E0E\u5F53\u524D\u6B63\u6587\u4E0D\u4E00\u81F4\uFF0C\u5BA1\u9605\u5DF2\u6682\u505C\u3002\u53EF\u91CD\u65B0\u5EFA\u7ACB\u5B9A\u4F4D\uFF0C\u4FDD\u7559\u63A5\u53D7\uFF0F\u62D2\u7EDD\u51B3\u5B9A\u3002");
-        } else if (error.code === "review_lease_lost") status("\u6807\u7B7E\u9875\u5BA1\u9605\u6743\u9650\u5DF2\u5931\u6548\uFF0C\u8BF7\u91CD\u65B0\u5F00\u59CB\u5BA1\u9605");
+        } else if (error.code === "review_file_mismatch") status("\u6587\u4EF6\u5DF2\u5207\u6362\uFF0C\u5168\u90E8\u63A5\u53D7\u5DF2\u505C\u6B62\uFF1B\u5269\u4F59\u5EFA\u8BAE\u4FDD\u7559");
+        else if (error.code === "review_lease_lost") status("\u6807\u7B7E\u9875\u5BA1\u9605\u6743\u9650\u5DF2\u5931\u6548\uFF0C\u8BF7\u91CD\u65B0\u5F00\u59CB\u5BA1\u9605");
         else if (error.code === "cancelled") status(stopReason === "update" ? "\u6B63\u5728\u8F7D\u5165\u65B0\u7248\u672C\u5EFA\u8BAE\u2026" : "\u5BA1\u9605\u5DF2\u505C\u6B62\uFF0C\u53EF\u91CD\u65B0\u5F00\u59CB\u6216\u6062\u590D\u4E0A\u6B21\u5BA1\u9605");
         else status(error.code === "write_unconfirmed" ? "\u5199\u5165\u7ED3\u679C\u672A\u786E\u8BA4\uFF0C\u5DF2\u505C\u6B62\u3002\u8BF7\u68C0\u67E5\u5F53\u524D\u6B63\u6587\uFF0C\u4E0D\u8981\u91CD\u590D\u63A5\u53D7\u3002" : "\u5BA1\u9605\u5DF2\u505C\u6B62\uFF1A" + (error.code || error.message));
       } finally {
+        cancelBulkConfirmation?.();
+        batch.stop();
         searchIndex?.cancel();
         pendingAbort?.();
         pendingAbort = null;
@@ -1680,9 +1809,34 @@ details.json-import,details.history-details{margin:14px 0}summary{cursor:pointer
         $(".file").disabled = false;
         $("#pack").disabled = false;
         $(".stop").hidden = true;
-        showScreen(stopReason === "user" ? "setup" : screen);
+        showScreen(stopReason === "user" || batchCompleted ? "setup" : screen);
         if (contextLost) lockInvalidContext();
       }
+    }
+    function confirmBulk() {
+      const dialog = $(".bulk-confirm");
+      return new Promise((resolve) => {
+        function finish(value) {
+          dialog.close();
+          dialog.removeEventListener("cancel", cancel);
+          $(".bulk-cancel").removeEventListener("click", cancel);
+          $(".bulk-confirm-accept").removeEventListener("click", accept);
+          cancelBulkConfirmation = null;
+          resolve(value);
+        }
+        function cancel(event) {
+          event?.preventDefault();
+          finish(false);
+        }
+        function accept() {
+          finish(true);
+        }
+        cancelBulkConfirmation = cancel;
+        dialog.addEventListener("cancel", cancel);
+        $(".bulk-cancel").addEventListener("click", cancel);
+        $(".bulk-confirm-accept").addEventListener("click", accept);
+        dialog.showModal();
+      });
     }
     const bridgeMessage = (message) => runtime.message(message);
     $(".connect").addEventListener("click", async () => {
@@ -1717,10 +1871,10 @@ details.json-import,details.history-details{margin:14px 0}summary{cursor:pointer
       if (!bridgeEnabled || bridgeBusy) return;
       bridgeBusy = true;
       try {
-        const batch = bridgeResults.slice(0, 500);
-        const result = await bridgeMessage({ type: "sync", revision: bridgeRevision, results: batch });
+        const batch2 = bridgeResults.slice(0, 500);
+        const result = await bridgeMessage({ type: "sync", revision: bridgeRevision, results: batch2 });
         if (!bridgeEnabled) return;
-        if (result.ok) bridgeResults.splice(0, batch.length);
+        if (result.ok) bridgeResults.splice(0, batch2.length);
         if (result.disconnected) {
           bridgeEnabled = false;
           $(".connect").hidden = false;
@@ -1860,6 +2014,8 @@ details.json-import,details.history-details{margin:14px 0}summary{cursor:pointer
     });
     $(".start").addEventListener("click", start);
     $(".stop").addEventListener("click", () => {
+      cancelBulkConfirmation?.();
+      batch.stop();
       ++startEpoch;
       stopReason = "user";
       pendingBridgeStart = false;

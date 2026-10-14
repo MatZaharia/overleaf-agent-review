@@ -2262,6 +2262,12 @@
     "src/i18n.js"(exports, module) {
       "use strict";
       var english = {
+        "\u6587\u4EF6\u5DF2\u5207\u6362\uFF0C\u5168\u90E8\u63A5\u53D7\u5DF2\u505C\u6B62\uFF1B\u5269\u4F59\u5EFA\u8BAE\u4FDD\u7559": "The file changed. Bulk acceptance stopped; remaining suggestions are kept.",
+        "\u5168\u90E8\u63A5\u53D7": "Accept all",
+        "\u5168\u90E8\u63A5\u53D7\u5269\u4F59\u5EFA\u8BAE\uFF1F": "Accept all remaining suggestions?",
+        "\u786E\u8BA4\u5168\u90E8\u63A5\u53D7": "Confirm accept all",
+        "\u53D6\u6D88": "Cancel",
+        "\u6BCF\u9879\u4ECD\u4F1A\u6838\u5BF9\u6700\u65B0\u539F\u6587\uFF1B\u8FC7\u65F6\u6216\u4E0D\u552F\u4E00\u7684\u5EFA\u8BAE\u4F1A\u8DF3\u8FC7\u3002\u6267\u884C\u4E2D\u53EF\u4EE5\u70B9\u51FB\u505C\u6B62\u3002": "Each item is checked against the current source; stale or ambiguous suggestions are skipped. You can stop during execution.",
         "Agent \u8FDE\u63A5": "Agent connection",
         "\u672A\u8FDE\u63A5": "Disconnected",
         "\u8FDE\u63A5": "Connect",
@@ -2415,6 +2421,8 @@
         "\u6BCF\u9879 id \u5FC5\u987B\u552F\u4E00": "Each item id must be unique"
       };
       var templates = [
+        [/^将接受 (\d+) 项剩余建议。$/, (_, count) => `Accept ${count} remaining ${count === "1" ? "suggestion" : "suggestions"}.`],
+        [/^正在全部接受：已处理 (\d+) \/ (\d+) 项$/, (_, done, total) => `Accepting all: ${done} / ${total} processed`],
         [/^搜索结果 (\d+) \/ (\d+)$/, (_, position, total) => `Search matches ${position} / ${total}`],
         [/^项目已确认 (\d+) \/ (\d+)$/, (_, done, total) => `Project decisions ${done} / ${total}`],
         [/^建议 (\d+) \/ (\d+)$/, (_, position, remaining) => `Suggestion ${position} / ${remaining}`],
@@ -4620,7 +4628,7 @@
       function action(event) {
         if (event.defaultPrevented || event.isComposing || event.repeat || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return null;
         const path = event.composedPath?.() || [event.target];
-        if (event.key === "Enter" && path.some((node) => node?.matches?.(".locate") || node?.matches?.(".search-navigation") || node?.matches?.(".perspective-button"))) return null;
+        if (event.key === "Enter" && path.some((node) => node?.matches?.(".locate") || node?.matches?.(".search-navigation") || node?.matches?.(".perspective-button") || node?.matches?.(".bulk"))) return null;
         if (path.some((node) => node?.matches?.('input,textarea,select,[contenteditable]:not([contenteditable="false"]),.panel-drag,.panel-resize'))) return null;
         return { ArrowUp: "previous", ArrowDown: "next", Enter: "accept" }[event.key] || null;
       }

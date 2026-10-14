@@ -2,7 +2,7 @@
 function action(event){
  if(event.defaultPrevented || event.isComposing || event.repeat || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey)return null;
  const path=event.composedPath?.() || [event.target];
- if(event.key==='Enter'&&path.some(node=>node?.matches?.('.locate')||node?.matches?.('.search-navigation')||node?.matches?.('.perspective-button')))return null;
+ if(event.key==='Enter'&&path.some(node=>node?.matches?.('.locate')||node?.matches?.('.search-navigation')||node?.matches?.('.perspective-button')||node?.matches?.('.bulk')))return null;
  if(path.some(node=>node?.matches?.('input,textarea,select,[contenteditable]:not([contenteditable="false"]),.panel-drag,.panel-resize')))return null;
  return {ArrowUp:'previous',ArrowDown:'next',Enter:'accept'}[event.key] || null;
 }

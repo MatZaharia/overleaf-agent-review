@@ -1,6 +1,8 @@
 'use strict';
 // UI text only. Manuscript source, replacements and Agent reasons are never passed here.
 const english = {
+ '文件已切换，全部接受已停止；剩余建议保留':'The file changed. Bulk acceptance stopped; remaining suggestions are kept.',
+ '全部接受':'Accept all','全部接受剩余建议？':'Accept all remaining suggestions?','确认全部接受':'Confirm accept all','取消':'Cancel','每项仍会核对最新原文；过时或不唯一的建议会跳过。执行中可以点击停止。':'Each item is checked against the current source; stale or ambiguous suggestions are skipped. You can stop during execution.',
  'Agent 连接':'Agent connection','未连接':'Disconnected','连接':'Connect','建议包':'Suggestion pack','对比视角':'Comparison view','简洁对比':'Compact diff','完整上下文':'Full context','精简 ↙':'Compact ↙','管理':'Setup','接受 ↵':'Accept ↵','逐项确认后写入，可在 Overleaf 撤销。':'Changes are written after your confirmation. Undo in Overleaf.',
  '用 JSON 导入':'Import with JSON','粘贴建议包，或选择 JSON 文件；导入后点击开始审阅。':'Paste a suggestion pack or choose a JSON file, then click Start review.','审阅已停止，可重新开始或恢复上次审阅':'Review stopped. Start again or resume your saved review',
  '搜索建议':'Search suggestions','搜索原文或修改后':'Search original or replacement','上一个搜索项':'Previous match','下一个搜索项':'Next match','正在搜索建议…':'Searching suggestions…','没有匹配的待处理建议':'No matching pending suggestions','搜索失败，请重新输入':'Search failed; edit the query to retry',
@@ -49,6 +51,8 @@ const english = {
  '文件路径必须是项目内的相对路径':'File paths must be relative to the project','只支持项目内的文本文件':'Only project text files are supported','每项必须包含非空 original 和字符串 replacement':'Each item needs a nonempty original and a string replacement','单项修改过长':'Suggestion text is too long','上下文必须是文本且不超过 10000 字符':'Context must be text with at most 10,000 characters','scope 必须包含 start，可选 end，均为原文标记':'scope requires start and an optional end, both exact source markers','需要 codex-overleaf-suggestions v1 建议包，含 1–10000 项':'Use a codex-overleaf-suggestions v1 pack with 1–10,000 items','projectId 必须是 Overleaf 项目 ID':'projectId must be an Overleaf project ID','每项 id 必须唯一':'Each item id must be unique'
 };
 const templates=[
+ [/^将接受 (\d+) 项剩余建议。$/,(_,count)=>`Accept ${count} remaining ${count==='1'?'suggestion':'suggestions'}.`],
+ [/^正在全部接受：已处理 (\d+) \/ (\d+) 项$/,(_,done,total)=>`Accepting all: ${done} / ${total} processed`],
  [/^搜索结果 (\d+) \/ (\d+)$/,(_,position,total)=>`Search matches ${position} / ${total}`],
  [/^项目已确认 (\d+) \/ (\d+)$/,(_,done,total)=>`Project decisions ${done} / ${total}`],
  [/^建议 (\d+) \/ (\d+)$/,(_,position,remaining)=>`Suggestion ${position} / ${remaining}`],
